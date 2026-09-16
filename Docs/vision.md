@@ -112,6 +112,6 @@ Those two workspaces are the design pair. See [design-benchmarks.md](./design-be
 
 **Ideate** is the working product name.
 
-Research OS was the inception label. It is too narrow (this is not only for researchers) and collides with [REM Labs' Research OS](https://remlabs.ai/research-os). The GitHub repo may stay `ResearchOS` for now; the app is Ideate.
+Research OS was the inception label. It is too narrow (this is not only for researchers) and collides with [REM Labs' Research OS](https://remlabs.ai/research-os). The GitHub repo is [`rrekapalli/Ideate`](https://github.com/rrekapalli/Ideate).
 
 Other names can still be considered later. For product copy, UI chrome, and docs, use **Ideate**.

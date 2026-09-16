@@ -18,7 +18,7 @@ Ideas — not documents — are the primary unit of computation. Concepts, hypot
 
 The product name is **Ideate**. The deeper category is an **operating system for thinking**: useful to a researcher developing a theory, a student learning physics, an inventor iterating a design, or a professional exploring a decision.
 
-The GitHub repository is still `ResearchOS`. That was the working title, not the app name. See [Docs/vision.md](./Docs/vision.md#naming).
+The GitHub repository is [`rrekapalli/Ideate`](https://github.com/rrekapalli/Ideate). Research OS was the working title, not the app name. See [Docs/vision.md](./Docs/vision.md#naming).
 
 ## Intended stack (provisional)
 
