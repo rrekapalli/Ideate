@@ -16,7 +16,7 @@ The missing object is the person's evolving understanding: what they currently b
 | [Notion](https://www.notion.so/) | Documents, databases, AI, collaboration | Workspace/document-centric, not epistemic |
 | AI tutors / knowledge-tracing systems | Personalized learning along a curriculum | Usually exercise-centric, not open-ended idea evolution |
 | [Constructor Hypothesis](https://constructor.tech/products/hypothesis) | Paper/claim/method/contradiction graph; grounded hypotheses and test plans | Strong literature graph; not a long-lived personal understanding OS for students and speculative thought |
-| [REM Labs Research OS](https://remlabs.ai/research-os) | Persistent literature memory, contradiction detection, hypothesis evolution across overnight "dream" cycles | Corpus/memory-centric; name collision; not the same "Git for a human's understanding" workspace |
+| [REM Labs Research OS](https://remlabs.ai/research-os) | Persistent literature memory, contradiction detection, hypothesis evolution across overnight "dream" cycles | Corpus/memory-centric; different product. Our app name is **Ideate**. |
 | [EviGraph](https://arxiv.org/html/2608.04738v1) (2026 research) | Typed Problem–Gap–Hypothesis–Experiment–Finding–Claim graph as agent state | Autonomous research-agent framework, not a multi-persona learning/idea SaaS |
 
 Four familiar starting points:
@@ -51,20 +51,18 @@ This product: **here is what I am trying to understand; help me develop my under
 
 The opportunity is at the intersection.
 
-## Name collision: REM Labs Research OS
+## Adjacent name: REM Labs Research OS
 
-[REM Labs Research OS](https://remlabs.ai/research-os) already uses this product name. It is a persistent research brain for papers: synthesis, citation graphs, contradiction flags, and hypothesis evolution across overnight consolidation cycles.
+[REM Labs Research OS](https://remlabs.ai/research-os) is a persistent research brain for papers: synthesis, citation graphs, contradiction flags, and hypothesis evolution across overnight consolidation cycles.
 
-It is closer than NotebookLM or Obsidian on "hypothesis evolution" and "contradiction." It is still a different center of gravity:
+It is closer than NotebookLM or Obsidian on "hypothesis evolution" and "contradiction." It is still a different center of gravity. Our product name is **Ideate**, which also avoids this collision.
 
-| REM Labs Research OS | This Research OS |
+| REM Labs Research OS | Ideate |
 | --- | --- |
 | Starts from a corpus of papers | Starts from a human thought or question |
 | Overnight dream-cycle consolidation | Live workspace where a person thinks |
 | Memory/API product for knowledge workers | Angular SaaS for evolving understanding, including students |
 | Hypothesis evolution as audit of what the agent concluded | Git-like versioning of the user's own ideas, including failures and misconceptions |
-
-Keep the working name for now. Treat renaming as an open product question, not a legal conclusion.
 
 ## Academic signal (2026)
 

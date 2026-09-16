@@ -14,9 +14,9 @@ The mistake would be to build "software for researchers."
 
 Research tools optimize literature capture. Note tools optimize document capture. Tutors optimize curriculum completion. Chat assistants optimize the next answer.
 
-Research OS optimizes **knowledge evolution**.
+Ideate optimizes **knowledge evolution**.
 
-| Most tools start from | Research OS starts from |
+| Most tools start from | Ideate starts from |
 | --- | --- |
 | Here are my documents. Help me understand them. | Here is what I am trying to understand. Help me develop that understanding over time. |
 | Here is the literature. Help me discover papers. | Here is a thought. Help it become a concept, a hypothesis, evidence, and maybe a theory. |
@@ -25,7 +25,7 @@ Research OS optimizes **knowledge evolution**.
 
 ## Git for thinking
 
-Research OS is to scientific thinking what Git is to software development.
+Ideate is to thinking what Git is to software development.
 
 Git does not tell programmers what code to write. It provides an environment in which code can evolve: create, branch, experiment, compare, revise, merge, abandon, resurrect, version.
 
@@ -37,6 +37,7 @@ That applies equally to:
 - a scientist developing a theory
 - an inventor iterating a design
 - a professional reconstructing why a decision was rejected
+- a consulting team keeping the reasoning behind a recommendation ([use-cases/consulting.md](./use-cases/consulting.md))
 
 ## Ideas as the unit of computation
 
@@ -50,7 +51,7 @@ Paragraphs
 Text
 ```
 
-Research OS stores:
+Ideate stores:
 
 ```text
 Thought → Concept → Hypothesis → Evidence / Experiment
@@ -62,7 +63,7 @@ Every one of these is a first-class object. AI reasons over the graph instead of
 
 ## What makes it different
 
-Most existing tools optimize knowledge **capture**. Research OS optimizes knowledge **evolution**.
+Most existing tools optimize knowledge **capture**. Ideate optimizes knowledge **evolution**.
 
 Defining characteristics:
 
@@ -103,16 +104,14 @@ It enters as a **Thought**, accumulates concepts and assumptions, branches into 
 
 The dead end remains valuable because it records how understanding evolved.
 
-That is the design benchmark. See [design-benchmark.md](./design-benchmark.md).
+A product concept such as "Can a card-sized battery projector throw a useful slide onto a wall?" is the same kind of seed: constraints, calculations, a BOM, and a concept sheet that must not be treated as measured fact.
+
+Those two workspaces are the design pair. See [design-benchmarks.md](./design-benchmarks.md).
 
 ## Naming
 
-**Research OS** is an excellent internal and initial product name. It may be too narrow as the ultimate category.
+**Ideate** is the working product name.
 
-Candidate broader names, to be decided later:
+Research OS was the inception label. It is too narrow (this is not only for researchers) and collides with [REM Labs' Research OS](https://remlabs.ai/research-os). The GitHub repo may stay `ResearchOS` for now; the app is Ideate.
 
-- Idea OS
-- Knowledge Evolution Platform
-- An operating system for thinking
-
-There is also a market name collision with REM Labs' [Research OS](https://remlabs.ai/research-os). See [market-landscape.md](./market-landscape.md) and [open-questions.md](./open-questions.md).
+Other names can still be considered later. For product copy, UI chrome, and docs, use **Ideate**.

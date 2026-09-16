@@ -2,26 +2,31 @@
 
 Provisional shape only. No implementation at inception.
 
-The intended first client is an **Angular web SaaS**. Mobile and desktop can wait. The graph engine is the product; the UI is how a human walks it.
+The intended first client is an **Angular 22 PWA** (desktop/laptop and tablet in the browser; installable). The backend is a **Java 25** service. Phone authoring can wait. The graph engine is the product; the UI is how a human walks it. Not Flutter.
 
 ## System sketch
 
 ```text
                  ┌──────────────────────────┐
-                 │        Research UI       │
-                 │ Angular web (later       │
-                 │ mobile / desktop)        │
+                 │        Ideate UI         │
+                 │ Angular 22 PWA + ngDiagram│
+                 │ Java 25 graph / agents   │
+                 │ (zoomable object cards)  │
                  └─────────────┬────────────┘
                                │
                      Natural Language Layer
+                               │
+                     Agent Orchestrator
                                │
          ┌─────────────────────┼─────────────────────┐
          │                     │                     │
  Literature Agent      Reasoning Agent      Critique Agent
          │                     │                     │
-         └─────────────── Agent Orchestrator ───────┘
-                               │
-                     Research Graph Engine
+         └───────────────┬─────┴─────────────────────┘
+                         │
+              Model adapter (OpenAI / xAI / Ollama / LM Studio / …)
+                         │
+                     Graph Engine
                                │
       ┌───────────────┬───────────────┬───────────────┐
       │               │               │               │
@@ -33,7 +38,7 @@ The intended first client is an **Angular web SaaS**. Mobile and desktop can wai
                                │
                   Vector Index + Graph Database
                                │
-       PostgreSQL + Apache AGE (or Neo4j) + pgvector
+       PostgreSQL + Apache AGE + pgvector
                                │
                   Object Store + Literature Archive
 ```
@@ -45,9 +50,16 @@ The workspace is an environment for an idea, not a ticket board.
 - Show evolution, not only the latest answer.
 - Keep the original thought immutable and visible.
 - Count concepts, hypotheses, and open questions as living inventory.
-- Let the user stay in Explore Mode without filling forms.
-- Promotion (Thought → Concept → Hypothesis) is an explicit human act, with AI suggestions.
-- Graph, timeline, and review are first-class views.
+- Persist the full conversation. Materialize as many objects as possible as it proceeds. User and AI may edit the graph at the same time.
+- The AI **aggressively generates** objects from conversation and artifacts. The user can override: edit, change type, merge, undo, or **delete** junk nodes and mis-directed replies.
+- Graph, timeline, and review are first-class views in an **IDE-like shell**: **collapsible drawers** left and right (each with a **fixed header and footer**, scrolling body), center graph + object/document tabs, header **Search** (top right), collapsible bottom tools. See [workspace-ui.md](./workspace-ui.md).
+- Global Search (header) finds objects and permitted documents. It is not a left-nav item.
+- A graph card shows a **short** summary; click opens a **full page** with the complete persisted AI body.
+- Every card is a versioned graph **node**. Relationships are **edges**, not cards. See [object-model.md](./object-model.md).
+- The workspace graph is rendered with [ngDiagram](https://www.ngdiagram.dev/) and must be zoomable. See [technology-stack.md](./technology-stack.md).
+- AI insight cards are graph events (contradiction, new link, challenged belief).
+- Personas weight language and default rails; they do not fork the UI into separate apps.
+- Confidence belongs to an object, never to the account or the whole workspace.
 
 Later surfaces:
 
@@ -56,13 +68,21 @@ Later surfaces:
 - Review mode (publication / exam / decision review)
 - Learner traversal of the same graph at different depths
 
+Shell concept: [workspace-ui.md](./workspace-ui.md). Persona lenses: [personas.md](./personas.md).
+
 ## Agent set
 
-Different agents specialize. The orchestrator reasons over objects, not chat logs.
+**Real specialist agents**, coordinated by an orchestrator. Not one model wearing mode labels.
+
+User **modes** (Explore, Challenge, Review, …) are how the human wants to work right now. They steer which agents the orchestrator calls. They do not collapse the agent set into a single prompt.
+
+The orchestrator reasons over objects, not chat logs.
+
+LLMs are **swappable backends** behind a model adapter. The user selects a provider (account default, optional workspace override): cloud APIs **or local** (Ollama, LM Studio, OpenAI-compatible URL). Agents issue the same tool calls regardless of vendor. The orchestrator **routes by job class** (`SIMPLE` / `NORMAL` / `DEEP` / `BATCH`) and sends a **project-state projection**, not the whole workspace. Every call is ledgered per workspace. See [java-backend-ai.md](./java-backend-ai.md) and [technology-stack.md](./technology-stack.md#llm-providers-swappable-backends).
 
 | Agent | Job |
 | --- | --- |
-| Literature | Read papers into claims, methods, datasets, limitations |
+| Literature | Find and attach sources to nodes; extract claims; evolve the graph. Not a citation manager |
 | Reasoning | Connect objects, propose relationships, update confidence |
 | Critique | Find flaws, unsupported claims, overconfidence |
 | Statistician | Check significance and experimental design |
@@ -78,6 +98,8 @@ Example collaborator utterances the architecture should make natural:
 - Your experiment assumes stationarity, but newer literature contradicts that assumption.
 - You independently rediscovered an algorithm published in 2018.
 - Your current self-maintaining spacecraft concept is structurally similar to H-004, which you abandoned because you assumed active robotic maintenance was too complex.
+- Why did you originally choose the Pi Zero? Architecture v0.8 assumed onboard Wi-Fi and a familiar Linux board; brightness and thermal evidence later forced v0.9.
+- Your new wearable display reuses thermal and optical constraints from the abandoned Prism Projector workspace.
 
 ## Graph engine responsibilities
 
@@ -89,6 +111,7 @@ Example collaborator utterances the architecture should make natural:
 - Provenance walks
 - Novelty comparison against literature (later)
 - Learner-state overlay on the same graph
+- Cross-workspace reuse of abandoned objects (`reused-in`)
 
 ## Storage hypothesis
 
@@ -97,7 +120,7 @@ Hybrid store, to be validated:
 | Concern | Candidate |
 | --- | --- |
 | Relational facts, tenants, users | PostgreSQL |
-| Graph traversal | Apache AGE or Neo4j |
+| Graph traversal | Apache AGE |
 | Semantic retrieval | pgvector |
 | PDFs, figures, raw artifacts | Object store |
 | Literature corpus | Tenant-scoped archive |
@@ -110,11 +133,12 @@ Do not implement this until the object model is stable enough to persist.
 Evidence (0.95) --supports--> Hypothesis
   If that evidence is the only support, hypothesis confidence updates.
 
-Paper retracted
-  → affected claims, hypotheses, decisions, and learner understandings update.
+Paper retracted / measurement corrected / belief changed
+  → affected subgraph updates
+  → notify the user with the full list of objects being changed
 ```
 
-This is a graph update, not a chat reminder.
+Do not surprise the user with a silent rewrite. The notification *is* the intimacy: every relevant card listed, jumpable.
 
 ## Contradiction engine
 
@@ -154,8 +178,10 @@ Similar to Paper (2021)
 Difference: new optimization layer
 ```
 
-## Why Angular
+## Why Angular 22 PWA and Java 25
 
-This will be a long-lived, graph-heavy SaaS workspace: object inspectors, evolution timelines, relationship views, and mode-switching. Angular is the intended web client so the product can grow as a structured application rather than a chat page with notes beside it.
+This will be a long-lived, graph-heavy SaaS workspace: drawers, object tabs, evolution timelines, and mode-switching. **Angular 22 as a PWA** is the web client so the product can grow as a structured, installable application rather than a chat page — and rather than Flutter, which we would only reconsider for a later phone **reader**. **Java 25** is the backend: graph engine, multi-agent orchestrator, and LLM provider adapters (cloud keys and local base URLs stay on the server).
 
-No app scaffold in this repository yet.
+The center editor is an [ngDiagram](https://www.ngdiagram.dev/) canvas: custom Angular components per object type (compact cards), typed edges, pan and zoom. Click opens a full object tab. The idea-graph store stays behind a model adapter; the library is a view.
+
+No app scaffold in this repository yet. Stack detail: [technology-stack.md](./technology-stack.md).

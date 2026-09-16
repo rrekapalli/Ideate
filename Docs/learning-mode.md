@@ -1,6 +1,8 @@
 # Learning mode
 
-Research OS is not only for researchers. It should serve as a **learning agent** on any topic: a place for a student to explore and enhance understanding, not consume a chapter.
+Ideate is not only for researchers. It should serve as a **learning agent** on any topic: a place for a student to explore and enhance understanding, not consume a chapter.
+
+Student is a **persona** on a workspace, chosen from the required dropdown when that **project** is created. The account has no persona and no default workspace. A learning project and an invention project are two workspaces. See [personas.md](./personas.md).
 
 A 15-year-old learning physics and a scientist developing a theory are doing different things. The underlying process is similar.
 
@@ -12,7 +14,7 @@ Today's educational AI mostly behaves like:
 Question → Answer
 ```
 
-Research OS should behave like:
+Ideate should behave like:
 
 ```text
 Question → Exploration → Understanding → Challenge → Discovery
@@ -35,7 +37,7 @@ A traditional educational system:
 Chapter 1 → Chapter 2 → Chapter 3 → Exam
 ```
 
-Research OS:
+Ideate:
 
 ```text
                          PHYSICS
@@ -142,13 +144,60 @@ The student is doing research without being told they are doing research.
 
 This is the same epistemic honesty as research mode. Students need it more, not less.
 
+## Clone and overlay (both in v1)
+
+v1 includes **both**. They are different operations.
+
+| | Clone | Overlay |
+| --- | --- | --- |
+| What it is | New workspace from a snapshot | A **branch** on a living workspace |
+| Stays attached? | No. Later template edits do not flow in | Yes. Mainstream changes notify (listed objects) |
+| Privacy | Whole copy is a private project | Overlay branch is private; mainstream is the shared/canonical graph |
+| When | I want my own project that can diverge | I want my layer on the same living graph |
+
+**How to specify mainstream vs overlay:** a branch has a required **`branch_role`**, chosen from a dropdown at branch creation. Nothing is pre-selected (same rule as persona).
+
+```text
+Create branch
+  → Name
+  → Role  [ Mainstream | Overlay ]   ← required, no default
+  → If Overlay: parent = this workspace's Mainstream
+```
+
+Rules:
+
+- A workspace has **exactly one Mainstream** branch. Created with the workspace (the project’s canonical graph).
+- Any number of **Overlay** branches. Each must point at that Mainstream.
+- Cards live on a branch. Overlay cards may `overlay-on` a Mainstream card id (my misconception on Concept C-010).
+- Overlay never writes Mainstream unless the user **explicitly promotes / merges**.
+- Clone copies the Mainstream (and optionally the cloner’s own overlays) into a new workspace, which gets its own new Mainstream.
+
+```text
+Workspace: Orbits
+  Branch main          branch_role: mainstream
+  Branch you           branch_role: overlay   (private)
+  Branch priya         branch_role: overlay   (private)
+```
+
+Single-thinker (v1) still uses overlay: your official projector architecture is Mainstream; a wild thermal idea is an Overlay branch you can delete or later merge.
+
+| Persona | Overlay on Mainstream |
+| --- | --- |
+| Student | Misconceptions and unknowns on the class/template graph |
+| Researcher | Personal hypotheses on a shared or personal theory graph |
+| Inventor | Design variants on the architecture you treat as official |
+| Analyst | Private framing on the evidence you treat as official |
+| Explorer | Speculation beside the published thought experiment |
+
+Use **clone** when the copy should become its own project. Use **overlay** when you stay on one project and need a private or experimental layer.
+
 ## Same OS, different modes
 
-| Role | Loop |
-| --- | --- |
-| Student | Topic → Learn → Question → Explore → Understand |
-| Explorer | Thought → Hypothesis → Research → Critique → Theory |
-| Scientist | Theory → Evidence → Experiment → Result → Revision |
-| Inventor | Idea → Design → Prototype → Failure → Iteration |
+| Role | Loop | Design example (not shipped) |
+| --- | --- | --- |
+| Student | Topic → Learn → Question → Explore → Understand | How do satellites stay in space? / What is throw ratio? |
+| Explorer | Thought → Hypothesis → Research → Critique → Theory | Stationary Satellite Relays |
+| Researcher | Hypothesis / theory → Evidence → Experiment → Result → Revision | Satellite lifetime under assumptions |
+| Inventor | Idea → Design → Prototype → Failure → Iteration | [Prism-Based Projector](./design-benchmark-prism-projector.md) |
 
 Same operating system. Different entry modes.

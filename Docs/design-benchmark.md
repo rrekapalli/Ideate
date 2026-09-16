@@ -1,8 +1,8 @@
 # Design benchmark: Stationary Satellite Relays
 
-This thought experiment is the first workspace the product should be able to hold.
+This thought experiment is a **design reference**, not a shipped sample. The product starts empty. The Inventor / hardware twin is [Prism-Based Projector Feasibility](./design-benchmark-prism-projector.md). Together they are the pair in [design-benchmarks.md](./design-benchmarks.md).
 
-It is not a conventional research project. It starts as speculation and can become a structured theory, an engineering problem, and maybe a research program. If Research OS cannot represent this without flattening it into notes or a chatbot summary, the product is not itself yet.
+It is not a conventional research project. It starts as speculation and can become a structured theory, an engineering problem, and maybe a research program. If Ideate cannot represent this without flattening it into notes or a chatbot summary, the product is not itself yet.
 
 ## Workspace
 
@@ -168,7 +168,7 @@ Architecture sketch:
               ○ = aperture
 ```
 
-Research OS should ask: **what problem is this concept actually solving?**
+Ideate should ask: **what problem is this concept actually solving?**
 
 ```text
 Spherical Node
@@ -222,7 +222,7 @@ The thought experiment becomes a living research program.
 
 ## Failed ideas stay valuable
 
-Normal knowledge systems encourage deleting old drafts. Research OS should encourage:
+Normal knowledge systems encourage deleting old drafts. Ideate should encourage:
 
 ```text
 Idea → Hypothesis → Experiment → Failure → Revision → New hypothesis
@@ -240,4 +240,4 @@ It is:
 
 The graph is the data structure. AI is the reasoning layer. Versioning is the historical layer. Evidence is the epistemic layer. The workspace is the environment in which an idea evolves.
 
-Use this workspace as the design benchmark for Research OS until a better one appears.
+Use this workspace as the design benchmark for Ideate until a better one appears.
