@@ -20,12 +20,19 @@ import { cardBox } from '../cards/card-layout';
 import { DiagramCanvasBridge } from '../cards/diagram-canvas-bridge';
 import { DiagramEdgeComponent } from './diagram-edge.component';
 import { DiagramObjectNodeComponent } from './diagram-object-node.component';
-import { layoutGraph } from './graph-layout';
+import {
+  type GraphLayoutMode,
+  graphLayoutLabel,
+  layoutGraph,
+  nextGraphLayout,
+  parseGraphLayout,
+} from './graph-layout';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 const FIT_PADDING = 56;
 const CM_PX = 38;
+const LAYOUT_STORE = 'ideate.graphLayout.v2';
 
 @Component({
   selector: 'ideate-graph-canvas',
@@ -60,7 +67,13 @@ const CM_PX = 38;
           (input)="onZoomSlide($event)"
         />
         <span class="zoom-label">{{ atFit() ? 'Fit' : zoomPercent() + '%' }}</span>
-        <mt-button variant="text" size="sm" label="Layout" ariaLabel="Arrange cards by relationships" (clicked)="relayout()" />
+        <mt-button
+          variant="text"
+          size="sm"
+          [label]="layoutLabel()"
+          [ariaLabel]="'Change graph layout, current ' + layoutLabel() + '. Next ' + nextLayoutLabel()"
+          (clicked)="cycleLayout()"
+        />
         <mt-button variant="text" size="sm" label="Fit" ariaLabel="Fit graph" (clicked)="fit()" />
       </div>
     </div>
@@ -154,6 +167,7 @@ const CM_PX = 38;
       font-size: 0.75rem;
       font-variant-numeric: tabular-nums;
     }
+    .zoom-bar mt-button { min-width: 3.2rem; }
   `,
 })
 export class GraphCanvasComponent implements OnDestroy {
@@ -199,6 +213,7 @@ export class GraphCanvasComponent implements OnDestroy {
   };
   readonly zoomPercent = signal(100);
   readonly atFit = signal(true);
+  readonly layoutMode = signal<GraphLayoutMode>(parseGraphLayout(localStorage.getItem(LAYOUT_STORE)));
 
   constructor() {
     this.bridge.open$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.open.emit(o));
@@ -246,7 +261,18 @@ export class GraphCanvasComponent implements OnDestroy {
     void this.setScaleKeepingCenter(pct / 100);
   }
 
-  relayout(): void {
+  layoutLabel(): string {
+    return graphLayoutLabel(this.layoutMode());
+  }
+
+  nextLayoutLabel(): string {
+    return graphLayoutLabel(nextGraphLayout(this.layoutMode()));
+  }
+
+  cycleLayout(): void {
+    const next = nextGraphLayout(this.layoutMode());
+    this.layoutMode.set(next);
+    localStorage.setItem(LAYOUT_STORE, next);
     this.syncedKey = '';
     void this.sync(this.snapshot()).then(() => this.fitToContent());
   }
@@ -302,7 +328,7 @@ export class GraphCanvasComponent implements OnDestroy {
 
   private async sync(snap: GraphSnapshot) {
     const visible = snap.nodes;
-    const key = visible.map((n) => n.id + n.updatedAt).join(',') + '|' + snap.edges.map((e) => e.id).join(',');
+    const key = this.layoutMode() + '|' + visible.map((n) => n.id + n.updatedAt).join(',') + '|' + snap.edges.map((e) => e.id).join(',');
     if (key === this.syncedKey) {
       return;
     }
@@ -321,8 +347,9 @@ export class GraphCanvasComponent implements OnDestroy {
     );
     if (visible.length) {
       const placed = layoutGraph(
-        visible.map((n) => ({ id: n.id, ...cardBox(n) })),
+        visible.map((n) => ({ id: n.id, type: n.type, ...cardBox(n) })),
         visibleEdges.map((e) => ({ from: e.fromObjectId, to: e.toObjectId })),
+        this.layoutMode(),
       );
       const pos = new Map(placed.map((p) => [p.id, p]));
       await this.models.addNodes(visible.map((n) => {
