@@ -341,12 +341,22 @@ $right-drawer-width: 320px;
   flex-direction: row-reverse;
 }
 
-.bubble p {
-  margin: 0;
+.bubble ideate-md {
   font-size: var(--mt-fs);
-  line-height: 1.4;
-  white-space: pre-wrap;
+  line-height: 1.45;
 }
+
+.bubble .md p { margin: 0 0 0.45em; }
+.bubble .md p:last-child { margin-bottom: 0; }
+.bubble .md ul,
+.bubble .md ol {
+  margin: 0.25em 0 0.5em;
+  padding-left: 1.2em;
+  list-style: disc;
+}
+.bubble .md ol { list-style: decimal; }
+.bubble .md strong { font-weight: 650; }
+.bubble .md em { font-style: italic; }
 
 .bubble--you {
   align-self: flex-end;
@@ -372,7 +382,7 @@ $right-drawer-width: 320px;
   text-align: center;
 }
 
-.bubble--sys p {
+.bubble--sys ideate-md {
   font-size: var(--mt-fs-sm);
   color: var(--mt-text-muted);
 }
@@ -388,6 +398,27 @@ $right-drawer-width: 320px;
   cursor: pointer;
   padding: 0.15rem 0;
   text-align: left;
+}
+
+.from-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: var(--mt-fs-xs);
+  color: var(--mt-text-muted);
+  background: color-mix(in srgb, var(--mt-primary, #10b981) 10%, var(--mt-surface-card));
+  border: 1px solid color-mix(in srgb, var(--mt-primary, #10b981) 28%, var(--mt-surface-border));
+  padding: 0.2rem 0.4rem;
+}
+
+.from-chip button {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .composer textarea,

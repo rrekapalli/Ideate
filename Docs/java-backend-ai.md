@@ -229,7 +229,7 @@ Account default + optional workspace override. Capability matrix in Settings (to
 
 **Ollama is the default `SIMPLE` (and optional embed) path** when a reachable local URL is configured. Frontier stays on a cloud API unless the operator points `DEEP` at a large local model (slow, still valid).
 
-Hosted Ideate cannot see `http://localhost:11434` on the user’s PC. Local Postgres + local Ollama + local Java is the **dev / self-host** topology. SaaS needs a URL the cluster can route to, or platform keys.
+Hosted Ideate cannot see `http://localhost:11434` on the user’s PC. Dev and lab run against **Proxmox Postgres** (`pg18.tailce422e.ts.net`) plus a Java process (workstation or LXC 7201). Ollama is a URL that process can reach. SaaS needs a URL the cluster can route to, or platform keys.
 
 Never bake the product around one model. Tomorrow’s cheaper mid-tier replaces Terra in the **price table + router**, not in the object model.
 
@@ -410,7 +410,7 @@ GET /v1/workspaces/{id}/usage
 
 Also: cost per new Concept / Hypothesis / Evidence link (value created), not only ₹ per turn.
 
-**Local Postgres** (dev): same schema. `pgvector` columns on object summaries / chunks. AGE graph in the same database. No extra “AI database.”
+**Postgres** (Proxmox `pg18`, database `ideate`): same schema. `pgvector` columns on object summaries / chunks. AGE graph in the same database. No extra “AI database.”
 
 ## Credits and plans
 

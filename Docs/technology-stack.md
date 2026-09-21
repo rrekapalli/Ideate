@@ -126,7 +126,7 @@ A ChatGPT **plugin** is a later companion that writes into this API. It is not t
 | Backend | **Java 25** service (orchestrator, graph API, provider adapters) | Chosen |
 | UI | **Angular 22 PWA** (web; desktop/tablet) | Chosen |
 | Research graph engine | Identity, versioning, confidence, provenance | Open |
-| Persistence | PostgreSQL + Apache AGE + pgvector | Chosen |
+| Persistence | PostgreSQL 18 on Proxmox (`pg18`) + Apache AGE + pgvector | Chosen |
 | Hosting | Cloud SaaS. PWA is installable, **not** offline-first | Chosen |
 | Files | Attachments on cards + workspace **Documents** tree (SharePoint-class links, ACL) | Open |
 

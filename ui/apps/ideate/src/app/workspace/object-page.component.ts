@@ -1,11 +1,12 @@
 import { Component, input, output } from '@angular/core';
 import { IdeaObject, TranscriptMessage } from '@ideate/api-client';
 import { ObjectCardChromeComponent } from '../cards/object-card-chrome.component';
+import { MdViewComponent } from '../shared/md-view.component';
 import { MtButtonComponent } from '@ideate/ui';
 
 @Component({
   selector: 'ideate-object-page',
-  imports: [ObjectCardChromeComponent, MtButtonComponent],
+  imports: [ObjectCardChromeComponent, MtButtonComponent, MdViewComponent],
   template: `
     <div class="page">
       <ideate-object-card-chrome
@@ -19,14 +20,16 @@ import { MtButtonComponent } from '@ideate/ui';
       <article class="body">
         <h2>{{ object().title }}</h2>
         <p class="meta">{{ object().displayId }} · {{ object().type }} · v{{ object().version }} · {{ object().objectCategory }}</p>
-        <div class="essay">{{ object().body || object().summary || 'No body yet.' }}</div>
+        <div class="essay"><ideate-md [source]="object().body || object().summary || 'No body yet.'" /></div>
         <section class="refs">
           <h3>References</h3>
           @if (userMessage(); as u) {
-            <p><strong>You</strong> {{ u.createdAt }} — {{ u.content }}</p>
+            <p><strong>You</strong> {{ u.createdAt }}</p>
+            <ideate-md [source]="u.content" />
           }
           @if (assistantMessage(); as a) {
-            <p><strong>Ideate</strong> {{ a.createdAt }} — {{ a.content }}</p>
+            <p><strong>Ideate</strong> {{ a.createdAt }}</p>
+            <ideate-md [source]="a.content" />
           }
           @if (!object().sourceUserMessageId) {
             <p class="muted">Manual edit — no chat pair on this version.</p>
@@ -41,7 +44,7 @@ import { MtButtonComponent } from '@ideate/ui';
     .page { display: grid; grid-template-columns: minmax(236px, 360px) 1fr; gap: 1rem; padding: 1rem; height: 100%; overflow: auto; align-items: start; }
     .body { overflow: auto; }
     .meta, .prov, .muted { color: var(--mt-text-muted); font-size: 0.85rem; }
-    .essay { white-space: pre-wrap; line-height: 1.45; }
+    .essay { line-height: 1.45; }
   `,
 })
 export class ObjectPageComponent {

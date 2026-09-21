@@ -2,12 +2,13 @@ import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IdeaObject, OBJECT_TYPES } from '@ideate/api-client';
 import { MtButtonComponent, MtTagComponent } from '@ideate/ui';
+import { MdViewComponent } from '../shared/md-view.component';
 import { cardBox } from './card-layout';
 import { DiagramCanvasBridge } from './diagram-canvas-bridge';
 
 @Component({
   selector: 'ideate-object-card-chrome',
-  imports: [FormsModule, MtButtonComponent, MtTagComponent],
+  imports: [FormsModule, MtButtonComponent, MtTagComponent, MdViewComponent],
   template: `
     <article
       class="card"
@@ -15,7 +16,9 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       [attr.data-category]="object().objectCategory"
       [attr.data-type]="object().type"
       [style.width.px]="box().width"
-      title="Double-click to open the full page"
+      title="Double-tap or double-click to open the full page"
+      (pointerup)="onCardPointerUp($event)"
+      (click)="onCardActivate($event)"
       (dblclick)="emitOpen()"
     >
       <header (click)="$event.stopPropagation()">
@@ -30,23 +33,23 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
         <mt-button size="sm" variant="text" [label]="'⋯'" (clicked)="emitMenu()" />
       </header>
       <h3>{{ object().title }}</h3>
-      <p class="summary">{{ object().summary || 'No summary yet.' }}</p>
-      @if (hasBody()) {
-        <button type="button" class="acc" (click)="$event.stopPropagation(); toggle()">
-          {{ expanded() ? 'Hide reply' : 'Show reply' }}
-        </button>
-        @if (expanded()) {
-          <div class="body">{{ object().body }}</div>
-        }
-      }
+      <div class="summary"><ideate-md [source]="object().summary || 'No summary yet.'" /></div>
       <footer>
-        @for (tag of object().tags; track tag) {
-          <mt-tag [value]="tag" />
-        }
-        @if (object().sourceUserMessageId) {
-          <button type="button" class="chatref" (click)="$event.stopPropagation(); emitChat()">💬</button>
+        <button type="button" class="chatref" (click)="$event.stopPropagation(); emitChat()" aria-label="Chat">💬</button>
+        <span class="tags">
+          @for (tag of object().tags; track tag) {
+            <mt-tag [value]="tag" />
+          }
+        </span>
+        @if (hasBody()) {
+          <button type="button" class="acc" (click)="$event.stopPropagation(); toggle()">
+            {{ expanded() ? 'Hide reply' : 'Show reply' }}
+          </button>
         }
       </footer>
+      @if (hasBody() && expanded()) {
+        <div class="body"><ideate-md [source]="object().body" /></div>
+      }
     </article>
   `,
   styles: `
@@ -59,6 +62,7 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       padding: 0.5rem 0.55rem 0.45rem;
       cursor: pointer;
       color: var(--mt-text);
+      touch-action: manipulation;
     }
     .card[data-category='abandoned'] { border-left-color: #9ca3af; opacity: 0.85; }
     .card[data-category='misconception'] { border-left-color: #f59e0b; }
@@ -76,7 +80,7 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     h3 { margin: 0.35rem 0 0.2rem; font-size: 0.95rem; line-height: 1.25; }
     .summary { margin: 0; font-size: 0.8rem; color: var(--mt-text-muted); line-height: 1.35; }
     .acc {
-      margin-top: 0.4rem;
+      margin: 0 0 0 auto;
       padding: 0;
       border: 0;
       background: none;
@@ -85,18 +89,32 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       font-size: 0.75rem;
       font-weight: 650;
       cursor: pointer;
+      white-space: nowrap;
     }
     .body {
       margin-top: 0.35rem;
       max-height: 16rem;
       overflow: auto;
-      white-space: pre-wrap;
       font-size: 0.78rem;
       line-height: 1.4;
       color: var(--mt-text);
     }
-    footer { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.4rem; align-items: center; }
-    .chatref { background: none; border: 0; cursor: pointer; }
+    footer {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.45rem;
+      align-items: center;
+    }
+    .chatref {
+      flex: 0 0 auto;
+      padding: 0;
+      border: 0;
+      background: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+    .tags { display: flex; gap: 0.25rem; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; }
     .ver { font-size: 0.7rem; color: var(--mt-text-muted); }
   `,
 })
@@ -123,7 +141,35 @@ export class ObjectCardChromeComponent {
     this.expanded.update((v) => !v);
   }
 
+  onCardPointerUp(ev: PointerEvent) {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) {
+      return;
+    }
+    if (this.isChromeControl(ev.target)) {
+      return;
+    }
+    this.countedAt = performance.now();
+    this.noteTap(ev.clientX, ev.clientY);
+  }
+
+  onCardActivate(ev: Event) {
+    if (this.isChromeControl(ev.target)) {
+      return;
+    }
+    if (performance.now() - this.countedAt < 80) {
+      return;
+    }
+    const point = ev instanceof MouseEvent ? ev : null;
+    this.noteTap(point?.clientX ?? this.lastTapX, point?.clientY ?? this.lastTapY);
+  }
+
   emitOpen() {
+    const now = performance.now();
+    if (now - this.openedAt < 400) {
+      return;
+    }
+    this.openedAt = now;
+    this.lastTapAt = 0;
     this.open.emit(this.object());
     this.bridge?.open$.next(this.object());
   }
@@ -146,5 +192,29 @@ export class ObjectCardChromeComponent {
   emitChat() {
     this.openChat.emit(this.object());
     this.bridge?.openChat$.next(this.object());
+  }
+
+  private lastTapAt = 0;
+  private lastTapX = 0;
+  private lastTapY = 0;
+  private countedAt = 0;
+  private openedAt = 0;
+
+  private isChromeControl(target: EventTarget | null): boolean {
+    return target instanceof Element && !!target.closest('button, select, a, input, textarea, label');
+  }
+
+  private noteTap(x: number, y: number): boolean {
+    const now = performance.now();
+    const dt = now - this.lastTapAt;
+    const dist = Math.hypot(x - this.lastTapX, y - this.lastTapY);
+    this.lastTapAt = now;
+    this.lastTapX = x;
+    this.lastTapY = y;
+    if (dt > 0 && dt < 450 && dist < 32) {
+      this.emitOpen();
+      return true;
+    }
+    return false;
   }
 }

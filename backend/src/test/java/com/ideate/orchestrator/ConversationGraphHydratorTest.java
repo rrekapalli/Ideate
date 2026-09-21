@@ -66,11 +66,46 @@ class ConversationGraphHydratorTest {
     }
 
     @Test
-    void extraQuestionCardsWhenUserAsksSeveralQuestions() {
-        String user = "Why does ice float? Isn't a solid heavier than a liquid? What is density?";
-        var plan = hydrator.plan(user, "Ice is less dense than liquid water.", List.of(obj("a", "T-001", "thought")));
-        assertTrue(plan.extras().size() >= 2);
-        assertTrue(plan.extras().stream().allMatch(e -> "question".equals(e.type())));
+    void buildsAThinkingGraphInsteadOfAQuestionPile() {
+        String user = "Why does ice float? I thought solids were heavier than liquids. Is density the same as weight?";
+        var plan = hydrator.plan(user, "Ice is less dense than liquid water because the crystal opens up.",
+                List.of(obj("a", "T-001", "thought")));
+        assertTrue(plan.extras().stream().anyMatch(e -> "hypothesis".equals(e.type())));
+        assertTrue(plan.extras().stream().anyMatch(e -> "misconception".equals(e.type()) || "concept".equals(e.type())));
+        assertTrue(plan.extras().stream().anyMatch(e -> "experiment".equals(e.type())));
+        long questions = plan.extras().stream().filter(e -> "question".equals(e.type())).count();
+        assertTrue(questions <= 2);
+    }
+
+    @Test
+    void laterTurnDoesNotCloneTheTreeAndAttachesToTheFocusCard() {
+        IdeaObject hypothesis = titled("h1", "H-001", "hypothesis", "Ice is less dense than liquid water");
+        String user = "Why do lakes freeze from the top instead of the bottom?";
+        var plan = hydrator.plan(user, "Ice stays on top because it is less dense than the water below.",
+                List.of(), List.of(hypothesis), List.of("H-001"));
+        assertTrue(plan.extras().stream().anyMatch(e -> "question".equals(e.type())
+                && e.title().toLowerCase().contains("lakes")));
+        assertTrue(plan.extras().stream().noneMatch(e -> "experiment".equals(e.type())));
+        assertTrue(plan.extras().stream().noneMatch(e -> "hypothesis".equals(e.type())));
+        IdeaObject minted = titled("n1", "Q-002", "question", "Why do lakes freeze from the top instead of the bottom?");
+        var edges = hydrator.attachToAnchor(List.of(minted), List.of(hypothesis), List.of("H-001"), user);
+        assertTrue(edges.stream().anyMatch(e -> "led-to".equals(e.type())
+                && "H-001".equals(e.fromDisplayId()) && "Q-002".equals(e.toDisplayId())));
+    }
+
+    @Test
+    void chatWithoutFocusStillPicksARelevantExistingCard() {
+        IdeaObject question = titled("q1", "Q-001", "question", "Why does ice float on water?");
+        IdeaObject other = titled("c1", "C-001", "concept", "Density is not the same as weight");
+        IdeaObject picked = ConversationGraphHydrator.pickRelevant(List.of(other, question),
+                "Why does ice float if wood also floats?");
+        assertEquals("Q-001", picked.displayId());
+    }
+
+    private static IdeaObject titled(String id, String displayId, String type, String title) {
+        return new IdeaObject(id, "ws", "br", displayId, type, "original", null, "speculative",
+                title, title, title, 1, "ollama", "u", "a", null, null, Instant.now(), Instant.now(),
+                List.of(), List.of());
     }
 
     private static IdeaObject obj(String id, String displayId, String type) {

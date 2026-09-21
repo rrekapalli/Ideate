@@ -22,7 +22,9 @@ import { DiagramEdgeComponent } from './diagram-edge.component';
 import { DiagramObjectNodeComponent } from './diagram-object-node.component';
 import { layoutGraph } from './graph-layout';
 
-const DEFAULT_ZOOM = 0.5;
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 4;
+const FIT_PADDING = 56;
 const CM_PX = 38;
 
 @Component({
@@ -46,10 +48,18 @@ const CM_PX = 38;
         <ng-diagram-background type="grid" />
       </ng-diagram>
       <div class="zoom-bar" role="toolbar" aria-label="Graph zoom">
-        <mt-button variant="icon" size="sm" icon="remove" ariaLabel="Zoom out" [disabled]="zoomPercent() <= 10" (clicked)="zoomOut()" />
-        <span class="zoom-label">{{ zoomPercent() }}%</span>
-        <mt-button variant="icon" size="sm" icon="add" ariaLabel="Zoom in" [disabled]="zoomPercent() >= 400" (clicked)="zoomIn()" />
-        <mt-button variant="text" size="sm" label="50%" ariaLabel="Reset to 50 percent" (clicked)="resetZoom()" />
+        <input
+          type="range"
+          class="zoom-slider"
+          min="10"
+          max="400"
+          step="1"
+          [value]="zoomPercent()"
+          [attr.aria-valuetext]="atFit() ? 'Fit' : zoomPercent() + '%'"
+          aria-label="Zoom"
+          (input)="onZoomSlide($event)"
+        />
+        <span class="zoom-label">{{ atFit() ? 'Fit' : zoomPercent() + '%' }}</span>
         <mt-button variant="text" size="sm" label="Layout" ariaLabel="Arrange cards by relationships" (clicked)="relayout()" />
         <mt-button variant="text" size="sm" label="Fit" ariaLabel="Fit graph" (clicked)="fit()" />
       </div>
@@ -99,8 +109,47 @@ const CM_PX = 38;
       border-radius: var(--mt-panel-border-radius, 1px);
       box-shadow: 0 1px 4px rgb(0 0 0 / 0.08);
     }
+    .zoom-slider {
+      width: 6.5rem;
+      height: 0.7rem;
+      margin: 0 0.1rem;
+      padding: 0;
+      background: transparent;
+      accent-color: var(--mt-primary, var(--primary-color));
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    .zoom-slider::-webkit-slider-runnable-track {
+      height: 2px;
+      background: color-mix(in srgb, var(--mt-text, #111) 28%, transparent);
+      border-radius: 1px;
+    }
+    .zoom-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      margin-top: -4px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--mt-primary, var(--primary-color));
+    }
+    .zoom-slider::-moz-range-track {
+      height: 2px;
+      background: color-mix(in srgb, var(--mt-text, #111) 28%, transparent);
+      border: 0;
+      border-radius: 1px;
+    }
+    .zoom-slider::-moz-range-thumb {
+      width: 10px;
+      height: 10px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--mt-primary, var(--primary-color));
+    }
     .zoom-label {
-      min-width: 3rem;
+      min-width: 2.6rem;
       text-align: center;
       font-size: 0.75rem;
       font-variant-numeric: tabular-nums;
@@ -117,6 +166,9 @@ export class GraphCanvasComponent implements OnDestroy {
   private ready = false;
   private syncedKey = '';
   private appliedDefaultZoom = false;
+  private fittedScale: number | null = null;
+  private fitting = false;
+  private fitGuardUntil = 0;
 
   readonly snapshot = input.required<GraphSnapshot>();
   readonly open = output<IdeaObject>();
@@ -132,10 +184,10 @@ export class GraphCanvasComponent implements OnDestroy {
   readonly model = initializeModel({
     nodes: [],
     edges: [],
-    metadata: { viewport: { x: 0, y: 0, scale: DEFAULT_ZOOM } },
+    metadata: { viewport: { x: 0, y: 0, scale: 1 } },
   });
   readonly config: NgDiagramConfig = {
-    zoom: { min: 0.1, max: 4, step: 0.05 },
+    zoom: { min: MIN_ZOOM, max: MAX_ZOOM, step: 0.05 },
     edgeRouting: {
       defaultRouting: 'orthogonal',
       orthogonal: { firstLastSegmentLength: 32, maxCornerRadius: 12 },
@@ -145,7 +197,8 @@ export class GraphCanvasComponent implements OnDestroy {
       majorLinesFrequency: { x: 1, y: 1 },
     },
   };
-  readonly zoomPercent = signal(Math.round(DEFAULT_ZOOM * 100));
+  readonly zoomPercent = signal(100);
+  readonly atFit = signal(true);
 
   constructor() {
     this.bridge.open$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.open.emit(o));
@@ -173,37 +226,33 @@ export class GraphCanvasComponent implements OnDestroy {
   }
 
   onViewport(ev: ViewportChangedEvent): void {
-    const scale = ev.viewport?.scale ?? this.viewport.scale() ?? DEFAULT_ZOOM;
+    const scale = ev.viewport?.scale ?? this.viewport.scale() ?? 1;
     this.zoomPercent.set(Math.round(scale * 100));
+    if (this.fitting || Date.now() < this.fitGuardUntil) {
+      this.fittedScale = scale;
+      this.atFit.set(true);
+      return;
+    }
+    if (this.fittedScale != null && Math.abs(scale - this.fittedScale) > 0.03) {
+      this.atFit.set(false);
+    }
   }
 
-  zoomIn(): void {
-    void this.viewport.zoom(1.2);
-  }
-
-  zoomOut(): void {
-    void this.viewport.zoom(1 / 1.2);
-  }
-
-  resetZoom(): void {
-    void this.setScaleKeepingCenter(DEFAULT_ZOOM);
+  onZoomSlide(ev: Event): void {
+    const raw = Number((ev.target as HTMLInputElement).value);
+    const pct = Number.isFinite(raw) ? Math.min(400, Math.max(10, raw)) : 100;
+    this.atFit.set(false);
+    this.zoomPercent.set(pct);
+    void this.setScaleKeepingCenter(pct / 100);
   }
 
   relayout(): void {
     this.syncedKey = '';
-    void this.sync(this.snapshot()).then(() => {
-      if (this.models.nodes().length) {
-        void this.viewport.zoomToFit({ padding: 72 });
-      }
-    });
+    void this.sync(this.snapshot()).then(() => this.fitToContent());
   }
 
   fit(): void {
-    if (this.snapshot().nodes.length === 0) {
-      void this.setScaleKeepingCenter(DEFAULT_ZOOM);
-      return;
-    }
-    void this.viewport.zoomToFit({ padding: 72 });
+    void this.fitToContent();
   }
 
   onSelection(ev: SelectionChangedEvent) {
@@ -288,14 +337,6 @@ export class GraphCanvasComponent implements OnDestroy {
           data: { label: `${n.displayId} · ${n.title}`, object: n },
         };
       }), { waitForMeasurements: true });
-      if (!this.appliedDefaultZoom) {
-        window.setTimeout(() => {
-          void this.applyDefaultView();
-        }, 50);
-      }
-    } else if (!this.appliedDefaultZoom) {
-      this.appliedDefaultZoom = true;
-      void this.viewport.setViewport(0, 0, DEFAULT_ZOOM);
     }
     if (visibleEdges.length) {
       await this.models.addEdges(visibleEdges.map((e) => ({
@@ -309,11 +350,15 @@ export class GraphCanvasComponent implements OnDestroy {
         data: { label: e.why ? `${e.type} · ${e.why}` : e.type, edge: e },
       })));
     }
+    if (visible.length && !this.appliedDefaultZoom) {
+      this.appliedDefaultZoom = true;
+      await this.fitToContent();
+    }
   }
 
   private nodeInView(node: { position: { x: number; y: number }; size?: { width?: number; height?: number } }): boolean {
     const v = this.viewport.viewport();
-    const scale = v.scale || DEFAULT_ZOOM;
+    const scale = v.scale || 1;
     const w = node.size?.width ?? 240;
     const h = node.size?.height ?? 160;
     const left = node.position.x * scale + v.x;
@@ -325,19 +370,30 @@ export class GraphCanvasComponent implements OnDestroy {
     return right > 24 && bottom > 24 && left < vw - 24 && top < vh - 24;
   }
 
-  private async applyDefaultView(): Promise<void> {
-    if (this.appliedDefaultZoom) {
-      return;
+  private async fitToContent(): Promise<void> {
+    this.fitting = true;
+    try {
+      if (this.models.nodes().length === 0) {
+        await this.viewport.setViewport(0, 0, 1);
+        this.fittedScale = 1;
+        this.atFit.set(true);
+        this.syncZoomLabel();
+        return;
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      await this.viewport.zoomToFit({ padding: FIT_PADDING });
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      this.fittedScale = this.viewport.viewport().scale || this.viewport.scale() || 1;
+      this.atFit.set(true);
+      this.fitGuardUntil = Date.now() + 500;
+      this.syncZoomLabel();
+    } finally {
+      this.fitting = false;
     }
-    this.appliedDefaultZoom = true;
-    if (this.models.nodes().length) {
-      await this.viewport.zoomToFit({ padding: 72 });
-    }
-    this.syncZoomLabel();
   }
 
   private syncZoomLabel(): void {
-    const scale = this.viewport.scale() || DEFAULT_ZOOM;
+    const scale = this.viewport.scale() || 1;
     this.zoomPercent.set(Math.round(scale * 100));
   }
 
@@ -345,7 +401,7 @@ export class GraphCanvasComponent implements OnDestroy {
     const v = this.viewport.viewport();
     const width = v.width ?? 0;
     const height = v.height ?? 0;
-    const current = v.scale || DEFAULT_ZOOM;
+    const current = v.scale || 1;
     const cx = (width / 2 - v.x) / current;
     const cy = (height / 2 - v.y) / current;
     await this.viewport.setViewport(width / 2 - cx * scale, height / 2 - cy * scale, scale);

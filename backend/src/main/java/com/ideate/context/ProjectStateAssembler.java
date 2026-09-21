@@ -1,13 +1,13 @@
 package com.ideate.context;
 
 import com.ideate.graph.GraphService;
+import com.ideate.orchestrator.ChatReplyCleaner;
 import com.ideate.graph.IdeaObject;
 import com.ideate.transcript.TranscriptService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class ProjectStateAssembler {
@@ -25,24 +25,52 @@ public class ProjectStateAssembler {
 
     public String assemble(String workspaceId, String branchId, String utterance, List<String> focusIds) {
         StringBuilder sb = new StringBuilder();
-        sb.append("CURRENT PROJECT STATE\n");
         WorkspaceBits bits = loadWorkspace(workspaceId);
-        sb.append("Objective: ").append(bits.name).append('\n');
-        sb.append("Persona: ").append(bits.persona).append('\n');
+        sb.append("Talk with this person as a ").append(bits.persona)
+                .append(" thinking about \"").append(bits.name).append("\".\n");
+        sb.append("Answer the latest message in natural language. Do not describe cards or the graph.\n");
+        if (utterance != null && !utterance.isBlank()) {
+            sb.append("\nLatest message:\n").append(utterance).append("\n");
+        }
+        sb.append("\n---\nPrivate notes (do not quote, do not narrate):\n");
         GraphService.GraphSnapshot graph = graphService.graph(workspaceId, branchId);
         if (graph.nodes().isEmpty()) {
-            sb.append("The workspace graph is empty. Aggressively materialize typed cards from the user's message.\n");
+            sb.append("No captured ideas yet.\n");
         } else {
-            sb.append("Objects:\n");
-            for (IdeaObject n : graph.nodes()) {
-                if (focusIds != null && !focusIds.isEmpty() && !focusIds.contains(n.id()) && !focusIds.contains(n.displayId())) {
-                    continue;
+            if (focusIds != null && !focusIds.isEmpty()) {
+                sb.append("Focus trail (last card is where this chat started; parents are context):\n");
+                for (String key : focusIds) {
+                    IdeaObject n = graph.nodes().stream()
+                            .filter(o -> key.equals(o.id()) || key.equalsIgnoreCase(o.displayId()))
+                            .findFirst()
+                            .orElse(null);
+                    if (n == null) {
+                        continue;
+                    }
+                    sb.append("- ").append(n.displayId()).append(" [").append(n.type()).append("] ")
+                            .append(n.title()).append('\n');
+                    if (n.summary() != null && !n.summary().isBlank()) {
+                        sb.append("  ").append(trim(n.summary(), 240)).append('\n');
+                    }
+                    if (n.body() != null && !n.body().isBlank()) {
+                        sb.append("  ").append(trim(n.body(), 500)).append('\n');
+                    }
                 }
-                sb.append("- ").append(n.displayId()).append(" [").append(n.type()).append("] ")
-                        .append(n.title()).append(" :: ").append(trim(n.summary(), 240)).append('\n');
-            }
-            if (focusIds == null || focusIds.isEmpty()) {
-                // already listed all; cap later
+                sb.append("Answer from the last card on this trail. Grow new ideas from it and link them.\n");
+                List<String> others = graph.nodes().stream()
+                        .filter(n -> !focusIds.contains(n.id()) && !focusIds.contains(n.displayId()))
+                        .map(IdeaObject::displayId)
+                        .limit(24)
+                        .toList();
+                if (!others.isEmpty()) {
+                    sb.append("Other cards: ").append(String.join(", ", others)).append('\n');
+                }
+            } else {
+                sb.append("Ideas already captured:\n");
+                for (IdeaObject n : graph.nodes()) {
+                    sb.append("- ").append(n.displayId()).append(" [").append(n.type()).append("] ")
+                            .append(n.title()).append(" :: ").append(trim(n.summary(), 240)).append('\n');
+                }
             }
             sb.append("Edges:\n");
             graph.edges().stream().limit(40).forEach(e ->
@@ -51,17 +79,20 @@ public class ProjectStateAssembler {
         }
         String cache = currentCache(workspaceId, branchId);
         if (cache != null && !cache.isBlank()) {
-            sb.append("\nEvolving conversation cache:\n").append(cache).append('\n');
+            sb.append("\nEarlier thread (private):\n").append(cache).append('\n');
         }
         List<TranscriptService.TranscriptMessage> tail = transcriptService.list(workspaceId, branchId);
         int from = Math.max(0, tail.size() - 6);
-        sb.append("\nTranscript tail:\n");
+        sb.append("\nRecent chat:\n");
         for (int i = from; i < tail.size(); i++) {
             var msg = tail.get(i);
-            sb.append(msg.role()).append(": ").append(trim(msg.content(), 500)).append('\n');
-        }
-        if (utterance != null) {
-            sb.append("\nUser question: ").append(utterance).append('\n');
+            String content = ChatReplyCleaner.visible(msg.content());
+            if (content.isBlank()) {
+                content = trim(msg.content(), 220);
+            }
+            if (ChatReplyCleaner.isUsable(content) || "user".equals(msg.role())) {
+                sb.append(msg.role()).append(": ").append(trim(content, 400)).append('\n');
+            }
         }
         String out = sb.toString();
         if (out.length() > HARD_CAP_CHARS) {

@@ -11,19 +11,15 @@ Ideate is to thinking what Git is to software development. The working brief liv
 | Client | Angular 22 PWA (`ui/apps/ideate`) |
 | Design system | `@ideate/ui` copied from MoneyTree UI primitives |
 | Backend | Java 25 / Spring Boot 4 (`backend/`) |
-| Persistence | PostgreSQL + Apache AGE + pgvector |
-| Local inference | Ollama (optional) |
+| Persistence | PostgreSQL 18 on Proxmox (`pg18.tailce422e.ts.net:6432`) + Apache AGE + pgvector |
+| Inference | Ollama (optional, reachable URL) |
 
-## Local run
+## Workstation run
 
-1. Copy `.env.example` to `.env`. Defaults match MoneyTree’s Postgres: **`pg18.tailce422e.ts.net:6432`** (PgBouncer), database **`ideate`**. Apache AGE 1.8 and pgvector are enabled on that database.
-2. Optional local Docker Postgres (only if you are not using pg18). The compose file maps host **5433** by default:
+Postgres is **not** on the laptop. Use the same Proxmox host as MoneyTree: **`pg18.tailce422e.ts.net:6432`** (PgBouncer), database **`ideate`**. AGE 1.8 and pgvector are enabled there.
 
-```bash
-./scripts/start-infra.sh
-```
-
-3. Start the API (Java 25):
+1. Copy `.env.example` to `.env` and set `DB_PASSWORD` (same Postgres password as MoneyTree).
+2. Start the API (Java 25):
 
 ```bash
 # Git Bash / WSL
@@ -33,7 +29,7 @@ Ideate is to thinking what Git is to software development. The working brief liv
 ./scripts/start-backend.ps1
 ```
 
-4. Start the PWA:
+3. Start the PWA:
 
 ```bash
 cd ui
@@ -45,7 +41,7 @@ Open http://localhost:4200. Auth is bypassed in development (`IDEATE_AUTH_ENABLE
 
 Optional: run `ollama serve` and pull `llama3.2` so Explore turns can materialize cards. If Ollama is down, the transcript still persists.
 
-## Proxmox (local lab)
+## Proxmox
 
 API LXC **7201** (`ideate-api`) and app LXC **7202** (`ideate`) clone MoneyTree templates 9001/9002. See [`Docs/deployment-proxmox.md`](./Docs/deployment-proxmox.md) and [`deployment/README.md`](./deployment/README.md).
 

@@ -24,6 +24,8 @@ import { GraphCanvasComponent } from './graph-canvas.component';
 import { ObjectPageComponent } from './object-page.component';
 import { DocsTreeComponent } from './docs-tree.component';
 import { BranchesTreeComponent } from './branches-tree.component';
+import { MdViewComponent } from '../shared/md-view.component';
+import { ancestorPath } from './chat-context';
 
 type EditorTab =
   | { kind: 'graph' }
@@ -36,7 +38,7 @@ type BottomTab = 'timeline' | 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -69,6 +71,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   bottomOpen = signal(false);
   bottomTab = signal<BottomTab>('timeline');
   inspected = signal<IdeaObject | null>(null);
+  chatFrom = signal<IdeaObject | null>(null);
+  chatPath = signal<IdeaObject[]>([]);
   highlightedMsg = signal<string | null>(null);
   searchOpen = signal(false);
   searchQuery = '';
@@ -81,6 +85,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   types = OBJECT_TYPES;
   sending = signal(false);
   workspaceId = '';
+  private objectRowTapAt = 0;
+  private objectRowTapId = '';
 
   ngOnInit() {
     this.restoreChrome();
@@ -215,8 +221,30 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
 
   focusObject(object: IdeaObject) {
     this.activeTab.set(0);
-    this.inspected.set(object);
+    this.setChatContext(object);
     window.setTimeout(() => this.canvas?.focus(object.id), 0);
+  }
+
+  onObjectRowActivate(object: IdeaObject) {
+    const now = performance.now();
+    if (this.objectRowTapId === object.id && now - this.objectRowTapAt < 450) {
+      this.objectRowTapAt = 0;
+      this.openObject(object);
+      return;
+    }
+    this.objectRowTapId = object.id;
+    this.objectRowTapAt = now;
+    this.focusObject(object);
+  }
+
+  setChatContext(object: IdeaObject) {
+    this.inspected.set(object);
+    this.chatFrom.set(object);
+    this.chatPath.set(ancestorPath(this.graph(), object));
+  }
+
+  ancestorPathFor(object: IdeaObject): IdeaObject[] {
+    return ancestorPath(this.graph(), object);
   }
 
   changeType(object: IdeaObject, type: string) {
@@ -244,13 +272,29 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   }
 
   jumpChat(object: IdeaObject) {
-    this.selectRight('chat');
+    this.setChatContext(object);
+    this.rightTab.set('chat');
+    this.rightOpen.set(true);
+    this.persistChrome();
     const userId = object.sourceUserMessageId;
     const asstId = object.sourceAssistantMessageId;
     this.highlightedMsg.set(userId ?? asstId ?? null);
     queueMicrotask(() => {
       document.getElementById('msg-' + (userId ?? asstId))?.scrollIntoView({ block: 'center' });
     });
+  }
+
+  clearChatFocus() {
+    this.chatFrom.set(null);
+    this.chatPath.set([]);
+  }
+
+  chatPathLabel(): string {
+    const path = this.chatPath();
+    if (path.length === 0) {
+      return this.chatFrom() ? `${this.chatFrom()!.displayId} · ${this.chatFrom()!.title}` : '';
+    }
+    return path.map((n) => n.displayId).join(' › ');
   }
 
   openById(objectId?: string) {
@@ -280,7 +324,24 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     if (/I\/O error|Read timed out|Connection refused|model was unreachable|UnknownHostException/i.test(text)) {
       return 'The model didn’t respond just now. Your message is saved — try sending again.';
     }
+    if (m.role === 'assistant') {
+      return this.cleanAssistantChat(text);
+    }
     return text;
+  }
+
+  private cleanAssistantChat(text: string): string {
+    const withoutJson = text.replace(/```(?:json)?[\s\S]*?```/g, ' ')
+        .replace(/\{[\s\S]*"tools"[\s\S]*\}/g, ' ')
+        .replace(/^\s*(Create (Node|Edge)|create_node|create_edge).*$/gim, ' ');
+    const kept = withoutJson
+        .split('\n')
+        .filter((s) => !/the graph includes|the graph has|necessary edges|properly linked|edges connect|updated the (workspace )?graph|displayId|create_node|typed cards/i.test(s));
+    const out = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (out.length >= 12) {
+      return out;
+    }
+    return 'Let’s stay with the question itself — ask it again in your own words if this reply looked empty.';
   }
 
   chatWhen(raw?: string): string {
@@ -304,7 +365,13 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     const content = this.draft.trim();
     if (!content) return;
     this.sending.set(true);
-    this.api.turn(this.workspaceId, { content, mode: this.mode }).subscribe({
+    const path = this.chatPath();
+    const focus = path.length ? path : this.chatFrom() ? [this.chatFrom()!] : this.inspected() ? [this.inspected()!] : [];
+    this.api.turn(this.workspaceId, {
+      content,
+      mode: this.mode,
+      focusObjectIds: focus.map((n) => n.id),
+    }).subscribe({
       next: () => {
         this.draft = '';
         this.sending.set(false);

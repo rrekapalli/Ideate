@@ -2,6 +2,7 @@ package com.ideate.providers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ideate.orchestrator.ChatReplyCleaner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -82,7 +83,7 @@ public class OpenAiCompatibleChatClient implements ChatClient {
             if (tools.isEmpty()) {
                 tools = parseMarkdownTools(text);
             }
-            String visible = stripToolJson(text);
+            String visible = ChatReplyCleaner.visible(text);
             return new ChatResult(visible, tools, inTok, outTok, request.model(), null);
         } catch (Exception ex) {
             log.warn("Chat completion failed: {}", ex.getMessage());
@@ -225,26 +226,6 @@ public class OpenAiCompatibleChatClient implements ChatClient {
             // conversational text without JSON is fine
         }
         return calls;
-    }
-
-    private String stripToolJson(String text) {
-        if (text == null) {
-            return "";
-        }
-        int start = text.indexOf('{');
-        if (start >= 0 && text.contains("\"tools\"")) {
-            String prefix = text.substring(0, start).trim();
-            try {
-                JsonNode node = mapper.readTree(text.substring(start));
-                if (node.has("text")) {
-                    return node.path("text").asText(prefix);
-                }
-            } catch (Exception ignored) {
-                return prefix.isBlank() ? text : prefix;
-            }
-            return prefix.isBlank() ? "Updated the graph." : prefix;
-        }
-        return text;
     }
 
     private static String trimSlash(String url) {

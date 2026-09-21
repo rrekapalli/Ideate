@@ -108,7 +108,7 @@ export class IdeateApi {
     return this.http.get<TranscriptMessage[]>(this.url(`/workspaces/${workspaceId}/transcript${q}`));
   }
 
-  turn(workspaceId: string, body: { content: string; mode?: string }): Observable<TurnResult> {
+  turn(workspaceId: string, body: { content: string; mode?: string; focusObjectIds?: string[] }): Observable<TurnResult> {
     return this.http.post<TurnResult>(this.url(`/workspaces/${workspaceId}/turns`), body);
   }
 

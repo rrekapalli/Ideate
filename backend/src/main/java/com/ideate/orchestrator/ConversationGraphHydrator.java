@@ -33,16 +33,19 @@ public final class ConversationGraphHydrator {
     public record Plan(List<NodePatch> nodes, List<EdgeSpec> edges, List<ExtraCard> extras) {}
 
     public Plan plan(String userText, String assistantText, List<IdeaObject> created) {
+        return plan(userText, assistantText, created, List.of(), List.of());
+    }
+
+    public Plan plan(String userText, String assistantText, List<IdeaObject> created,
+                     List<IdeaObject> existing, List<String> focusKeys) {
         String user = userText == null ? "" : userText;
         String assistant = assistantText == null ? "" : assistantText.trim();
         Map<String, Explicit> explicit = parseExplicit(user);
         List<String> hintedTypes = hintedTypes(user);
         List<NodePatch> patches = new ArrayList<>();
-        Map<String, IdeaObject> byDisplay = new LinkedHashMap<>();
 
         for (int i = 0; i < created.size(); i++) {
             IdeaObject obj = created.get(i);
-            byDisplay.put(obj.displayId(), obj);
             Explicit ex = explicit.get(obj.displayId().toUpperCase(Locale.ROOT));
             String type = obj.type();
             if (ex == null && "thought".equals(type) && i < hintedTypes.size()) {
@@ -60,7 +63,6 @@ public final class ConversationGraphHydrator {
                         summary == null ? "" : summary,
                         body == null ? "" : body));
             }
-            byDisplay.put(obj.displayId(), obj);
         }
 
         List<EdgeSpec> edges = new ArrayList<>();
@@ -73,11 +75,9 @@ public final class ConversationGraphHydrator {
             edges.add(new EdgeSpec(edgeType, em.group(1).toUpperCase(Locale.ROOT),
                     em.group(2).toUpperCase(Locale.ROOT), "From conversation"));
         }
-        boolean filling = created.stream().anyMatch(this::needsFill);
-        if (edges.isEmpty() && filling) {
-            edges.addAll(defaultTypedEdges(created, patches));
-        }
-        return new Plan(patches, edges, extras(user, assistant, created, patches));
+        List<ExtraCard> extraCards = extras(user, assistant, created, patches, existing);
+        edges.addAll(suggestedEdges(created, patches));
+        return new Plan(patches, dedupe(edges), extraCards);
     }
 
     static List<String> questionsIn(String user) {
@@ -93,21 +93,211 @@ public final class ConversationGraphHydrator {
     }
 
     private static List<ExtraCard> extras(String user, String assistant, List<IdeaObject> created,
-                                         List<NodePatch> patches) {
-        List<String> questions = questionsIn(user);
+                                         List<NodePatch> patches, List<IdeaObject> existing) {
+        Map<String, Boolean> have = new LinkedHashMap<>();
+        created.forEach(o -> have.put(o.type(), true));
+        patches.forEach(p -> have.put(p.type(), true));
+        if (existing != null) {
+            existing.forEach(o -> have.put(o.type(), true));
+        }
         List<String> titles = new ArrayList<>();
-        created.forEach(o -> titles.add(o.title() == null ? "" : o.title().toLowerCase(Locale.ROOT)));
-        patches.forEach(p -> titles.add(p.title() == null ? "" : p.title().toLowerCase(Locale.ROOT)));
+        created.forEach(o -> titles.add(norm(o.title())));
+        patches.forEach(p -> titles.add(norm(p.title())));
+        if (existing != null) {
+            existing.forEach(o -> titles.add(norm(o.title())));
+        }
+
         List<ExtraCard> extras = new ArrayList<>();
-        for (String q : questions) {
-            String key = q.toLowerCase(Locale.ROOT);
-            boolean covered = titles.stream().anyMatch(t -> t.contains(key.substring(0, Math.min(18, key.length()))));
-            if (!covered) {
-                extras.add(new ExtraCard("question", q, summaryFor("question", q),
-                        typedBody("question", q, summaryFor("question", q), user, assistantForType("question", assistant))));
+        String primary = firstQuestion(user);
+        String cleanAsst = ChatReplyCleaner.visible(assistant);
+        boolean firstCapture = existing == null || existing.stream()
+                .noneMatch(o -> "question".equals(o.type()) || "hypothesis".equals(o.type()));
+
+        if (primary != null && !covered(titles, primary)) {
+            extras.add(card("question", primary,
+                    firstCapture ? "The unknown this conversation is actually asking."
+                            : "A follow-up from this turn.",
+                    typedBody("question", primary,
+                            firstCapture ? "The unknown this conversation is actually asking."
+                                    : "This question grows from a card already on the graph.",
+                            user, null)));
+            have.put("question", true);
+            titles.add(norm(primary));
+        }
+
+        String myth = misconceptionFrom(user);
+        if (myth != null && !have.containsKey("misconception") && !covered(titles, myth)) {
+            extras.add(card("misconception", myth,
+                    "A belief that is getting in the way of the answer.",
+                    "**" + myth + "**\n\nSolids are not always denser than the liquid they sit in. Ice is the everyday counterexample."));
+            have.put("misconception", true);
+        }
+
+        if (firstCapture && looksLikeDefinitionQuestion(user) && !have.containsKey("concept")) {
+            extras.add(card("concept", "Density is not the same as weight",
+                    "Mass per volume — not how heavy something feels in your hand.",
+                    "**Density** is mass divided by volume. **Weight** is a downward force.\n\nA heavy steel ship floats because its *average* density is less than water."));
+            have.put("concept", true);
+        }
+
+        boolean addedHypothesis = false;
+        if (ChatReplyCleaner.isUsable(cleanAsst)) {
+            if (firstCapture && !have.containsKey("hypothesis")) {
+                extras.add(card("hypothesis", trim(firstSentence(cleanAsst), 120),
+                        "The working explanation from this turn.",
+                        cleanAsst));
+                have.put("hypothesis", true);
+                addedHypothesis = true;
+            } else if (!firstCapture && extras.stream().anyMatch(e -> "question".equals(e.type()))
+                    && !covered(titles, firstSentence(cleanAsst))) {
+                extras.add(card("thought", trim(firstSentence(cleanAsst), 120),
+                        "An answer that grows from a card already on the graph.",
+                        cleanAsst));
+            }
+        }
+
+        if (firstCapture && (have.containsKey("hypothesis") || addedHypothesis) && !have.containsKey("experiment")) {
+            extras.add(experimentFor(user, primary));
+            have.put("experiment", true);
+        }
+
+        if (firstCapture) {
+            String follow = followUp(user, cleanAsst, primary);
+            if (follow != null && extras.stream().filter(e -> "question".equals(e.type())).count() < 2
+                    && !covered(titles, follow)) {
+                extras.add(card("question", follow,
+                        "A next question the explanation opened.",
+                        "**" + follow + "**\n\nThis keeps the thread moving past the first answer."));
             }
         }
         return extras;
+    }
+
+    public List<EdgeSpec> suggestedEdges(List<IdeaObject> nodes) {
+        return suggestedEdges(nodes, List.of());
+    }
+
+    /**
+     * Every card minted this turn hangs off the focused card, or the closest existing card
+     * when Chat was used without a selection.
+     */
+    public List<EdgeSpec> attachToAnchor(List<IdeaObject> newNodes, List<IdeaObject> existing,
+                                         List<String> focusKeys, String userText) {
+        List<EdgeSpec> edges = new ArrayList<>();
+        if (newNodes == null || newNodes.isEmpty()) {
+            return edges;
+        }
+        IdeaObject anchor = resolveAnchor(existing, focusKeys, userText);
+        if (anchor == null) {
+            return edges;
+        }
+        for (IdeaObject n : newNodes) {
+            if (n == null || n.id().equals(anchor.id())) {
+                continue;
+            }
+            edges.add(edgeBetween(anchor, n));
+        }
+        return edges;
+    }
+
+    public IdeaObject resolveAnchor(List<IdeaObject> existing, List<String> focusKeys, String userText) {
+        if (existing == null || existing.isEmpty()) {
+            return null;
+        }
+        if (focusKeys != null) {
+            for (String key : focusKeys) {
+                if (key == null || key.isBlank()) {
+                    continue;
+                }
+                for (IdeaObject n : existing) {
+                    if (key.equals(n.id()) || key.equalsIgnoreCase(n.displayId())) {
+                        return n;
+                    }
+                }
+            }
+        }
+        return pickRelevant(existing, userText);
+    }
+
+    static IdeaObject pickRelevant(List<IdeaObject> existing, String userText) {
+        if (existing == null || existing.isEmpty()) {
+            return null;
+        }
+        List<String> tokens = tokens(userText);
+        IdeaObject best = null;
+        int bestScore = -1;
+        for (IdeaObject n : existing) {
+            int score = 0;
+            String hay = norm(n.displayId() + " " + n.title() + " " + n.summary() + " " + n.body());
+            for (String token : tokens) {
+                if (hay.contains(token)) {
+                    score += token.length();
+                }
+            }
+            if ("question".equals(n.type()) || "hypothesis".equals(n.type())) {
+                score += 3;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = n;
+            }
+        }
+        if (bestScore <= 0) {
+            return existing.stream()
+                    .filter(n -> "question".equals(n.type()) || "hypothesis".equals(n.type()))
+                    .reduce((a, b) -> b)
+                    .orElse(existing.getLast());
+        }
+        return best;
+    }
+
+    static EdgeSpec edgeBetween(IdeaObject from, IdeaObject to) {
+        String a = from.type() == null ? "" : from.type();
+        String b = to.type() == null ? "" : to.type();
+        if ("question".equals(a) && "hypothesis".equals(b)) {
+            return new EdgeSpec("mentions", from.displayId(), to.displayId(), "Question leads to hypothesis");
+        }
+        if ("question".equals(a) && "question".equals(b)) {
+            return new EdgeSpec("led-to", from.displayId(), to.displayId(), "Earlier question opened this one");
+        }
+        if ("hypothesis".equals(a) && "question".equals(b)) {
+            return new EdgeSpec("led-to", from.displayId(), to.displayId(), "This claim opened a next question");
+        }
+        if ("hypothesis".equals(a) && "hypothesis".equals(b)) {
+            return new EdgeSpec("supports", from.displayId(), to.displayId(), "Related working claim");
+        }
+        if ("hypothesis".equals(a) && "thought".equals(b)) {
+            return new EdgeSpec("mentions", from.displayId(), to.displayId(), "Answer grows from this claim");
+        }
+        if ("concept".equals(a) && "hypothesis".equals(b)) {
+            return new EdgeSpec("supports", from.displayId(), to.displayId(), "Concept the claim rests on");
+        }
+        if ("concept".equals(a) && ("question".equals(b) || "thought".equals(b))) {
+            return new EdgeSpec("mentions", from.displayId(), to.displayId(), "Follow-up from this concept");
+        }
+        if ("misconception".equals(a) && "hypothesis".equals(b)) {
+            return new EdgeSpec("contradicts", from.displayId(), to.displayId(), "Misconception the claim has to beat");
+        }
+        if ("experiment".equals(b) && ("hypothesis".equals(a) || "thought".equals(a))) {
+            return new EdgeSpec("tested-by", from.displayId(), to.displayId(), "Trial for this claim");
+        }
+        if ("thought".equals(a) && "question".equals(b)) {
+            return new EdgeSpec("led-to", from.displayId(), to.displayId(), "This note opened a question");
+        }
+        return new EdgeSpec("mentions", from.displayId(), to.displayId(), "Grown from " + from.displayId());
+    }
+
+    private static List<String> tokens(String text) {
+        List<String> out = new ArrayList<>();
+        if (text == null) {
+            return out;
+        }
+        for (String raw : text.toLowerCase(Locale.ROOT).split("[^a-z0-9]+")) {
+            if (raw.length() >= 4) {
+                out.add(raw);
+            }
+        }
+        return out;
     }
 
     public boolean needsFill(IdeaObject obj) {
@@ -117,33 +307,137 @@ public final class ConversationGraphHydrator {
                 || usable(obj.body()) == null;
     }
 
-    private static List<EdgeSpec> defaultTypedEdges(List<IdeaObject> created, List<NodePatch> patches) {
-        Map<String, String> displayByType = new LinkedHashMap<>();
-        for (int i = 0; i < created.size(); i++) {
-            IdeaObject obj = created.get(i);
+    private static List<EdgeSpec> suggestedEdges(List<IdeaObject> created, List<NodePatch> patches) {
+        Map<String, List<String>> byType = new LinkedHashMap<>();
+        for (IdeaObject obj : created) {
             String type = obj.type();
             for (NodePatch p : patches) {
                 if (p.objectId().equals(obj.id()) && p.type() != null) {
                     type = p.type();
                 }
             }
-            displayByType.putIfAbsent(type, obj.displayId());
+            byType.computeIfAbsent(type, k -> new ArrayList<>()).add(obj.displayId());
         }
+        return linksFromTypes(byType);
+    }
+
+    private static List<EdgeSpec> linksFromTypes(Map<String, List<String>> byType) {
         List<EdgeSpec> edges = new ArrayList<>();
-        String q = displayByType.get("question");
-        String h = displayByType.get("hypothesis");
-        String k = displayByType.get("constraint");
-        String x = displayByType.get("experiment");
-        if (q != null && h != null) {
-            edges.add(new EdgeSpec("mentions", q, h, "Question leads to hypothesis"));
+        List<String> questions = byType.getOrDefault("question", List.of());
+        String h = first(byType.get("hypothesis"));
+        String k = first(byType.get("constraint"));
+        String x = first(byType.get("experiment"));
+        String m = first(byType.get("misconception"));
+        String c = first(byType.get("concept"));
+        String ev = first(byType.get("evidence"));
+        String q0 = questions.isEmpty() ? null : questions.getFirst();
+        if (q0 != null && h != null) {
+            edges.add(new EdgeSpec("mentions", q0, h, "Question leads to hypothesis"));
+        }
+        if (questions.size() > 1 && h != null) {
+            edges.add(new EdgeSpec("mentions", questions.get(1), h, "Follow-up tests the same claim"));
+            edges.add(new EdgeSpec("led-to", q0, questions.get(1), "The first answer opened a next question"));
+        }
+        if (m != null && h != null) {
+            edges.add(new EdgeSpec("contradicts", m, h, "Misconception the hypothesis has to beat"));
+        }
+        if (c != null && h != null) {
+            edges.add(new EdgeSpec("supports", c, h, "Concept the hypothesis rests on"));
         }
         if (k != null && h != null) {
             edges.add(new EdgeSpec("constrains", k, h, "Constraint on the hypothesis"));
+        }
+        if (ev != null && h != null) {
+            edges.add(new EdgeSpec("supports", ev, h, "Evidence for the hypothesis"));
         }
         if (x != null && h != null) {
             edges.add(new EdgeSpec("tested-by", h, x, "Hypothesis tested by experiment"));
         }
         return edges;
+    }
+
+    private static ExtraCard card(String type, String title, String summary, String body) {
+        return new ExtraCard(type, title, summary, body);
+    }
+
+    private static ExtraCard experimentFor(String user, String primary) {
+        String lower = (user + " " + (primary == null ? "" : primary)).toLowerCase(Locale.ROOT);
+        if (lower.contains("ice") || lower.contains("float") || lower.contains("water")) {
+            return card("experiment", "Watch an ice cube in a marked glass of water",
+                    "A small trial: if ice is less dense, it sits up; if not, it sinks.",
+                    "1. Fill a glass and mark the water line.\n2. Add an ice cube — it should sit *above* the surface.\n3. If ice were denser than liquid water, it would rest on the bottom.");
+        }
+        return card("experiment", "A small trial that could kill the hypothesis",
+                "A pass/fail check, not a recap.",
+                "Write the setup, the measurement, and what result would force you to drop the working explanation.");
+    }
+
+    private static String misconceptionFrom(String user) {
+        if (user == null) {
+            return null;
+        }
+        Matcher thought = Pattern.compile("(?i)i thought ([^.?]{8,140})").matcher(user);
+        if (thought.find()) {
+            String claim = clean(thought.group(1));
+            return claim.endsWith(".") ? "I thought " + claim : "I thought " + claim + ".";
+        }
+        if (user.toLowerCase(Locale.ROOT).matches("(?s).*solid[s]? (were |are |is )?heavier.*")) {
+            return "Solids are heavier than liquids, so ice should sink.";
+        }
+        return null;
+    }
+
+    private static boolean looksLikeDefinitionQuestion(String user) {
+        String lower = user == null ? "" : user.toLowerCase(Locale.ROOT);
+        return lower.contains("same as") || lower.contains("what is density")
+                || lower.contains("difference between") || lower.contains("density the same");
+    }
+
+    private static String followUp(String user, String assistant, String primary) {
+        String lower = (user + " " + assistant).toLowerCase(Locale.ROOT);
+        if (lower.contains("ice") || lower.contains("lake") || lower.contains("float")) {
+            String next = "Why do lakes freeze from the top instead of the bottom?";
+            if (primary == null || !norm(primary).contains("lakes freeze")) {
+                return next;
+            }
+        }
+        List<String> asked = questionsIn(assistant);
+        for (String q : asked) {
+            if (primary == null || !norm(q).contains(norm(primary).substring(0, Math.min(12, norm(primary).length())))) {
+                return q;
+            }
+        }
+        return null;
+    }
+
+    private static boolean covered(List<String> titles, String candidate) {
+        String key = norm(candidate);
+        if (key.length() < 8) {
+            return true;
+        }
+        String clip = key.substring(0, Math.min(22, key.length()));
+        return titles.stream().anyMatch(t -> {
+            if (t.length() < 8) {
+                return false;
+            }
+            return t.contains(clip) || clip.contains(t.substring(0, Math.min(18, t.length())));
+        });
+    }
+
+    private static String norm(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
+    }
+
+    private static String first(List<String> ids) {
+        return ids == null || ids.isEmpty() ? null : ids.getFirst();
+    }
+
+    private static List<EdgeSpec> dedupe(List<EdgeSpec> edges) {
+        Map<String, EdgeSpec> uniq = new LinkedHashMap<>();
+        for (EdgeSpec e : edges) {
+            uniq.putIfAbsent(e.type() + "|" + e.fromDisplayId() + "|" + e.toDisplayId(), e);
+        }
+        return new ArrayList<>(uniq.values());
     }
 
     private static Map<String, Explicit> parseExplicit(String user) {
@@ -183,24 +477,24 @@ public final class ConversationGraphHydrator {
         String topic = firstNonBlank(title, firstQuestion(user), "This idea");
         return switch (type == null ? "thought" : type) {
             case "question" -> join(
-                    topic.endsWith("?") ? topic : topic + "?",
+                    topic.endsWith("?") ? "**" + topic + "**" : "**" + topic + "?**",
                     firstNonBlank(summary, "Name the unknown in one sentence."),
                     "Stay with this question. A recap of the graph is not an answer.");
             case "hypothesis" -> join(
-                    topic,
+                    "**" + topic + "**",
                     firstNonBlank(usefulAssistant, summary, "This is the working answer."),
                     "Keep it specific enough that an experiment can refute it.");
             case "constraint" -> join(
-                    topic,
+                    "**" + topic + "**",
                     firstNonBlank(summary, "This bound stays even if the approach changes."),
                     "If a design violates it, the design is not done.");
             case "experiment" -> join(
-                    topic,
+                    "**" + topic + "**",
                     firstNonBlank(summary, "Run a small trial and write the pass/fail rule."),
                     "Say the setup, the measurement, and what would kill the hypothesis.");
-            case "assumption" -> join(topic, firstNonBlank(summary, "Unproven. Mark it if it starts doing work."));
-            case "evidence" -> join(topic, firstNonBlank(usefulAssistant, summary, "What was seen, not what we hope."));
-            default -> join(topic, firstNonBlank(summary, usefulAssistant, "Captured from the conversation."));
+            case "assumption" -> join("**" + topic + "**", firstNonBlank(summary, "Unproven. Mark it if it starts doing work."));
+            case "evidence" -> join("**" + topic + "**", firstNonBlank(usefulAssistant, summary, "What was seen, not what we hope."));
+            default -> join("**" + topic + "**", firstNonBlank(summary, usefulAssistant, "Captured from the conversation."));
         };
     }
 

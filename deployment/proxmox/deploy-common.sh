@@ -197,7 +197,7 @@ ideate_clone_container() {
   log_info "Cloning '$template_name' (VMID $template_vmid) to VMID $new_vmid hostname $new_name..."
   ideate_host_exec "pct clone $template_vmid $new_vmid --hostname $new_name --full --storage ${LXC_ROOTFS_STORAGE:-local-storage}" || return 1
   ideate_host_exec "pct set $new_vmid --cores $cores --memory $memory --tags ideate" || true
-  ideate_host_exec "pct set $new_vmid --net0 name=eth0,bridge=vmbr0,ip=dhcp,ip6=off" || true
+  ideate_host_exec "pct set $new_vmid --net0 name=eth0,bridge=vmbr0,ip=dhcp" || true
   log_success "Container cloned"
 }
 

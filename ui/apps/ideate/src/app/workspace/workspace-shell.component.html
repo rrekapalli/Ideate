@@ -20,7 +20,7 @@
                   type="button"
                   class="tree"
                   [class.active]="inspected()?.id === n.id"
-                  (click)="focusObject(n)"
+                  (click)="onObjectRowActivate(n)"
                   (dblclick)="openObject(n)"
                 >{{ n.displayId }} {{ n.title }}</button>
               }
@@ -77,7 +77,7 @@
             (newNode)="promptNewNode($event)"
             (menu)="promptMenu($event)"
             (openChat)="jumpChat($event)"
-            (inspect)="inspected.set($event)"
+            (inspect)="$event && setChatContext($event)"
           />
         } @else if (tab.kind === 'object') {
           <ideate-object-page
@@ -168,7 +168,7 @@
                     }
                     <time class="when" [attr.datetime]="m.createdAt">{{ chatWhen(m.createdAt) }}</time>
                   </div>
-                  <p>{{ chatText(m) }}</p>
+                  <ideate-md [source]="chatText(m)" />
                 </article>
               }
             </div>
@@ -185,7 +185,7 @@
             @if (inspected(); as obj) {
               <p><strong>{{ obj.displayId }}</strong> {{ obj.title }}</p>
               <p class="muted">{{ obj.type }} · {{ obj.objectCategory }} · v{{ obj.version }}</p>
-              <p>{{ obj.summary || obj.body || 'No body yet.' }}</p>
+              <ideate-md [source]="obj.summary || obj.body || 'No body yet.'" />
               <mt-button size="sm" [label]="'Open tab'" (clicked)="openObject(obj)" />
             } @else {
               <p class="muted">Select a card to inspect it.</p>
@@ -200,6 +200,12 @@
       </div>
       @if (rightTab() === 'chat') {
         <div class="filter-drawer-footer composer">
+          @if (chatFrom(); as from) {
+            <div class="from-chip">
+              <span>From {{ chatPathLabel() }}</span>
+              <button type="button" (click)="clearChatFocus()" aria-label="Clear chat focus">×</button>
+            </div>
+          }
           <select [(ngModel)]="mode">
             @for (m of modes; track m) {
               <option [value]="m">{{ m }}</option>

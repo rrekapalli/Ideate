@@ -30,24 +30,15 @@ public class TurnOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(TurnOrchestrator.class);
 
     private static final String SYSTEM = """
-            You are Ideate, a graph writer with a conversational face.
-            Persist thinking as typed cards and typed edges. Be aggressive about creating objects.
-            Never dump essays that should be cards. Reply with a short conversational message AND a JSON object:
-            {
-              "text": "assistant reply shown in chat",
-              "tools": [
-                {"name":"create_node","args":{"type":"thought","title":"...","summary":"...","body":"...","tags":["estimate"]}},
-                {"name":"create_edge","args":{"type":"supports","fromDisplayId":"H-001","toDisplayId":"E-001","why":"..."}},
-                {"name":"update_node","args":{"displayId":"H-001","summary":"..."}},
-                {"name":"start_evaluation","args":{"hypothesisDisplayId":"H-001","title":"...","body":"..."}},
-                {"name":"propose_theory","args":{"evaluationDisplayId":"EV-001","title":"...","body":"..."}}
-              ]
-            }
-            Card types: thought, concept, unknown, question, hypothesis, assumption, evidence, experiment,
-            observation, claim, critique, decision, evaluation, theory, misconception, constraint,
-            calculation, target, design_artifact, architecture, component.
-            Do not create a theory unless an evaluation exists. Use epistemic tags: fact, inference, speculation, target, estimate.
-            Every create_node MUST include a non-empty title, summary, and body copied from the idea. Never call tools with empty arguments.
+            You are Ideate, a careful conversation partner — the same kind of help someone expects from ChatGPT.
+            Answer the person's latest question in compact Markdown: short paragraphs, **bold** for the one idea that matters, and a list only when it helps.
+            Do not wrap the whole reply in a code fence. Use everyday examples. 3–8 short sentences is enough.
+            Never mention graphs, cards, nodes, edges, display ids, tools, JSON, or that you are storing ideas.
+            Never say "the graph includes" or recap what you created.
+            After you answer, you may silently call tools to capture a small thinking graph from THIS turn.
+            If the notes name a focus card, grow from that card and link every new card to it.
+            Otherwise attach new cards to the closest existing idea. Never leave a card isolated.
+            Do not create a theory unless an evaluation already exists.
             """;
 
     private final WorkspaceService workspaces;
@@ -119,9 +110,10 @@ public class TurnOrchestrator {
             jobs.markFailed(job.id(), completion.error());
             insertProblem(workspaceId, "provider", completion.error(), List.of());
         } else {
-            assistantText = completion.text() == null || completion.text().isBlank()
-                    ? "Updated the workspace graph."
-                    : completion.text();
+            assistantText = ChatReplyCleaner.visible(completion.text());
+            if (!ChatReplyCleaner.isUsable(assistantText)) {
+                assistantText = ChatReplyCleaner.fallback(request.content());
+            }
         }
         var assistantMsg = transcript.append(workspaceId, branchId, "assistant", assistantText, mode);
         if (completion.error() == null) {
@@ -129,7 +121,7 @@ public class TurnOrchestrator {
             createdIds.addAll(applyTools(workspaceId, completion.toolCalls(), userMsg.id(), assistantMsg.id(),
                     generatedBy));
             createdIds.addAll(hydrateGraph(workspaceId, createdIds, request.content(), assistantText,
-                    userMsg.id(), assistantMsg.id(), generatedBy));
+                    userMsg.id(), assistantMsg.id(), generatedBy, request.focusObjectIds()));
             jobs.markApplied(job.id(), createdIds);
         }
 
@@ -155,6 +147,12 @@ public class TurnOrchestrator {
 
     List<String> hydrateGraph(String workspaceId, List<String> createdIds, String userText, String assistantText,
                               String userMsgId, String assistantMsgId, String generatedBy) {
+        return hydrateGraph(workspaceId, createdIds, userText, assistantText, userMsgId, assistantMsgId,
+                generatedBy, List.of());
+    }
+
+    List<String> hydrateGraph(String workspaceId, List<String> createdIds, String userText, String assistantText,
+                              String userMsgId, String assistantMsgId, String generatedBy, List<String> focusKeys) {
         List<String> ids = new ArrayList<>();
         List<IdeaObject> created = new ArrayList<>();
         for (String id : createdIds) {
@@ -164,28 +162,16 @@ public class TurnOrchestrator {
                 // skip vanished ids
             }
         }
-        for (IdeaObject existing : graph.graph(workspaceId, null).nodes()) {
+        var snapshot = graph.graph(workspaceId, null);
+        for (IdeaObject existing : snapshot.nodes()) {
             boolean mentioned = userText != null
                     && userText.toUpperCase(Locale.ROOT).contains(existing.displayId().toUpperCase(Locale.ROOT));
-            if ((mentioned || hydrator.needsFill(existing))
-                    && created.stream().noneMatch(o -> o.id().equals(existing.id()))) {
+            if (mentioned && created.stream().noneMatch(o -> o.id().equals(existing.id()))) {
                 created.add(existing);
             }
         }
-        if (created.isEmpty() && assistantText != null && assistantText.length() > 40
-                && !assistantText.startsWith("I saved your message")) {
-            var thought = graph.createObject(workspaceId, null, new GraphService.CreateObjectRequest(
-                    "thought",
-                    trimTitle(assistantText),
-                    trimSummary(assistantText),
-                    assistantText,
-                    null, "original", null, null,
-                    generatedBy, userMsgId, assistantMsgId,
-                    null, null, List.of(), List.of()));
-            created.add(thought);
-            ids.add(thought.id());
-        }
-        var plan = hydrator.plan(userText, assistantText, created);
+        var plan = hydrator.plan(userText, assistantText, created, snapshot.nodes(),
+                focusKeys == null ? List.of() : focusKeys);
         for (var patch : plan.nodes()) {
             try {
                 graph.updateObject(workspaceId, patch.objectId(), new GraphService.UpdateObjectRequest(
@@ -197,24 +183,38 @@ public class TurnOrchestrator {
                 log.warn("Hydrate node {} failed: {}", patch.objectId(), ex.getMessage());
             }
         }
+        List<IdeaObject> minted = new ArrayList<>();
         for (var extra : plan.extras()) {
             try {
                 var createdExtra = graph.createObject(workspaceId, null, new GraphService.CreateObjectRequest(
                         extra.type(), extra.title(), extra.summary(), extra.body(),
-                        null, "original", null, null,
+                        null, "original", null,
+                        "misconception".equals(extra.type()) ? "misconception" : null,
                         generatedBy, userMsgId, assistantMsgId,
                         null, null, List.of(), List.of()));
                 ids.add(createdExtra.id());
                 created.add(createdExtra);
+                minted.add(createdExtra);
             } catch (Exception ex) {
                 log.warn("Hydrate extra card failed: {}", ex.getMessage());
             }
         }
-        for (var edge : plan.edges()) {
+        List<ConversationGraphHydrator.EdgeSpec> edges = new ArrayList<>(plan.edges());
+        edges.addAll(hydrator.suggestedEdges(minted));
+        edges.addAll(hydrator.attachToAnchor(minted, snapshot.nodes(),
+                focusKeys == null ? List.of() : focusKeys, userText));
+        var after = graph.graph(workspaceId, null);
+        for (var edge : edges) {
             try {
                 IdeaObject from = resolveKey(workspaceId, edge.fromDisplayId());
                 IdeaObject to = resolveKey(workspaceId, edge.toDisplayId());
-                if (from == null || to == null) {
+                if (from == null || to == null || from.id().equals(to.id())) {
+                    continue;
+                }
+                boolean exists = after.edges().stream().anyMatch(e ->
+                        e.fromObjectId().equals(from.id()) && e.toObjectId().equals(to.id())
+                                && e.type().equals(edge.type()));
+                if (exists) {
                     continue;
                 }
                 graph.createEdge(workspaceId, new GraphService.CreateEdgeRequest(
