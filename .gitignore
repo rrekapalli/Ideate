@@ -15,6 +15,12 @@ libpeerconnection.log
 testem.log
 typings/
 
+# Java
+backend/target/
+**/.mvn/apache-maven-*/
+*.jar
+!**/maven-wrapper.jar
+
 # Environment and secrets
 .env
 .env.*
@@ -50,3 +56,7 @@ yarn-error.log*
 # Optional tooling
 .cursor/*
 !.cursor/rules/
+
+# Deploy artifacts
+deployment/artifacts/*
+!deployment/artifacts/.gitkeep

@@ -1,0 +1,20 @@
+[Unit]
+Description=Ideate API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=raja
+Group=raja
+WorkingDirectory=/opt/ideate-api
+EnvironmentFile=/opt/ideate-api/.env
+ExecStart=/opt/ideate-api/start.sh
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=143
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

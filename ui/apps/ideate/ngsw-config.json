@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "navigationRequestStrategy": "freshness",
+  "navigationUrls": ["/**", "!/**/*.*", "!/v1/**"],
+  "assetGroups": [
+    {
+      "name": "app-shell",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": ["/favicon.svg", "/index.html", "/manifest.webmanifest", "/*.css", "/main*.js"]
+      }
+    }
+  ]
+}

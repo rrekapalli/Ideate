@@ -1,0 +1,273 @@
+<div
+  class="workspace-page"
+  [class.is-resizing]="shell.resizing()"
+  [style.--ideate-left-drawer.px]="shell.leftDrawerWidth()"
+  [style.--ideate-right-drawer.px]="shell.rightDrawerWidth()"
+>
+  @if (explorerOpen()) {
+    <aside class="filter-drawer explorer-drawer" aria-label="Explorer drawer">
+      <div class="filter-drawer-header">
+        <h2>{{ leftTitle() }}</h2>
+        <mt-button variant="icon" icon="close" size="sm" ariaLabel="Close explorer" (clicked)="shell.closeLeft()" />
+      </div>
+      <div class="filter-drawer-content" [class.filter-drawer-content--flush]="explorerTab() === 'documents' || explorerTab() === 'branches'">
+        @switch (explorerTab()) {
+          @case ('objects') {
+            @for (group of objectGroups(); track group.type) {
+              <div class="group">{{ group.type }}</div>
+              @for (n of group.nodes; track n.id) {
+                <button
+                  type="button"
+                  class="tree"
+                  [class.active]="inspected()?.id === n.id"
+                  (click)="focusObject(n)"
+                  (dblclick)="openObject(n)"
+                >{{ n.displayId }} {{ n.title }}</button>
+              }
+            }
+          }
+          @case ('documents') {
+            <ideate-docs-tree
+              [workspaceId]="workspaceId"
+              [folders]="folders()"
+              [items]="documents()"
+              (open)="openDocument($event)"
+              (changed)="reloadAll()"
+            />
+          }
+          @case ('branches') {
+            <ideate-branches-tree
+              [workspaceId]="workspaceId"
+              [branches]="branches()"
+              [activeBranchId]="activeBranchId()"
+              (open)="openBranch($event)"
+              (changed)="reloadAll()"
+            />
+          }
+        }
+      </div>
+      <ideate-drawer-resize
+        edge="left"
+        [width]="shell.leftDrawerWidth()"
+        (widthChange)="shell.setLeftDrawerWidth($event)"
+        (dragging)="shell.resizing.set($event)"
+      />
+    </aside>
+  }
+
+  <div class="main-content" [class.left-drawer-open]="explorerOpen()" [class.right-drawer-open]="rightOpen()">
+    <nav class="tabs">
+      @for (tab of tabs(); track tabKey(tab); let i = $index) {
+        <button type="button" [class.active]="i === activeTab()" (click)="activeTab.set(i)">
+          {{ tabLabel(tab) }}
+        </button>
+        @if (tab.kind !== 'graph') {
+          <button type="button" class="x" (click)="closeTab(i)">×</button>
+        }
+      }
+    </nav>
+    <div class="editor">
+      @if (currentTab(); as tab) {
+        @if (tab.kind === 'graph') {
+          <ideate-graph-canvas
+            #canvas
+            [snapshot]="graph()"
+            (open)="openObject($event)"
+            (typeChange)="changeType($event.object, $event.type)"
+            (newNode)="promptNewNode($event)"
+            (menu)="promptMenu($event)"
+            (openChat)="jumpChat($event)"
+            (inspect)="inspected.set($event)"
+          />
+        } @else if (tab.kind === 'object') {
+          <ideate-object-page
+            [object]="tab.object"
+            [userMessage]="message(tab.object.sourceUserMessageId)"
+            [assistantMessage]="message(tab.object.sourceAssistantMessageId)"
+            (typeChange)="changeType(tab.object, $event)"
+            (newNode)="promptNewNode($event)"
+            (menu)="promptMenu($event)"
+            (openChat)="jumpChat($event)"
+          />
+        } @else {
+          <div class="doc">
+            <h2>{{ tab.item.name }}</h2>
+            <p>{{ tab.item.note }}</p>
+            <a [href]="tab.item.url" target="_blank" rel="noopener">Open in source</a>
+            <mt-button size="sm" [label]="'Attach to Evidence card'" (clicked)="attach(tab.item)" />
+          </div>
+        }
+      }
+    </div>
+    <div class="bottom-panel">
+      <div class="btabs">
+        <button type="button" [class.active]="bottomTab() === 'timeline'" (click)="selectBottom('timeline')">Timeline</button>
+        <button type="button" [class.active]="bottomTab() === 'review'" (click)="selectBottom('review')">Review</button>
+        <button type="button" [class.active]="bottomTab() === 'jobs'" (click)="selectBottom('jobs')">Jobs</button>
+        <button type="button" [class.active]="bottomTab() === 'problems'" (click)="selectBottom('problems')">Problems</button>
+        <mt-button size="sm" variant="icon" [icon]="bottomOpen() ? 'expand_more' : 'expand_less'" ariaLabel="Toggle panel" (clicked)="bottomOpen.set(!bottomOpen())" />
+      </div>
+      @if (bottomOpen()) {
+        <div class="bbody">
+          @switch (bottomTab()) {
+            @case ('timeline') {
+              @for (e of timeline(); track e.id) {
+                <button type="button" class="tree linkish" (click)="openById(e.objectId)">{{ e.createdAt }} · {{ e.eventType }} · {{ e.objectId }}</button>
+              }
+            }
+            @case ('jobs') {
+              <mt-button size="sm" [label]="'Run graph review (BATCH)'" (clicked)="runReview()" />
+              @for (j of jobs(); track j.id) {
+                <div class="row">{{ j.jobClass }} · {{ j.status }} · {{ j.createdAt }}</div>
+              }
+            }
+            @case ('problems') {
+              @for (p of problems(); track p.id) {
+                <div class="row">
+                  {{ p.kind }} — {{ p.message }}
+                  @for (oid of p.objectIds || []; track oid) {
+                    <button type="button" class="linkish" (click)="openById(oid)">{{ displayOf(oid) }}</button>
+                  }
+                </div>
+              }
+            }
+            @default {
+              <div class="row">Review lists object ids after a BATCH job. Run graph review from Jobs.</div>
+            }
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (rightOpen()) {
+    <aside class="filter-drawer right-filter-drawer" aria-label="Workspace tools">
+      <div class="filter-drawer-header">
+        <h2>{{ rightTitle() }}</h2>
+        <mt-button variant="icon" icon="close" size="sm" ariaLabel="Close tools" (clicked)="rightOpen.set(false); persistChrome()" />
+      </div>
+      <div class="filter-drawer-content" [class.chat-pane]="rightTab() === 'chat'" #chatBody>
+        @switch (rightTab()) {
+          @case ('chat') {
+            <div class="chat-thread">
+              @if (transcript().length === 0) {
+                <p class="chat-empty">Start a conversation. It stays with this workspace.</p>
+              }
+              @for (m of transcript(); track m.id) {
+                <article
+                  class="bubble"
+                  [class.bubble--you]="m.role === 'user'"
+                  [class.bubble--ai]="m.role === 'assistant'"
+                  [class.bubble--sys]="m.role === 'system'"
+                  [class.hl]="highlightedMsg() === m.id"
+                  [attr.id]="'msg-' + m.id"
+                >
+                  <div class="meta">
+                    @if (m.role !== 'system') {
+                      <span class="who">{{ m.role === 'user' ? 'You' : 'Ideate' }}</span>
+                    }
+                    <time class="when" [attr.datetime]="m.createdAt">{{ chatWhen(m.createdAt) }}</time>
+                  </div>
+                  <p>{{ chatText(m) }}</p>
+                </article>
+              }
+            </div>
+          }
+          @case ('insights') {
+            @if (timeline().length === 0) {
+              <p class="muted">Graph events will list object ids here.</p>
+            }
+            @for (e of timeline(); track e.id) {
+              <button type="button" class="tree" (click)="openById(e.objectId)">{{ e.createdAt }} · {{ e.eventType }} · {{ e.objectId }}</button>
+            }
+          }
+          @case ('inspector') {
+            @if (inspected(); as obj) {
+              <p><strong>{{ obj.displayId }}</strong> {{ obj.title }}</p>
+              <p class="muted">{{ obj.type }} · {{ obj.objectCategory }} · v{{ obj.version }}</p>
+              <p>{{ obj.summary || obj.body || 'No body yet.' }}</p>
+              <mt-button size="sm" [label]="'Open tab'" (clicked)="openObject(obj)" />
+            } @else {
+              <p class="muted">Select a card to inspect it.</p>
+            }
+          }
+          @default {
+            @for (n of graph().nodes; track n.id) {
+              <button type="button" class="tree" (click)="focusObject(n)">{{ n.displayId }} {{ n.title }}</button>
+            }
+          }
+        }
+      </div>
+      @if (rightTab() === 'chat') {
+        <div class="filter-drawer-footer composer">
+          <select [(ngModel)]="mode">
+            @for (m of modes; track m) {
+              <option [value]="m">{{ m }}</option>
+            }
+          </select>
+          <textarea [(ngModel)]="draft" rows="2" placeholder="Think out loud…" (keydown.control.enter)="send()"></textarea>
+          <mt-button icon="send" [label]="'Send'" [disabled]="sending()" (clicked)="send()" />
+        </div>
+      }
+      <ideate-drawer-resize
+        edge="right"
+        [width]="shell.rightDrawerWidth()"
+        (widthChange)="shell.setRightDrawerWidth($event)"
+        (dragging)="shell.resizing.set($event)"
+      />
+    </aside>
+  }
+
+  <nav class="nav-bar right-nav-bar" role="navigation" aria-label="Workspace tools">
+    <ul class="nav-menu">
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'chat'" title="Chat" (click)="selectRight('chat')">
+          <mt-icon name="chat" [size]="14" />
+          <span class="btn-label">Chat</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'insights'" title="Insights" (click)="selectRight('insights')">
+          <mt-icon name="chart" [size]="14" />
+          <span class="btn-label">Info</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'inspector'" title="Inspector" (click)="selectRight('inspector')">
+          <mt-icon name="visibility" [size]="14" />
+          <span class="btn-label">Look</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'outline'" title="Outline" (click)="selectRight('outline')">
+          <mt-icon name="list" [size]="14" />
+          <span class="btn-label">List</span>
+        </button>
+      </li>
+    </ul>
+  </nav>
+
+  @if (searchOpen()) {
+    <div class="overlay" (click)="searchOpen.set(false)">
+      <div class="palette" (click)="$event.stopPropagation()">
+        <input [(ngModel)]="searchQuery" (keydown.enter)="runSearch()" autofocus />
+        @for (o of searchObjects(); track o.id) {
+          <button type="button" (click)="pickSearchObject(o)">{{ o.displayId }} {{ o.title }}</button>
+        }
+        @for (d of searchDocs(); track d.id) {
+          <button type="button" (click)="openDocument(d); searchOpen.set(false)">{{ d.name }}</button>
+        }
+      </div>
+    </div>
+  }
+
+  @if (showSettings()) {
+    <div class="overlay" (click)="showSettings.set(false)">
+      <div class="palette" (click)="$event.stopPropagation()">
+        <p>Persona: {{ workspace()?.persona }}</p>
+        <p>Dev auth bypass is on. Credits: {{ credits() }}</p>
+        <p>Usage this workspace: {{ usageMinor() }} minor INR units</p>
+      </div>
+    </div>
+  }
+</div>

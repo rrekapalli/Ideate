@@ -1,0 +1,52 @@
+@use "theme/ideate-design-tokens";
+@use "../../../libs/ideate-ui/src/tokens/tokens";
+@use 'theme/app-nav-rail';
+@import 'ng-diagram/styles.css';
+
+.app-dark, html[data-theme='dark'] {
+  --ngd-diagram-background-color: #1c212b;
+  --ideate-graph-bg: #1c212b;
+  --ideate-graph-grid: #3a4150;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--mt-surface-ground, #f3f5f8);
+  color: var(--mt-text, #212121);
+  font-family: var(--font-family);
+  font-size: 11px !important;
+  --ngd-diagram-background-color: #e6e8ed;
+  --ideate-graph-bg: #e6e8ed;
+  --ideate-graph-grid: #b8bcc6;
+}
+
+body {
+  font-size: var(--mt-fs);
+  line-height: 1.4;
+}
+
+ideate-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: var(--mt-fs);
+}
+
+.content-area-wrapper > *:not(router-outlet) {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--mt-primary, #10b981);
+}

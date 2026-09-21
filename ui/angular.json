@@ -1,0 +1,72 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "libs",
+  "projects": {
+    "ideate": {
+      "projectType": "application",
+      "root": "apps/ideate",
+      "sourceRoot": "apps/ideate/src",
+      "prefix": "ideate",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/ideate",
+            "index": "apps/ideate/src/index.html",
+            "browser": "apps/ideate/src/main.ts",
+            "polyfills": ["zone.js"],
+            "tsConfig": "apps/ideate/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "apps/ideate/src/favicon.svg",
+              "apps/ideate/src/manifest.webmanifest",
+              "apps/ideate/src/assets"
+            ],
+            "styles": ["apps/ideate/src/styles.scss"],
+            "serviceWorker": "apps/ideate/ngsw-config.json"
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                { "type": "initial", "maximumWarning": "2mb", "maximumError": "5mb" }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": { "buildTarget": "ideate:build:production" },
+            "development": { "buildTarget": "ideate:build:development" }
+          },
+          "defaultConfiguration": "development"
+        }
+      }
+    },
+    "ideate-ui": {
+      "projectType": "library",
+      "root": "libs/ideate-ui",
+      "sourceRoot": "libs/ideate-ui/src",
+      "prefix": "mt",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "options": { "project": "libs/ideate-ui/ng-package.json" },
+          "configurations": {
+            "production": { "tsConfig": "libs/ideate-ui/tsconfig.lib.prod.json" },
+            "development": { "tsConfig": "libs/ideate-ui/tsconfig.lib.json" }
+          },
+          "defaultConfiguration": "production"
+        }
+      }
+    }
+  }
+}

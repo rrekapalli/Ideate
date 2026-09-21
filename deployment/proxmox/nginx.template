@@ -1,0 +1,91 @@
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    include /etc/nginx/snippets/ideate-ssl.conf;
+    server_name {{DOMAIN}};
+
+    root {{APP_ROOT}};
+    index index.html;
+
+    resolver 100.100.100.100 8.8.8.8 valid=300s;
+    resolver_timeout 5s;
+
+    location = /ngsw.json {
+        add_header Cache-Control "no-cache";
+        access_log off;
+    }
+
+    location = /ngsw-worker.js {
+        add_header Cache-Control "no-cache";
+        access_log off;
+    }
+
+    location = /manifest.webmanifest {
+        default_type application/manifest+json;
+        add_header Cache-Control "public, max-age=3600";
+        access_log off;
+    }
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1000;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+        try_files $uri =404;
+    }
+
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    set $ideate_api "{{API_BASE_URL}}";
+
+    location /v1 {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_pass $ideate_api;
+    }
+
+    location /actuator {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass $ideate_api;
+    }
+
+    location /swagger-ui {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_pass $ideate_api;
+    }
+
+    location /swagger-ui.html {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_pass $ideate_api;
+    }
+
+    location /v1/api-docs {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_pass $ideate_api;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Compile backend
+        working-directory: backend
+        run: chmod +x mvnw && ./mvnw -q -DskipTests package
+      - name: Test
+        working-directory: backend
+        run: ./mvnw -q test
+
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.22.3"
+      - name: Build Angular PWA
+        working-directory: ui
+        run: npm install && npx ng build ideate --configuration development

@@ -1,0 +1,45 @@
+/* Public --mt-* contract. Apps may @use this file. */
+
+:root {
+  --font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --mt-corner-radius: 1px;
+  --mt-panel-border-radius: 0;
+  --mt-button-padding: 0.28rem 0.75rem;
+  --mt-input-padding: calc(0.2rem / var(--font-size, 1rem)) calc(0.375rem / var(--font-size, 1rem));
+  --mt-tab-padding: calc(0.2rem / var(--font-size, 1rem)) calc(0.375rem / var(--font-size, 1rem));
+  --mt-control-height: 1.75rem;
+  --mt-focus-ring: 0 0 0 2px color-mix(in srgb, var(--mt-primary, #10b981) 45%, transparent);
+
+  --mt-primary: #10b981;
+  --mt-on-primary: #ffffff;
+  --mt-primary-hover: #059669;
+  --mt-surface-card: #ffffff;
+  --mt-surface-ground: #f4f4f5;
+  --mt-surface-border: #e5e7eb;
+  --mt-surface-hover: #f3f4f6;
+  --mt-text: #212121;
+  --mt-text-muted: #6c757d;
+  --mt-input-bg: #ffffff;
+
+  --mt-severity-success: #16a34a;
+  --mt-severity-info: #2563eb;
+  --mt-severity-warn: #d97706;
+  --mt-severity-danger: #dc2626;
+  --mt-severity-secondary: #6b7280;
+
+  --app-font-size: 1rem;
+  --font-size: var(--app-font-size);
+  --button-padding: var(--mt-button-padding);
+  --input-padding: var(--mt-input-padding);
+}
+
+html.app-dark {
+  --mt-surface-card: #1f2937;
+  --mt-surface-ground: #111827;
+  --mt-surface-border: #374151;
+  --mt-surface-hover: #374151;
+  --mt-text: #f3f4f6;
+  --mt-text-muted: #9ca3af;
+  --mt-input-bg: #111827;
+  --mt-on-primary: #ffffff;
+}

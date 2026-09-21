@@ -1,0 +1,53 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ideate
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:pg18.tailce422e.ts.net}:${DB_PORT:6432}/${DB_NAME:ideate}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:mysecretpassword}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+      connection-init-sql: SET default_transaction_isolation = 'read committed'
+      data-source-properties:
+        prepareThreshold: 0
+  jackson:
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /v1/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+ideate:
+  auth:
+    enabled: ${IDEATE_AUTH_ENABLED:false}
+    dev-account-id: ${IDEATE_DEV_ACCOUNT_ID:acct_local_dev}
+    dev-email: ${IDEATE_DEV_EMAIL:dev@localhost}
+    dev-name: ${IDEATE_DEV_NAME:Local Thinker}
+    dev-credit-balance: ${IDEATE_DEV_CREDITS:10000}
+  migrations-path: ${IDEATE_MIGRATIONS_PATH:../database-migrations}
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_MODEL:llama3.2}
+  openai:
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
+  cors:
+    origins: ${IDEATE_CORS_ORIGINS:http://localhost:4200,http://127.0.0.1:4200,https://ideate.tailce422e.ts.net}
