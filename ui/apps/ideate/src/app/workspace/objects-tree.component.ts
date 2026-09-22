@@ -1,5 +1,5 @@
 import { Component, computed, input, output, signal } from '@angular/core';
-import { IdeaObject } from '@ideate/api-client';
+import { IdeaObject, lookupLabel } from '@ideate/api-client';
 import { MtIconComponent } from '@ideate/ui';
 
 type TreeRow =
@@ -125,7 +125,7 @@ export class ObjectsTreeComponent {
     return [...map.entries()].map(([type, items]) => ({
       type,
       id: 'type:' + type,
-      label: typeLabel(type),
+      label: lookupLabel(type),
       items,
     }));
   });
@@ -169,9 +169,3 @@ export class ObjectsTreeComponent {
   }
 }
 
-function typeLabel(type: string): string {
-  return type
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
-}

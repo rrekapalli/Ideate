@@ -4,6 +4,7 @@ import {
   IdeaObject,
   JobRecord,
   OBJECT_TYPES,
+  lookupLabel,
   TimelineEvent,
   TranscriptMessage,
   UsageEvent,
@@ -39,11 +40,11 @@ import { MdViewComponent } from '../shared/md-view.component';
           <span class="id">{{ object().displayId }}</span>
           <select [ngModel]="object().type" (ngModelChange)="typeChange.emit($event)">
             @for (t of types; track t) {
-              <option [value]="t">{{ t }}</option>
+              <option [value]="t">{{ lookupLabel(t) }}</option>
             }
           </select>
           <span class="pill">v{{ object().version }}</span>
-          <span class="pill">{{ object().objectCategory }}</span>
+          <span class="pill">{{ lookupLabel(object().objectCategory) }}</span>
         </div>
         <div class="hero-row">
           <h1>{{ object().title }}</h1>
@@ -306,6 +307,7 @@ export class ObjectPageComponent {
   readonly openChat = output<IdeaObject>();
   readonly open = output<IdeaObject>();
   readonly types = OBJECT_TYPES;
+  readonly lookupLabel = lookupLabel;
   readonly pane = signal<string>('page');
   readonly crumbs = computed(() => {
     const trail = this.trail();

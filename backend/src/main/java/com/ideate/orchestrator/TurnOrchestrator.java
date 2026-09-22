@@ -104,7 +104,7 @@ public class TurnOrchestrator {
         try {
             String projectState = assembler.assemble(workspaceId, branchId, request.content(), request.focusObjectIds());
             ProviderTarget target = resolveProvider(accountId, workspaceId, jobClass);
-            ChatClient.ChatResult completion = completeWithRetry(target, projectState);
+            ChatClient.ChatResult completion = completeWithRetry(target, projectState, true);
             usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
                     completion.inputTokens(), completion.outputTokens(), 0);
             if (completion.error() != null) {
@@ -114,6 +114,17 @@ public class TurnOrchestrator {
                 return;
             }
             String assistantText = ChatReplyCleaner.visible(completion.text());
+            if (!ChatReplyCleaner.isUsable(assistantText)) {
+                ChatClient.ChatResult spoken = completeWithRetry(target, projectState + """
+
+                        Answer the latest question in compact Markdown only. Do not call tools or mention graphs.
+                        """, false);
+                if (spoken != null && spoken.error() == null) {
+                    usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
+                            spoken.inputTokens(), spoken.outputTokens(), 0);
+                    assistantText = ChatReplyCleaner.visible(spoken.text());
+                }
+            }
             if (!ChatReplyCleaner.isUsable(assistantText)) {
                 assistantText = ChatReplyCleaner.fallback(request.content());
             }
@@ -135,31 +146,84 @@ public class TurnOrchestrator {
         }
     }
 
-    private ChatClient.ChatResult completeWithRetry(ProviderTarget target, String projectState) {
+    private ChatClient.ChatResult completeWithRetry(ProviderTarget target, String projectState, boolean enableTools) {
+        List<String> bases = new ArrayList<>();
+        addUnique(bases, target.baseUrl());
+        addUnique(bases, properties.getOllama().getBaseUrl());
+        addUnique(bases, "http://127.0.0.1:11434");
+        List<String> models = new ArrayList<>();
+        addUnique(models, target.model());
+        addUnique(models, properties.getOllama().getModel());
+        addUnique(models, "llama3.2");
+        addUnique(models, "mistral");
+
         ChatClient.ChatResult last = null;
-        for (int attempt = 1; attempt <= 4; attempt++) {
-            last = chatClient.complete(new ChatClient.ChatRequest(
-                    target.model(),
-                    target.baseUrl(),
-                    target.apiKey(),
-                    List.of(
-                            new ChatClient.Message("system", SYSTEM),
-                            new ChatClient.Message("user", projectState)
-                    ),
-                    1600
-            ));
-            if (last.error() == null) {
-                return last;
-            }
-            log.warn("Model attempt {} failed: {}", attempt, last.error());
-            try {
-                Thread.sleep(1500L * attempt);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                return last;
+        for (String base : bases) {
+            boolean hostDead = false;
+            for (String model : models) {
+                for (int attempt = 1; attempt <= 2; attempt++) {
+                    last = chatClient.complete(new ChatClient.ChatRequest(
+                            model,
+                            base,
+                            target.apiKey(),
+                            List.of(
+                                    new ChatClient.Message("system", SYSTEM),
+                                    new ChatClient.Message("user", projectState)
+                            ),
+                            1600,
+                            enableTools
+                    ));
+                    if (last.error() == null) {
+                        if (!base.equals(target.baseUrl()) || !model.equals(target.model())) {
+                            log.info("Turn used fallback model {} at {}", model, base);
+                        }
+                        return last;
+                    }
+                    log.warn("Model {} at {} attempt {} failed: {}", model, base, attempt, last.error());
+                    if (isMissingModel(last.error())) {
+                        break;
+                    }
+                    if (isUnreachable(last.error())) {
+                        hostDead = true;
+                        break;
+                    }
+                    try {
+                        Thread.sleep(800L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return last;
+                    }
+                }
+                if (hostDead) {
+                    break;
+                }
             }
         }
         return last;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static void addUnique(List<String> values, String value) {
+        if (hasText(value) && values.stream().noneMatch(value::equalsIgnoreCase)) {
+            values.add(value);
+        }
+    }
+
+    private static boolean isMissingModel(String error) {
+        return error != null && error.toLowerCase(Locale.ROOT).contains("not found");
+    }
+
+    private static boolean isUnreachable(String error) {
+        if (error == null) {
+            return false;
+        }
+        String e = error.toLowerCase(Locale.ROOT);
+        return e.contains("timed out") || e.contains("i/o error") || e.contains("connection refused")
+                || e.contains("unreachable") || e.contains("unknownhost") || e.contains("connect timed out")
+                || e.contains("no route to host") || e.contains("failed to connect");
     }
 
     List<String> hydrateGraph(String workspaceId, List<String> createdIds, String userText, String assistantText,
@@ -413,14 +477,14 @@ public class TurnOrchestrator {
                 (rs, i) -> new SettingsRow(rs.getString("provider"), rs.getString("model"), rs.getString("ollama_base_url")),
                 accountId);
         if (!account.isEmpty()) {
-            if (account.getFirst().provider != null) {
-                provider = account.getFirst().provider;
+            if (hasText(account.getFirst().provider())) {
+                provider = account.getFirst().provider();
             }
-            if (account.getFirst().model != null) {
-                model = account.getFirst().model;
+            if (hasText(account.getFirst().model())) {
+                model = account.getFirst().model();
             }
-            if (account.getFirst().ollamaBaseUrl != null) {
-                base = account.getFirst().ollamaBaseUrl;
+            if (hasText(account.getFirst().ollamaBaseUrl())) {
+                base = account.getFirst().ollamaBaseUrl();
             }
         }
         List<SettingsRow> ws = jdbc.query(
@@ -428,14 +492,14 @@ public class TurnOrchestrator {
                 (rs, i) -> new SettingsRow(rs.getString("provider_override"), rs.getString("model_override"), rs.getString("ollama_base_url")),
                 workspaceId);
         if (!ws.isEmpty()) {
-            if (ws.getFirst().provider != null) {
-                provider = ws.getFirst().provider;
+            if (hasText(ws.getFirst().provider())) {
+                provider = ws.getFirst().provider();
             }
-            if (ws.getFirst().model != null) {
-                model = ws.getFirst().model;
+            if (hasText(ws.getFirst().model())) {
+                model = ws.getFirst().model();
             }
-            if (ws.getFirst().ollamaBaseUrl != null) {
-                base = ws.getFirst().ollamaBaseUrl;
+            if (hasText(ws.getFirst().ollamaBaseUrl())) {
+                base = ws.getFirst().ollamaBaseUrl();
             }
         }
         if ("SIMPLE".equals(jobClass)) {

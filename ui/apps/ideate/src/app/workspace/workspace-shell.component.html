@@ -94,6 +94,7 @@
             [branch]="activeBranchName()"
             [credits]="credits()"
             [usageMinor]="usageMinor()"
+            [usage]="usage()"
           />
         } @else {
           <div class="doc">
@@ -198,7 +199,7 @@
           @case ('inspector') {
             @if (inspected(); as obj) {
               <p><strong>{{ obj.displayId }}</strong> {{ obj.title }}</p>
-              <p class="muted">{{ obj.type }} · {{ obj.objectCategory }} · v{{ obj.version }}</p>
+              <p class="muted">{{ lookupLabel(obj.type) }} · {{ lookupLabel(obj.objectCategory) }} · v{{ obj.version }}</p>
               <ideate-md [source]="obj.summary || obj.body || 'No body yet.'" />
               <mt-button size="sm" [label]="'Open tab'" (clicked)="openObject(obj)" />
             } @else {
@@ -222,7 +223,7 @@
           }
           <select [(ngModel)]="mode">
             @for (m of modes; track m) {
-              <option [value]="m">{{ m }}</option>
+              <option [value]="m">{{ lookupLabel(m) }}</option>
             }
           </select>
           <textarea [(ngModel)]="draft" rows="2" placeholder="Think out loud…" (keydown.control.enter)="send()"></textarea>

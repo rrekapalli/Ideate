@@ -33,8 +33,17 @@ public class UsageService {
         Integer minor = jdbc.queryForObject(
                 "SELECT COALESCE(SUM(estimated_cost_minor),0) FROM ai_usage_event WHERE workspace_id = ?",
                 Integer.class, workspaceId);
+        Integer inputTokens = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(input_tokens),0) FROM ai_usage_event WHERE workspace_id = ?",
+                Integer.class, workspaceId);
+        Integer outputTokens = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(output_tokens),0) FROM ai_usage_event WHERE workspace_id = ?",
+                Integer.class, workspaceId);
+        Integer calls = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ai_usage_event WHERE workspace_id = ?",
+                Integer.class, workspaceId);
         List<UsageEvent> recent = jdbc.query("""
-                SELECT * FROM ai_usage_event WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 50
+                SELECT * FROM ai_usage_event WHERE workspace_id = ? ORDER BY created_at DESC
                 """, (rs, i) -> new UsageEvent(
                 rs.getString("id"),
                 rs.getString("job_id"),
@@ -46,7 +55,13 @@ public class UsageService {
                 rs.getInt("estimated_cost_minor"),
                 rs.getTimestamp("created_at").toInstant()
         ), workspaceId);
-        return new UsageRollup(workspaceId, minor == null ? 0 : minor, recent);
+        return new UsageRollup(
+                workspaceId,
+                minor == null ? 0 : minor,
+                recent,
+                inputTokens == null ? 0 : inputTokens,
+                outputTokens == null ? 0 : outputTokens,
+                calls == null ? 0 : calls);
     }
 
     private int estimateCostMinor(String provider, String model, int inTok, int outTok, int cached) {
@@ -68,7 +83,13 @@ public class UsageService {
         return in.add(out).add(cachedCost).multiply(BigDecimal.valueOf(8300)).setScale(0, RoundingMode.HALF_UP).intValue();
     }
 
-    public record UsageRollup(String workspaceId, int estimatedCostMinorInr, List<UsageEvent> recent) {}
+    public record UsageRollup(
+            String workspaceId,
+            int estimatedCostMinorInr,
+            List<UsageEvent> recent,
+            int inputTokens,
+            int outputTokens,
+            int calls) {}
 
     public record UsageEvent(String id, String jobId, String provider, String model, String jobClass,
                              int inputTokens, int outputTokens, int estimatedCostMinor, Instant createdAt) {}

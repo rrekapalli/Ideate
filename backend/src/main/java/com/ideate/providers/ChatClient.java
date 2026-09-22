@@ -7,7 +7,11 @@ public interface ChatClient {
 
     ChatResult complete(ChatRequest request);
 
-    record ChatRequest(String model, String baseUrl, String apiKey, List<Message> messages, int tokenBudget) {}
+    record ChatRequest(String model, String baseUrl, String apiKey, List<Message> messages, int tokenBudget, boolean enableTools) {
+        public ChatRequest(String model, String baseUrl, String apiKey, List<Message> messages, int tokenBudget) {
+            this(model, baseUrl, apiKey, messages, tokenBudget, true);
+        }
+    }
 
     record Message(String role, String content) {}
 

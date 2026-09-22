@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MtButtonComponent, MtFieldComponent, MtTableComponent } from '@ideate/ui';
-import { IdeateApi, PERSONAS, Persona, WorkspaceSummary } from '@ideate/api-client';
+import { IdeateApi, PERSONAS, Persona, WorkspaceSummary, lookupLabel } from '@ideate/api-client';
 import { ShellContextService } from '../core/shell/shell-context.service';
 
 @Component({
@@ -35,7 +35,7 @@ import { ShellContextService } from '../core/shell/shell-context.service';
               <select [(ngModel)]="persona">
                 <option value="" disabled>Select a persona</option>
                 @for (p of personas; track p) {
-                  <option [value]="p">{{ p }}</option>
+                  <option [value]="p">{{ lookupLabel(p) }}</option>
                 }
               </select>
             </label>
@@ -63,7 +63,7 @@ import { ShellContextService } from '../core/shell/shell-context.service';
             @for (p of personas; track p) {
               <li>
                 <button type="button" [class.active]="filter() === p" (click)="filter.set(p)">
-                  <span>{{ p }}</span><strong>{{ countByPersona()[p] }}</strong>
+                  <span>{{ lookupLabel(p) }}</span><strong>{{ countByPersona()[p] }}</strong>
                 </button>
               </li>
             }
@@ -78,7 +78,7 @@ import { ShellContextService } from '../core/shell/shell-context.service';
             @for (ws of recent(); track ws.id) {
               <li>
                 <button type="button" class="link" (click)="open(ws)">{{ ws.name }}</button>
-                <span class="meta">{{ ws.persona }} · {{ statusOf(ws) }}</span>
+                <span class="meta">{{ lookupLabel(ws.persona) }} · {{ statusOf(ws) }}</span>
               </li>
             }
           </ul>
@@ -101,7 +101,7 @@ import { ShellContextService } from '../core/shell/shell-context.service';
 
       <section class="table-section">
         <div class="section-head">
-          <h2>{{ filter() === 'all' ? 'All workspaces' : filter() + ' workspaces' }}</h2>
+          <h2>{{ filter() === 'all' ? 'All workspaces' : lookupLabel(filter()) + ' workspaces' }}</h2>
           @if (filter() !== 'all') {
             <mt-button size="sm" variant="text" [label]="'Clear filter'" (clicked)="filter.set('all')" />
           }
@@ -166,6 +166,7 @@ export class HomeComponent {
   private readonly router = inject(Router);
   private readonly shell = inject(ShellContextService);
   readonly personas = PERSONAS;
+  readonly lookupLabel = lookupLabel;
   readonly rows = signal<WorkspaceSummary[]>([]);
   readonly error = signal('');
   readonly creating = signal(false);
@@ -199,7 +200,7 @@ export class HomeComponent {
     this.filtered().map((ws) => ({
       id: ws.id,
       name: ws.name,
-      persona: ws.persona,
+      persona: lookupLabel(ws.persona),
       status: this.statusOf(ws),
       objects: ws.objectCount,
       branches: ws.branchCount,

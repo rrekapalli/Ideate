@@ -117,6 +117,9 @@ export interface UsageRollup {
   workspaceId?: string;
   estimatedCostMinorInr: number;
   recent?: UsageEvent[];
+  inputTokens?: number;
+  outputTokens?: number;
+  calls?: number;
 }
 
 export interface DocumentFolder {
@@ -156,6 +159,16 @@ export const OBJECT_TYPES = [
   'evaluation', 'theory', 'misconception', 'constraint', 'calculation',
   'target', 'design_artifact', 'architecture', 'component',
 ] as const;
+
+/** Lookup labels: question → Question, design_artifact → Design Artifact. */
+export function lookupLabel(value: string | null | undefined): string {
+  if (!value) return '';
+  return value
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
 
 export const PERSONAS: Persona[] = ['student', 'researcher', 'inventor', 'analyst', 'explorer'];
 

@@ -18,6 +18,7 @@ import {
   UsageRollup,
   Workspace,
   WorkspaceBranch,
+  lookupLabel,
 } from '@ideate/api-client';
 import { ShellContextService } from '../core/shell/shell-context.service';
 import { DrawerResizeComponent } from '../core/nav/drawer-resize.component';
@@ -87,6 +88,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   mode = 'explore';
   modes = MODES;
   types = OBJECT_TYPES;
+  readonly lookupLabel = lookupLabel;
   sending = signal(false);
   workspaceId = '';
   private objectRowTapAt = 0;
@@ -171,6 +173,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
         workspaceId: u.workspaceId ?? this.workspaceId,
         estimatedCostMinorInr: u.estimatedCostMinorInr ?? 0,
         recent: u.recent ?? [],
+        inputTokens: u.inputTokens,
+        outputTokens: u.outputTokens,
+        calls: u.calls,
       });
       this.usageMinor.set(u.estimatedCostMinorInr ?? 0);
       this.pushShell();
@@ -423,7 +428,11 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       return;
     }
     const path = this.chatPath();
-    const focus = path.length ? path : this.chatFrom() ? [this.chatFrom()!] : this.inspected() ? [this.inspected()!] : [];
+    const leaf = this.chatFrom() ?? this.inspected();
+    const focus = path.length ? path : leaf ? [leaf] : [];
+    if (leaf && focus.length && focus[focus.length - 1]?.id !== leaf.id) {
+      focus.push(leaf);
+    }
     const now = new Date().toISOString();
     const localUser: TranscriptMessage = {
       id: 'local-user-' + now,

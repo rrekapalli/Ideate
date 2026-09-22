@@ -78,6 +78,30 @@ class ConversationGraphHydratorTest {
     }
 
     @Test
+    void laterTurnWithoutQuestionMarkStillMintsFromTheClickedCard() {
+        IdeaObject question = titled("q1", "Q-001", "question", "Why does ice float on water?");
+        IdeaObject hypothesis = titled("h1", "H-001", "hypothesis", "Ice floats because it is less dense than liquid water.");
+        String user = "Then how can ships made of metal can float on water, even though they are more denser than water";
+        String assistant = "A metal ship floats because its average density is less than water.";
+        var plan = hydrator.plan(user, assistant, List.of(), List.of(question, hypothesis),
+                List.of(question.id(), hypothesis.id()));
+        assertTrue(plan.extras().stream().anyMatch(e -> "question".equals(e.type())
+                && e.title().toLowerCase().contains("ships")));
+        assertTrue(plan.extras().stream().anyMatch(e -> "thought".equals(e.type())
+                && e.title().toLowerCase().contains("metal ship")));
+        IdeaObject mintedQ = titled("n1", "Q-005", "question",
+                "Then how can ships made of metal can float on water, even though they are more denser than water?");
+        IdeaObject mintedT = titled("n2", "T-002", "thought",
+                "A metal ship floats because its average density is less than water.");
+        var edges = hydrator.attachToAnchor(List.of(mintedQ, mintedT), List.of(question, hypothesis),
+                List.of(question.id(), "H-001"), user);
+        assertTrue(edges.stream().anyMatch(e -> "H-001".equals(e.fromDisplayId())
+                && "Q-005".equals(e.toDisplayId())));
+        assertTrue(edges.stream().noneMatch(e -> "Q-001".equals(e.fromDisplayId())
+                && "Q-005".equals(e.toDisplayId())));
+    }
+
+    @Test
     void laterTurnDoesNotCloneTheTreeAndAttachesToTheFocusCard() {
         IdeaObject hypothesis = titled("h1", "H-001", "hypothesis", "Ice is less dense than liquid water");
         String user = "Why do lakes freeze from the top instead of the bottom?";

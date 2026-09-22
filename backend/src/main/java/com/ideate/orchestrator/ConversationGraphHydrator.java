@@ -75,7 +75,7 @@ public final class ConversationGraphHydrator {
             edges.add(new EdgeSpec(edgeType, em.group(1).toUpperCase(Locale.ROOT),
                     em.group(2).toUpperCase(Locale.ROOT), "From conversation"));
         }
-        List<ExtraCard> extraCards = extras(user, assistant, created, patches, existing);
+        List<ExtraCard> extraCards = extras(user, assistant, created, patches, existing, focusKeys);
         edges.addAll(suggestedEdges(created, patches));
         return new Plan(patches, dedupe(edges), extraCards);
     }
@@ -93,7 +93,8 @@ public final class ConversationGraphHydrator {
     }
 
     private static List<ExtraCard> extras(String user, String assistant, List<IdeaObject> created,
-                                         List<NodePatch> patches, List<IdeaObject> existing) {
+                                         List<NodePatch> patches, List<IdeaObject> existing,
+                                         List<String> focusKeys) {
         Map<String, Boolean> have = new LinkedHashMap<>();
         created.forEach(o -> have.put(o.type(), true));
         patches.forEach(p -> have.put(p.type(), true));
@@ -108,10 +109,13 @@ public final class ConversationGraphHydrator {
         }
 
         List<ExtraCard> extras = new ArrayList<>();
+        boolean focused = focusKeys != null && !focusKeys.isEmpty();
         String primary = firstQuestion(user);
+        if (primary == null && (!firstCapture(existing) || focused)) {
+            primary = utteranceAsQuestion(user);
+        }
         String cleanAsst = ChatReplyCleaner.visible(assistant);
-        boolean firstCapture = existing == null || existing.stream()
-                .noneMatch(o -> "question".equals(o.type()) || "hypothesis".equals(o.type()));
+        boolean firstCapture = firstCapture(existing);
 
         if (primary != null && !covered(titles, primary)) {
             extras.add(card("question", primary,
@@ -148,8 +152,7 @@ public final class ConversationGraphHydrator {
                         cleanAsst));
                 have.put("hypothesis", true);
                 addedHypothesis = true;
-            } else if (!firstCapture && extras.stream().anyMatch(e -> "question".equals(e.type()))
-                    && !covered(titles, firstSentence(cleanAsst))) {
+            } else if (!firstCapture && !covered(titles, firstSentence(cleanAsst))) {
                 extras.add(card("thought", trim(firstSentence(cleanAsst), 120),
                         "An answer that grows from a card already on the graph.",
                         cleanAsst));
@@ -205,7 +208,8 @@ public final class ConversationGraphHydrator {
             return null;
         }
         if (focusKeys != null) {
-            for (String key : focusKeys) {
+            for (int i = focusKeys.size() - 1; i >= 0; i--) {
+                String key = focusKeys.get(i);
                 if (key == null || key.isBlank()) {
                     continue;
                 }
@@ -563,9 +567,37 @@ public final class ConversationGraphHydrator {
         };
     }
 
+    private static boolean firstCapture(List<IdeaObject> existing) {
+        return existing == null || existing.stream()
+                .noneMatch(o -> "question".equals(o.type()) || "hypothesis".equals(o.type()));
+    }
+
     private static String firstQuestion(String text) {
         Matcher m = Pattern.compile("([^?\\n]{12,180}\\?)").matcher(text == null ? "" : text);
         return m.find() ? clean(m.group(1)) : null;
+    }
+
+    static String utteranceAsQuestion(String user) {
+        String t = clean(user);
+        if (t == null || t.length() < 12) {
+            return null;
+        }
+        int nl = t.indexOf('\n');
+        String line = nl > 12 ? t.substring(0, nl).trim() : t;
+        if (line.length() > 180) {
+            line = trim(line, 180);
+        }
+        String lower = line.toLowerCase(Locale.ROOT);
+        boolean interrogative = line.endsWith("?")
+                || lower.startsWith("why") || lower.startsWith("how") || lower.startsWith("what")
+                || lower.startsWith("when") || lower.startsWith("where") || lower.startsWith("who")
+                || lower.startsWith("can ") || lower.startsWith("could") || lower.startsWith("does")
+                || lower.startsWith("do ") || lower.startsWith("is ") || lower.startsWith("are ")
+                || lower.startsWith("then ") || lower.contains("how can") || lower.contains("why can");
+        if (!interrogative && line.length() < 20) {
+            return null;
+        }
+        return line.endsWith("?") ? line : line + "?";
     }
 
     private static String firstSentence(String text) {

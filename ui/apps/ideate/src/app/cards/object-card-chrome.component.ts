@@ -1,6 +1,6 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { IdeaObject, OBJECT_TYPES } from '@ideate/api-client';
+import { IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
 import { MtButtonComponent, MtTagComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { cardBox } from './card-layout';
@@ -22,15 +22,19 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       (dblclick)="emitOpen()"
     >
       <header (click)="$event.stopPropagation()">
-        <span class="id">{{ object().displayId }}</span>
-        <select [ngModel]="object().type" (ngModelChange)="emitType($event)">
-          @for (t of types; track t) {
-            <option [value]="t">{{ t }}</option>
-          }
-        </select>
-        <span class="ver">v{{ object().version }}</span>
-        <mt-button size="sm" variant="text" [label]="'+'" (clicked)="emitNew()" />
-        <mt-button size="sm" variant="text" [label]="'⋯'" (clicked)="emitMenu()" />
+        <div class="hdr-left">
+          <span class="id">{{ object().displayId }}</span>
+          <select [ngModel]="object().type" (ngModelChange)="emitType($event)" [attr.aria-label]="'Type'">
+            @for (t of types; track t) {
+              <option [value]="t">{{ lookupLabel(t) }}</option>
+            }
+          </select>
+        </div>
+        <div class="hdr-actions">
+          <span class="ver">v{{ object().version }}</span>
+          <mt-button size="sm" variant="icon" icon="add" ariaLabel="Add related" (clicked)="emitNew()" />
+          <mt-button size="sm" variant="icon" icon="menu" ariaLabel="More actions" (clicked)="emitMenu()" />
+        </div>
       </header>
       <h3>{{ object().title }}</h3>
       <div class="summary"><ideate-md [source]="object().summary || 'No summary yet.'" /></div>
@@ -76,13 +80,52 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     .card[data-type='experiment'] { border-left-color: #ca8a04; }
     header {
       display: flex;
-      gap: 0.25rem;
       align-items: center;
-      padding-bottom: 0.35rem;
+      justify-content: space-between;
+      gap: 0.4rem;
+      min-height: 1.6rem;
+      padding-bottom: 0.3rem;
       border-bottom: 1px dotted var(--mt-surface-border, var(--surface-border));
     }
-    .id { font-family: var(--font-family-mono, monospace); font-size: 0.75rem; }
-    select { background: transparent; color: inherit; border: 0; max-width: 7.5rem; }
+    .hdr-left {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.35rem;
+      min-width: 0;
+      flex: 1 1 auto;
+      text-align: left;
+    }
+    .hdr-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.05rem;
+      flex: 0 0 auto;
+      margin-left: auto;
+    }
+    .id {
+      font-family: var(--font-family-mono, monospace);
+      font-size: 0.75rem;
+      line-height: 1;
+      text-align: left;
+    }
+    select {
+      background: transparent;
+      color: inherit;
+      border: 0;
+      max-width: 8.5rem;
+      min-width: 0;
+      height: 1.45rem;
+      padding: 0;
+      margin: 0;
+      line-height: 1.45rem;
+      text-align: left;
+      text-align-last: left;
+      font: inherit;
+      font-size: 0.75rem;
+    }
+    header :is(mt-button) { display: inline-flex; align-items: center; }
     h3 { margin: 0.4rem 0 0.2rem; font-size: 0.95rem; line-height: 1.25; }
     .summary { margin: 0; font-size: 0.8rem; color: var(--mt-text-muted); line-height: 1.35; }
     .acc {
@@ -130,6 +173,7 @@ export class ObjectCardChromeComponent {
   private readonly bridge = inject(DiagramCanvasBridge, { optional: true });
   readonly object = input.required<IdeaObject>();
   readonly types = OBJECT_TYPES;
+  readonly lookupLabel = lookupLabel;
   readonly expanded = signal(false);
   readonly open = output<IdeaObject>();
   readonly typeChange = output<string>();

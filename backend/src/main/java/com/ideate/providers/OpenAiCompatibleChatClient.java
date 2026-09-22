@@ -25,7 +25,7 @@ public class OpenAiCompatibleChatClient implements ChatClient {
     public OpenAiCompatibleChatClient(ObjectMapper mapper) {
         this.mapper = mapper;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setConnectTimeout(Duration.ofSeconds(12));
         factory.setReadTimeout(Duration.ofSeconds(240));
         this.rest = RestClient.builder().requestFactory(factory).build();
     }
@@ -50,8 +50,10 @@ public class OpenAiCompatibleChatClient implements ChatClient {
                 messages.add(Map.of("role", m.role(), "content", m.content()));
             }
             body.put("messages", messages);
-            body.put("tools", toolSchema());
-            body.put("tool_choice", "auto");
+            if (request.enableTools()) {
+                body.put("tools", toolSchema());
+                body.put("tool_choice", "auto");
+            }
             body.put("think", false);
 
             var spec = rest.post().uri(url).contentType(MediaType.APPLICATION_JSON)
