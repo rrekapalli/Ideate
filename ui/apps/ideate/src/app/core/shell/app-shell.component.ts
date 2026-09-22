@@ -57,6 +57,7 @@ import { ShellContextService } from './shell-context.service';
     }
     .main-content.home-full {
       margin-left: 0;
+      background: var(--mt-surface-card, var(--surface-card, #fff));
     }
     .main-content.workspaces-drawer-open {
       margin-left: calc(48px + var(--ideate-left-drawer, 280px));

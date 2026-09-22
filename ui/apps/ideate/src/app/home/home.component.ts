@@ -171,7 +171,7 @@ import { ShellContextService } from '../core/shell/shell-context.service';
           <div class="box" [class.busy]="busy()">
             <textarea
               #prompt
-              rows="1"
+              rows="2"
               [(ngModel)]="draft"
               [disabled]="busy()"
               placeholder="Ask a question to start a workspace…"
@@ -194,8 +194,13 @@ import { ShellContextService } from '../core/shell/shell-context.service';
   styles: `
     :host {
       display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; overflow: hidden;
+      background: var(--mt-surface-card, var(--surface-card, #fff));
+      color: var(--mt-text, var(--text-color));
     }
-    .page { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; }
+    .page {
+      display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%;
+      background: var(--mt-surface-card, var(--surface-card, #fff));
+    }
     .scroll { flex: 1; min-height: 0; overflow: auto; }
     .inner { max-width: 76rem; margin: 0 auto; padding: 0.75rem 1rem 1rem; }
     .hero { display: flex; justify-content: space-between; gap: 0.75rem; align-items: flex-start; margin-bottom: 0.7rem; }
@@ -220,8 +225,8 @@ import { ShellContextService } from '../core/shell/shell-context.service';
     @media (max-width: 60rem) { .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @media (max-width: 32rem) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     .metric {
-      border: 1px solid var(--surface-border);
-      background: var(--mt-surface-card);
+      border: 1px solid var(--mt-surface-border, var(--surface-border));
+      background: var(--mt-subtle-surface, color-mix(in srgb, var(--mt-text) 4%, var(--mt-surface-card, #fff)));
       border-radius: var(--mt-panel-border-radius, 2px);
       padding: 0.5rem 0.6rem 0.45rem;
       min-width: 0;
@@ -244,8 +249,8 @@ import { ShellContextService } from '../core/shell/shell-context.service';
     .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin-bottom: 0.55rem; }
     @media (max-width: 40rem) { .lists { grid-template-columns: 1fr; } }
     .panel {
-      border: 1px solid var(--surface-border);
-      background: var(--mt-surface-card);
+      border: 1px solid var(--mt-surface-border, var(--surface-border));
+      background: var(--mt-subtle-surface, color-mix(in srgb, var(--mt-text) 4%, var(--mt-surface-card, #fff)));
       border-radius: var(--mt-panel-border-radius, 2px);
       padding: 0.5rem 0.55rem 0.55rem;
       min-width: 0;
@@ -279,30 +284,40 @@ import { ShellContextService } from '../core/shell/shell-context.service';
 
     .dock {
       flex-shrink: 0;
-      border-top: 1px solid var(--surface-border);
-      background: color-mix(in srgb, var(--mt-surface-card, #fff) 92%, var(--surface-ground, #f4f4f5));
-      padding: 0.55rem 1rem 0.65rem;
+      background: var(--mt-surface-card, var(--surface-card, #fff));
+      padding: 0.8rem 1rem 0.95rem;
+      display: flex;
+      justify-content: center;
     }
-    .composer { max-width: 46rem; margin: 0 auto; }
-    .composer-meta { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; }
+    .composer {
+      width: min(42rem, 56%);
+      margin: 0 auto;
+      padding: 0.85rem 1.1rem 0.75rem;
+      border: 1px solid var(--mt-surface-border, var(--surface-border));
+      border-radius: 1.4rem;
+      background: var(--mt-subtle-surface, color-mix(in srgb, var(--mt-text) 4%, var(--mt-surface-card, #fff)));
+      box-shadow: 0 8px 24px color-mix(in srgb, var(--mt-text, #111) 6%, transparent);
+    }
+    .composer-meta { display: flex; justify-content: space-between; align-items: center; gap: 0.65rem; margin-bottom: 0.5rem; }
+    .composer .chip { padding: 0.22rem 0.7rem; gap: 0.35rem; }
+    .persona-pick { gap: 0.4rem; }
     .status { font-size: var(--mt-fs-sm); color: var(--mt-primary, #10b981); font-weight: 650; }
-    .sparks { margin-bottom: 0.35rem; }
-    .spark { max-width: 100%; }
+    .sparks { margin-bottom: 0.5rem; gap: 0.4rem; }
+    .spark { max-width: 100%; padding: 0.22rem 0.7rem; }
     .box {
-      display: flex; align-items: flex-end; gap: 0.4rem;
-      border: 1px solid var(--surface-border);
-      border-radius: 1.15rem;
-      padding: 0.4rem 0.45rem 0.4rem 0.8rem;
-      background: var(--mt-surface-card, #fff);
-      box-shadow: 0 10px 28px color-mix(in srgb, var(--mt-text, #111) 8%, transparent);
+      display: flex; align-items: flex-end; gap: 0.55rem;
+      border: 1px solid var(--mt-surface-border, var(--surface-border));
+      border-radius: 1.25rem;
+      padding: 0.55rem 0.55rem 0.55rem 0.95rem;
+      background: var(--mt-surface-card, var(--surface-card, #fff));
     }
     .box.busy { opacity: 0.72; }
     textarea {
       flex: 1; min-width: 0; border: 0; resize: none; outline: none;
       background: transparent; color: inherit; font: inherit;
-      min-height: 1.6rem; max-height: 8rem; line-height: 1.4; padding: 0.2rem 0;
+      min-height: 2.5rem; max-height: 9rem; line-height: 1.45; padding: 0.3rem 0;
     }
-    .composer-hint { margin: 0.35rem 0 0; text-align: center; font-size: 0.68rem; color: var(--mt-text-muted); }
+    .composer-hint { margin: 0.5rem 0 0; text-align: center; font-size: 0.7rem; color: var(--mt-text-muted); }
   `,
 })
 export class HomeComponent {

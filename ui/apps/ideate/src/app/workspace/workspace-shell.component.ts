@@ -435,9 +435,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     if (!content || this.sending()) {
       return;
     }
-    const path = this.chatPath();
-    const leaf = this.chatFrom() ?? this.inspected();
-    const focus = path.length ? path : leaf ? [leaf] : [];
+    const path = this.chatFrom() ? this.chatPath() : [];
+    const leaf = this.chatFrom();
+    const focus = path.length ? [...path] : leaf ? [leaf] : [];
     if (leaf && focus.length && focus[focus.length - 1]?.id !== leaf.id) {
       focus.push(leaf);
     }

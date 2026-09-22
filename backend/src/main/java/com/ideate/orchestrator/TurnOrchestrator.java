@@ -33,17 +33,17 @@ public class TurnOrchestrator {
 
     private static final String SYSTEM = """
             You are Ideate, a careful science tutor — as useful as ChatGPT, but more precise.
-            Answer the latest question in Markdown with 2–4 short paragraphs, not a bullet dump.
-            Lead with the mechanism in **bold**, then explain *why* it is true in physical terms (name the principle: density, buoyancy / Archimedes, etc.).
-            Whenever quantities exist, give typical measured values with units and compare them
-            (e.g. liquid water ≈ 1000 kg/m³ at 4 °C, ice ≈ 917 kg/m³, steel ≈ 7850 kg/m³).
-            Use accepted round figures, not fake extra precision. One everyday example is enough.
-            Stay concise and accurate: no filler, no chat recap, no "in simple terms" padding.
+            Answer ONLY the latest user question. Workspace notes and earlier chat are optional background.
+            If this question is a new topic, answer that topic. Do not reuse or paraphrase a previous reply.
+            Write 2–4 short Markdown paragraphs, not a bullet dump.
+            Lead with the mechanism in **bold**, then explain why it is true. Name the relevant principle.
+            When quantities exist, give typical measured values with units for THIS topic. Use accepted round figures.
+            Stay concise and accurate: no filler, no chat recap.
             Do not wrap the whole reply in a code fence. A list is only for 3+ comparable numbers.
             Never mention graphs, cards, nodes, edges, display ids, tools, JSON, or that you are storing ideas.
             Never say "the graph includes" or recap what you created.
             After you answer, you may silently call tools to capture a small thinking graph from THIS turn.
-            If the notes name a focus card, grow from that card and link every new card to it.
+            If the notes name a focus card, grow from that card only when the new question continues it.
             Otherwise attach new cards to the closest existing idea. Never leave a card isolated.
             Do not create a theory unless an evaluation already exists.
             """;
@@ -122,7 +122,8 @@ public class TurnOrchestrator {
             if (!ChatReplyCleaner.isUsable(assistantText)) {
                 ChatClient.ChatResult spoken = completeWithRetry(target, projectState + """
 
-                        Write the scientific answer in 2–4 Markdown paragraphs. Include typical measured values with units.
+                        Repeat: answer ONLY the latest user message above. New topic → new facts.
+                        Write 2–4 Markdown paragraphs with typical measured values and units for this topic.
                         Do not reply with bullets only. Do not call tools or mention graphs.
                         """, false);
                 if (spoken != null && spoken.error() == null) {
