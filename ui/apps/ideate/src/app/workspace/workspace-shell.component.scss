@@ -374,8 +374,28 @@ $right-drawer-width: 320px;
 }
 
 .bubble--pending {
-  opacity: 0.72;
-  font-style: italic;
+  opacity: 1;
+}
+
+.think {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--mt-text-muted);
+  font-size: 0.9rem;
+}
+
+.spin {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid color-mix(in srgb, var(--mt-text-muted) 35%, transparent);
+  border-top-color: var(--mt-primary, #10b981);
+  border-radius: 50%;
+  animation: ideate-spin 0.7s linear infinite;
+}
+
+@keyframes ideate-spin {
+  to { transform: rotate(360deg); }
 }
 
 .bubble--sys {

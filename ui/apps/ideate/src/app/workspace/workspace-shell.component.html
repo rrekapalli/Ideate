@@ -154,17 +154,16 @@
         @switch (rightTab()) {
           @case ('chat') {
             <div class="chat-thread">
-              @if (transcript().length === 0) {
+              @if (visibleChat().length === 0 && !waitingForReply()) {
                 <p class="chat-empty">Start a conversation. It stays with this workspace.</p>
               }
-              @for (m of transcript(); track m.id) {
+              @for (m of visibleChat(); track m.id) {
                 <article
                   class="bubble"
                   [class.bubble--you]="m.role === 'user'"
                   [class.bubble--ai]="m.role === 'assistant'"
                   [class.bubble--sys]="m.role === 'system'"
                   [class.hl]="highlightedMsg() === m.id"
-                  [class.bubble--pending]="m.id.startsWith('local-ai-')"
                   [attr.id]="'msg-' + m.id"
                 >
                   <div class="meta">
@@ -174,6 +173,14 @@
                     <time class="when" [attr.datetime]="m.createdAt">{{ chatWhen(m.createdAt) }}</time>
                   </div>
                   <ideate-md [source]="chatText(m)" />
+                </article>
+              }
+              @if (waitingForReply()) {
+                <article class="bubble bubble--ai bubble--pending" aria-live="polite" aria-busy="true">
+                  <div class="think">
+                    <span class="spin" aria-hidden="true"></span>
+                    <span>Thinking…</span>
+                  </div>
                 </article>
               }
             </div>

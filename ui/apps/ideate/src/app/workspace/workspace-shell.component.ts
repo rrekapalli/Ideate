@@ -329,15 +329,35 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     return this.transcript().find((m) => m.id === id) ?? null;
   }
 
+  visibleChat(): TranscriptMessage[] {
+    return this.transcript().filter((m) => !this.isPlaceholderAssistant(m));
+  }
+
+  waitingForReply(): boolean {
+    if (this.awaitingJobId) {
+      return true;
+    }
+    const msgs = this.visibleChat();
+    return msgs.length > 0 && msgs[msgs.length - 1].role === 'user';
+  }
+
   chatText(m: TranscriptMessage): string {
     const text = (m.content ?? '').trim();
-    if (/I\/O error|Read timed out|Connection refused|model was unreachable|UnknownHostException/i.test(text)) {
-      return 'The model didn’t respond just now. Your message is saved — try sending again.';
-    }
     if (m.role === 'assistant') {
       return this.cleanAssistantChat(text);
     }
     return text;
+  }
+
+  private isPlaceholderAssistant(m: TranscriptMessage): boolean {
+    if (m.id.startsWith('local-ai-')) {
+      return true;
+    }
+    if (m.role !== 'assistant') {
+      return false;
+    }
+    const text = (m.content ?? '').trim();
+    return /I\/O error|Read timed out|Connection refused|model was unreachable|UnknownHostException|didn’t respond just now|didn't respond just now|try sending again|something went wrong finishing/i.test(text);
   }
 
   private cleanAssistantChat(text: string): string {
@@ -388,16 +408,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       mode: this.mode,
       createdAt: now,
     };
-    const thinking: TranscriptMessage = {
-      id: 'local-ai-' + now,
-      workspaceId: this.workspaceId,
-      branchId: this.activeBranchId() ?? '',
-      role: 'assistant',
-      content: '_Thinking…_',
-      mode: this.mode,
-      createdAt: now,
-    };
-    this.transcript.set([...this.transcript(), localUser, thinking]);
+    this.transcript.set([...this.transcript(), localUser]);
+    this.awaitingJobId = 'pending';
     this.draft = '';
     this.sending.set(true);
     this.scrollChat();
@@ -417,12 +429,13 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
           this.awaitingJobId = res.jobId;
           this.pollJob(res.jobId);
         } else {
-          this.settleTurn();
+          this.refreshChat();
         }
       },
       error: () => {
         this.sending.set(false);
-        this.transcript.set(this.transcript().filter((m) => m.id !== thinking.id && m.id !== localUser.id));
+        this.awaitingJobId = null;
+        this.transcript.set(this.transcript().filter((m) => m.id !== localUser.id));
         this.draft = content;
       },
     });
@@ -437,26 +450,57 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       }
       this.api.getJob(this.workspaceId, jobId).subscribe({
         next: (job) => {
-          if (job.status === 'applied' || job.status === 'failed') {
-            this.settleTurn();
+          if (job.status === 'applied') {
+            this.finishWhenReplied();
             return;
           }
           if (Date.now() - started > 180000) {
-            this.settleTurn();
+            this.refreshChat();
+            this.pollTimer = setTimeout(tick, 2000);
             return;
+          }
+          if (job.status === 'failed') {
+            this.refreshChat();
           }
           this.pollTimer = setTimeout(tick, 700);
         },
-        error: () => this.settleTurn(),
+        error: () => {
+          this.refreshChat();
+          this.pollTimer = setTimeout(tick, 1500);
+        },
       });
     };
     this.pollTimer = setTimeout(tick, 400);
   }
 
-  private settleTurn() {
-    this.awaitingJobId = null;
-    this.clearPoll();
-    this.reloadAll(() => this.scrollChat());
+  private finishWhenReplied() {
+    this.api.transcript(this.workspaceId, this.activeBranchId() ?? undefined).subscribe((t) => {
+      this.transcript.set(t);
+      if (this.hasUsableReply()) {
+        this.awaitingJobId = null;
+        this.clearPoll();
+        this.reloadAll(() => this.scrollChat());
+        return;
+      }
+      this.scrollChat();
+      this.pollTimer = setTimeout(() => {
+        if (this.awaitingJobId) {
+          this.pollJob(this.awaitingJobId);
+        }
+      }, 800);
+    });
+  }
+
+  private hasUsableReply(): boolean {
+    const msgs = this.visibleChat();
+    return msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant';
+  }
+
+  private refreshChat() {
+    this.api.transcript(this.workspaceId, this.activeBranchId() ?? undefined).subscribe((t) => {
+      this.transcript.set(t);
+      this.scrollChat();
+    });
   }
 
   private clearPoll() {

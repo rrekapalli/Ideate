@@ -104,7 +104,41 @@ public class TurnOrchestrator {
         try {
             String projectState = assembler.assemble(workspaceId, branchId, request.content(), request.focusObjectIds());
             ProviderTarget target = resolveProvider(accountId, workspaceId, jobClass);
-            ChatClient.ChatResult completion = chatClient.complete(new ChatClient.ChatRequest(
+            ChatClient.ChatResult completion = completeWithRetry(target, projectState);
+            usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
+                    completion.inputTokens(), completion.outputTokens(), 0);
+            if (completion.error() != null) {
+                log.warn("Turn {} still waiting on model: {}", jobId, completion.error());
+                jobs.markFailed(jobId, completion.error());
+                insertProblem(workspaceId, "provider", completion.error(), List.of());
+                return;
+            }
+            String assistantText = ChatReplyCleaner.visible(completion.text());
+            if (!ChatReplyCleaner.isUsable(assistantText)) {
+                assistantText = ChatReplyCleaner.fallback(request.content());
+            }
+            var assistantMsg = transcript.append(workspaceId, branchId, "assistant", assistantText, mode);
+            String generatedBy = target.provider() + ":" + target.model();
+            List<String> createdIds = new ArrayList<>();
+            createdIds.addAll(applyTools(workspaceId, completion.toolCalls(), userMsgId, assistantMsg.id(),
+                    generatedBy));
+            createdIds.addAll(hydrateGraph(workspaceId, createdIds, request.content(), assistantText,
+                    userMsgId, assistantMsg.id(), generatedBy, request.focusObjectIds()));
+            jobs.markApplied(jobId, createdIds);
+            credits.debit(accountId, workspaceId, jobId, jobClass);
+            if ("NORMAL".equals(jobClass) || "DEEP".equals(jobClass)) {
+                cacheService.refresh(accountId, workspaceId, branchId, userMsgId);
+            }
+        } catch (Exception ex) {
+            log.error("Turn {} failed after accept: {}", jobId, ex.getMessage(), ex);
+            jobs.markFailed(jobId, ex.getMessage() == null ? "turn failed" : ex.getMessage());
+        }
+    }
+
+    private ChatClient.ChatResult completeWithRetry(ProviderTarget target, String projectState) {
+        ChatClient.ChatResult last = null;
+        for (int attempt = 1; attempt <= 4; attempt++) {
+            last = chatClient.complete(new ChatClient.ChatRequest(
                     target.model(),
                     target.baseUrl(),
                     target.apiKey(),
@@ -114,49 +148,18 @@ public class TurnOrchestrator {
                     ),
                     1600
             ));
-
-            String assistantText;
-            List<String> createdIds = new ArrayList<>();
-            if (completion.error() != null) {
-                assistantText = "I saved your message, but the model was unreachable: " + completion.error()
-                        + ". The graph was not changed.";
-                jobs.markFailed(jobId, completion.error());
-                insertProblem(workspaceId, "provider", completion.error(), List.of());
-            } else {
-                assistantText = ChatReplyCleaner.visible(completion.text());
-                if (!ChatReplyCleaner.isUsable(assistantText)) {
-                    assistantText = ChatReplyCleaner.fallback(request.content());
-                }
+            if (last.error() == null) {
+                return last;
             }
-            var assistantMsg = transcript.append(workspaceId, branchId, "assistant", assistantText, mode);
-            if (completion.error() == null) {
-                String generatedBy = target.provider() + ":" + target.model();
-                createdIds.addAll(applyTools(workspaceId, completion.toolCalls(), userMsgId, assistantMsg.id(),
-                        generatedBy));
-                createdIds.addAll(hydrateGraph(workspaceId, createdIds, request.content(), assistantText,
-                        userMsgId, assistantMsg.id(), generatedBy, request.focusObjectIds()));
-                jobs.markApplied(jobId, createdIds);
-            }
-
-            usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
-                    completion.inputTokens(), completion.outputTokens(), 0);
-            if (completion.error() == null) {
-                credits.debit(accountId, workspaceId, jobId, jobClass);
-            }
-
-            if (("NORMAL".equals(jobClass) || "DEEP".equals(jobClass)) && completion.error() == null) {
-                cacheService.refresh(accountId, workspaceId, branchId, userMsgId);
-            }
-        } catch (Exception ex) {
-            log.error("Turn {} failed after accept: {}", jobId, ex.getMessage(), ex);
+            log.warn("Model attempt {} failed: {}", attempt, last.error());
             try {
-                transcript.append(workspaceId, branchId, "assistant",
-                        "I saved your message, but something went wrong finishing the reply.", mode);
-            } catch (Exception ignored) {
-                // already logged
+                Thread.sleep(1500L * attempt);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return last;
             }
-            jobs.markFailed(jobId, ex.getMessage() == null ? "turn failed" : ex.getMessage());
         }
+        return last;
     }
 
     List<String> hydrateGraph(String workspaceId, List<String> createdIds, String userText, String assistantText,
