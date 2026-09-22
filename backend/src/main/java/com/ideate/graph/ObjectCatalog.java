@@ -26,7 +26,7 @@ public final class ObjectCatalog {
             "thought", "concept", "unknown", "question", "hypothesis", "assumption",
             "evidence", "experiment", "observation", "claim", "critique", "decision",
             "evaluation", "theory", "misconception", "constraint", "calculation",
-            "target", "design_artifact", "architecture", "component");
+            "target", "design_artifact", "architecture", "component", "citation");
 
     private static final Map<String, String> PREFIXES = new LinkedHashMap<>();
 
@@ -52,6 +52,7 @@ public final class ObjectCatalog {
         PREFIXES.put("design_artifact", "DA");
         PREFIXES.put("architecture", "AR");
         PREFIXES.put("component", "CM");
+        PREFIXES.put("citation", "CIT");
     }
 
     public static String prefix(String type) {

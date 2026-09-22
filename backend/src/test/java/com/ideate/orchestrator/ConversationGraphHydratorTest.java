@@ -102,6 +102,28 @@ class ConversationGraphHydratorTest {
     }
 
     @Test
+    void mintsCitationCardsFromACitationsSection() {
+        IdeaObject hypothesis = titled("h1", "H-001", "hypothesis", "Birds sense Earth's magnetic field");
+        String assistant = """
+                Birds use magnetoreception. Cryptochrome in the eye is a leading idea.
+
+                ### Citations
+                1. Wiltschko and Wiltschko (1995). Magnetic orientation in birds. Journal of Experimental Biology.
+                2. Ritz et al. (2000). A model for photoreceptor-based magnetoreception in birds. Biophysical Journal. DOI: 10.1016/S0006-3495(00)76729-X
+                """;
+        var plan = hydrator.plan("How can birds navigate using earths magnetic field", assistant,
+                List.of(), List.of(hypothesis), List.of("H-001"));
+        assertTrue(plan.extras().stream().anyMatch(e -> "citation".equals(e.type())
+                && e.title().toLowerCase().contains("wiltschko")));
+        assertTrue(plan.extras().stream().anyMatch(e -> "citation".equals(e.type())
+                && e.body().toLowerCase().contains("doi")));
+        IdeaObject paper = titled("c1", "CIT-001", "citation", "Wiltschko and Wiltschko (1995). Magnetic orientation in birds.");
+        var edges = hydrator.attachToAnchor(List.of(paper), List.of(hypothesis), List.of("H-001"), "birds");
+        assertTrue(edges.stream().anyMatch(e -> "H-001".equals(e.fromDisplayId())
+                && "CIT-001".equals(e.toDisplayId())));
+    }
+
+    @Test
     void laterTurnDoesNotCloneTheTreeAndAttachesToTheFocusCard() {
         IdeaObject hypothesis = titled("h1", "H-001", "hypothesis", "Ice is less dense than liquid water");
         String user = "Why do lakes freeze from the top instead of the bottom?";

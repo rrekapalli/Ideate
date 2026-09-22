@@ -38,6 +38,13 @@ public class TurnOrchestrator {
             Write 2–4 short Markdown paragraphs, not a bullet dump.
             Lead with the mechanism in **bold**, then explain why it is true. Name the relevant principle.
             When quantities exist, give typical measured values with units for THIS topic. Use accepted round figures.
+            When a claim rests on published science, cite a real paper. End with:
+
+            ### Citations
+            1. FirstAuthor et al. (Year). Paper title. Journal or venue. DOI: 10.xxxx/xxxx
+
+            Name only well-known real papers. If you cannot name a real source, omit the Citations section — never invent authors, titles, years, or DOIs.
+            You may create_node type "citation" for each paper (title = the paper title).
             Stay concise and accurate: no filler, no chat recap.
             Do not wrap the whole reply in a code fence. A list is only for 3+ comparable numbers.
             Never mention graphs, cards, nodes, edges, display ids, tools, JSON, or that you are storing ideas.
@@ -124,7 +131,8 @@ public class TurnOrchestrator {
 
                         Repeat: answer ONLY the latest user message above. New topic → new facts.
                         Write 2–4 Markdown paragraphs with typical measured values and units for this topic.
-                        Do not reply with bullets only. Do not call tools or mention graphs.
+                        If a real paper supports the claim, end with a ### Citations list (Author et al. (Year). Title. Venue. DOI).
+                        Never invent citations. Do not reply with bullets only. Do not call tools or mention graphs.
                         """, false);
                 if (spoken != null && spoken.error() == null) {
                     usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,

@@ -22,7 +22,7 @@ public final class ConversationGraphHydrator {
             "(?i)\\b([A-Z]{1,4}-\\d+)\\s*->\\s*([A-Z]{1,4}-\\d+)(?:\\s+type\\s+([a-z-]+))?");
     private static final List<String> TYPE_HINTS = List.of(
             "question", "hypothesis", "assumption", "constraint", "experiment",
-            "evidence", "concept", "thought", "decision", "claim");
+            "evidence", "concept", "thought", "decision", "claim", "citation");
 
     public record NodePatch(String objectId, String type, String title, String summary, String body) {}
 
@@ -173,6 +173,12 @@ public final class ConversationGraphHydrator {
                         "**" + follow + "**\n\nThis keeps the thread moving past the first answer."));
             }
         }
+        for (ExtraCard cit : parseCitations(cleanAsst)) {
+            if (!covered(titles, cit.title())) {
+                extras.add(cit);
+                titles.add(norm(cit.title()));
+            }
+        }
         return extras;
     }
 
@@ -288,6 +294,12 @@ public final class ConversationGraphHydrator {
         if ("thought".equals(a) && "question".equals(b)) {
             return new EdgeSpec("led-to", from.displayId(), to.displayId(), "This note opened a question");
         }
+        if ("citation".equals(b)) {
+            return new EdgeSpec("mentions", from.displayId(), to.displayId(), "Claim cites this paper");
+        }
+        if ("citation".equals(a)) {
+            return new EdgeSpec("supports", from.displayId(), to.displayId(), "This paper supports the idea");
+        }
         return new EdgeSpec("mentions", from.displayId(), to.displayId(), "Grown from " + from.displayId());
     }
 
@@ -356,6 +368,15 @@ public final class ConversationGraphHydrator {
         }
         if (x != null && h != null) {
             edges.add(new EdgeSpec("tested-by", h, x, "Hypothesis tested by experiment"));
+        }
+        String target = h != null ? h : first(byType.get("thought"));
+        if (target == null) {
+            target = q0;
+        }
+        if (target != null) {
+            for (String citId : byType.getOrDefault("citation", List.of())) {
+                edges.add(new EdgeSpec("supports", citId, target, "Published source for this idea"));
+            }
         }
         return edges;
     }
@@ -565,6 +586,72 @@ public final class ConversationGraphHydrator {
             case "assumption" -> "Assumption";
             default -> trim(firstNonBlank(fromUser, sentence, "Captured from chat"), 120);
         };
+    }
+
+    static List<ExtraCard> parseCitations(String assistant) {
+        List<ExtraCard> out = new ArrayList<>();
+        if (assistant == null || assistant.isBlank()) {
+            return out;
+        }
+        String block = assistant;
+        Matcher section = Pattern.compile("(?is)(?:^|\\n)\\s*#{0,3}\\s*citations?\\s*[:\\-]*\\s*\\n(.+)$")
+                .matcher(assistant);
+        if (section.find()) {
+            block = section.group(1);
+        }
+        Matcher line = Pattern.compile("(?m)^\\s*(?:[-*]|\\d+[.)])\\s+(.{12,280})\\s*$").matcher(block);
+        while (line.find() && out.size() < 4) {
+            String raw = clean(line.group(1));
+            if (looksLikeCitation(raw)) {
+                out.add(card("citation", citationTitle(raw), "A published source for this turn.",
+                        citationBody(raw)));
+            }
+        }
+        if (out.isEmpty()) {
+            Matcher authorYear = Pattern.compile(
+                    "([A-Z][A-Za-z\\-]+(?:\\s+(?:and|&)\\s+[A-Z][A-Za-z\\-]+)?(?:\\s+et al\\.)?)\\s*\\((19|20)\\d{2}\\)([^\\n.]{8,160})")
+                    .matcher(assistant);
+            while (authorYear.find() && out.size() < 3) {
+                String raw = clean(authorYear.group(0));
+                if (!covered(out.stream().map(e -> norm(e.title())).toList(), raw)) {
+                    out.add(card("citation", citationTitle(raw), "A published source for this turn.",
+                            citationBody(raw)));
+                }
+            }
+        }
+        return out;
+    }
+
+    static boolean looksLikeCitation(String raw) {
+        if (raw == null) {
+            return false;
+        }
+        String l = raw.toLowerCase(Locale.ROOT);
+        if (l.startsWith("http") && !l.contains("doi")) {
+            return raw.length() > 20;
+        }
+        return raw.matches(".*\\((19|20)\\d{2}\\).*")
+                || l.contains("doi")
+                || l.contains("et al")
+                || l.contains("journal")
+                || l.contains("pnas")
+                || l.contains("nature")
+                || l.contains("science")
+                || l.contains("arxiv");
+    }
+
+    static String citationTitle(String raw) {
+        String t = raw.replaceAll("(?i)^doi:\\s*", "").trim();
+        return trim(t, 140);
+    }
+
+    static String citationBody(String raw) {
+        String t = raw.trim();
+        Matcher doi = Pattern.compile("(?i)\\b(10\\.\\d{4,9}/[-._;()/:A-Z0-9]+)\\b").matcher(t);
+        if (doi.find()) {
+            return t + "\n\nhttps://doi.org/" + doi.group(1);
+        }
+        return t;
     }
 
     private static boolean firstCapture(List<IdeaObject> existing) {

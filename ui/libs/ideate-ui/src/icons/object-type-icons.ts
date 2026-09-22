@@ -42,6 +42,8 @@ export const OBJECT_TYPE_ICON_PATHS: Record<string, string> = {
     'M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z',
   type_component:
     'M13 13v8h8v-8h-8zM3 21h8v-8H3v8zM3 3v8h8V3H3zm10.66-.31L11 5.34 16.66 11l5.66-5.66-5.66-5.65z',
+  type_citation:
+    'M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm-1 10.5L12 12l-4 1.5V5h8v8.5z',
   school:
     'M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3 1 9l11 6 9-4.91V17h2V9L12 3z',
   explore:

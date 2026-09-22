@@ -157,7 +157,7 @@ export const OBJECT_TYPES = [
   'thought', 'concept', 'unknown', 'question', 'hypothesis', 'assumption',
   'evidence', 'experiment', 'observation', 'claim', 'critique', 'decision',
   'evaluation', 'theory', 'misconception', 'constraint', 'calculation',
-  'target', 'design_artifact', 'architecture', 'component',
+  'target', 'design_artifact', 'architecture', 'component', 'citation',
 ] as const;
 
 /** Lookup labels: question → Question, design_artifact → Design Artifact. */
@@ -174,6 +174,7 @@ const TYPE_PLURALS: Record<string, string> = {
   hypothesis: 'Hypotheses',
   theory: 'Theories',
   evidence: 'Evidence',
+  citation: 'Citations',
 };
 
 /** Group headings: question → Questions, hypothesis → Hypotheses. */
@@ -215,6 +216,7 @@ const TYPE_ICONS: Record<string, string> = {
   design_artifact: 'type_design_artifact',
   architecture: 'type_architecture',
   component: 'type_component',
+  citation: 'type_citation',
 };
 
 const PERSONA_ICONS: Record<string, string> = {
