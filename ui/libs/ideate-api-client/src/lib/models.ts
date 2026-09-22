@@ -84,6 +84,7 @@ export interface TurnResult {
   jobId: string;
   objectIds: string[];
   error?: string;
+  userMessageId?: string;
 }
 
 export interface JobRecord {

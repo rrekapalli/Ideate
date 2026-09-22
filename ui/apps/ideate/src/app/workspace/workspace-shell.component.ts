@@ -89,6 +89,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   workspaceId = '';
   private objectRowTapAt = 0;
   private objectRowTapId = '';
+  private awaitingJobId: string | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit() {
     this.restoreChrome();
@@ -126,6 +128,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.clearPoll();
     this.subs.unsubscribe();
     this.shell.clearWorkspace();
   }
@@ -370,25 +373,105 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
 
   send() {
     const content = this.draft.trim();
-    if (!content) return;
-    this.sending.set(true);
+    if (!content || this.sending()) {
+      return;
+    }
     const path = this.chatPath();
     const focus = path.length ? path : this.chatFrom() ? [this.chatFrom()!] : this.inspected() ? [this.inspected()!] : [];
+    const now = new Date().toISOString();
+    const localUser: TranscriptMessage = {
+      id: 'local-user-' + now,
+      workspaceId: this.workspaceId,
+      branchId: this.activeBranchId() ?? '',
+      role: 'user',
+      content,
+      mode: this.mode,
+      createdAt: now,
+    };
+    const thinking: TranscriptMessage = {
+      id: 'local-ai-' + now,
+      workspaceId: this.workspaceId,
+      branchId: this.activeBranchId() ?? '',
+      role: 'assistant',
+      content: '_Thinking…_',
+      mode: this.mode,
+      createdAt: now,
+    };
+    this.transcript.set([...this.transcript(), localUser, thinking]);
+    this.draft = '';
+    this.sending.set(true);
+    this.scrollChat();
     this.api.turn(this.workspaceId, {
       content,
       mode: this.mode,
       focusObjectIds: focus.map((n) => n.id),
     }).subscribe({
-      next: () => {
-        this.draft = '';
+      next: (res) => {
         this.sending.set(false);
-        this.reloadAll();
-        queueMicrotask(() => {
-          const el = this.chatBody?.nativeElement;
-          if (el) el.scrollTop = el.scrollHeight;
-        });
+        if (res.userMessageId) {
+          this.transcript.set(this.transcript().map((m) => (
+            m.id === localUser.id ? { ...m, id: res.userMessageId! } : m
+          )));
+        }
+        if (res.jobId) {
+          this.awaitingJobId = res.jobId;
+          this.pollJob(res.jobId);
+        } else {
+          this.settleTurn();
+        }
       },
-      error: () => this.sending.set(false),
+      error: () => {
+        this.sending.set(false);
+        this.transcript.set(this.transcript().filter((m) => m.id !== thinking.id && m.id !== localUser.id));
+        this.draft = content;
+      },
+    });
+  }
+
+  private pollJob(jobId: string) {
+    this.clearPoll();
+    const started = Date.now();
+    const tick = () => {
+      if (this.awaitingJobId !== jobId) {
+        return;
+      }
+      this.api.getJob(this.workspaceId, jobId).subscribe({
+        next: (job) => {
+          if (job.status === 'applied' || job.status === 'failed') {
+            this.settleTurn();
+            return;
+          }
+          if (Date.now() - started > 180000) {
+            this.settleTurn();
+            return;
+          }
+          this.pollTimer = setTimeout(tick, 700);
+        },
+        error: () => this.settleTurn(),
+      });
+    };
+    this.pollTimer = setTimeout(tick, 400);
+  }
+
+  private settleTurn() {
+    this.awaitingJobId = null;
+    this.clearPoll();
+    this.reloadAll(() => this.scrollChat());
+  }
+
+  private clearPoll() {
+    if (this.pollTimer != null) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  private scrollChat() {
+    queueMicrotask(() => {
+      const el = this.chatBody?.nativeElement;
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+      }
     });
   }
 

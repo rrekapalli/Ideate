@@ -164,6 +164,7 @@
                   [class.bubble--ai]="m.role === 'assistant'"
                   [class.bubble--sys]="m.role === 'system'"
                   [class.hl]="highlightedMsg() === m.id"
+                  [class.bubble--pending]="m.id.startsWith('local-ai-')"
                   [attr.id]="'msg-' + m.id"
                 >
                   <div class="meta">

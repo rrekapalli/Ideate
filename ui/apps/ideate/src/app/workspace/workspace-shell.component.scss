@@ -373,6 +373,11 @@ $right-drawer-width: 320px;
   align-self: flex-start;
 }
 
+.bubble--pending {
+  opacity: 0.72;
+  font-style: italic;
+}
+
 .bubble--sys {
   align-self: center;
   max-width: 100%;

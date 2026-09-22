@@ -24,6 +24,8 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @Service
 public class TurnOrchestrator {
@@ -56,6 +58,11 @@ public class TurnOrchestrator {
     private final EmbedService embedService;
     private final ConversationCacheService cacheService;
     private final ConversationGraphHydrator hydrator = new ConversationGraphHydrator();
+    private final Executor turnPool = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "ideate-turn");
+        t.setDaemon(true);
+        return t;
+    });
 
     public TurnOrchestrator(WorkspaceService workspaces, TranscriptService transcript, GraphService graph,
                             ProjectStateAssembler assembler, JobClassifier classifier, CreditService credits,
@@ -88,61 +95,68 @@ public class TurnOrchestrator {
         var userMsg = transcript.append(workspaceId, branchId, "user", request.content(), mode);
         var job = jobs.enqueue(workspaceId, accountId, jobClass, mode, "orchestrator", request.focusObjectIds());
         jobs.markRunning(job.id());
+        turnPool.execute(() -> finishTurn(accountId, workspaceId, branchId, mode, jobClass, request, userMsg.id(), job.id()));
+        return new TurnResult(null, "", jobClass, job.id(), List.of(), null, userMsg.id());
+    }
 
-        String projectState = assembler.assemble(workspaceId, branchId, request.content(), request.focusObjectIds());
-        ProviderTarget target = resolveProvider(accountId, workspaceId, jobClass);
-        ChatClient.ChatResult completion = chatClient.complete(new ChatClient.ChatRequest(
-                target.model(),
-                target.baseUrl(),
-                target.apiKey(),
-                List.of(
-                        new ChatClient.Message("system", SYSTEM),
-                        new ChatClient.Message("user", projectState)
-                ),
-                1600
-        ));
+    private void finishTurn(String accountId, String workspaceId, String branchId, String mode, String jobClass,
+                            TurnRequest request, String userMsgId, String jobId) {
+        try {
+            String projectState = assembler.assemble(workspaceId, branchId, request.content(), request.focusObjectIds());
+            ProviderTarget target = resolveProvider(accountId, workspaceId, jobClass);
+            ChatClient.ChatResult completion = chatClient.complete(new ChatClient.ChatRequest(
+                    target.model(),
+                    target.baseUrl(),
+                    target.apiKey(),
+                    List.of(
+                            new ChatClient.Message("system", SYSTEM),
+                            new ChatClient.Message("user", projectState)
+                    ),
+                    1600
+            ));
 
-        String assistantText;
-        List<String> createdIds = new ArrayList<>();
-        if (completion.error() != null) {
-            assistantText = "I saved your message, but the model was unreachable: " + completion.error()
-                    + ". The graph was not changed.";
-            jobs.markFailed(job.id(), completion.error());
-            insertProblem(workspaceId, "provider", completion.error(), List.of());
-        } else {
-            assistantText = ChatReplyCleaner.visible(completion.text());
-            if (!ChatReplyCleaner.isUsable(assistantText)) {
-                assistantText = ChatReplyCleaner.fallback(request.content());
+            String assistantText;
+            List<String> createdIds = new ArrayList<>();
+            if (completion.error() != null) {
+                assistantText = "I saved your message, but the model was unreachable: " + completion.error()
+                        + ". The graph was not changed.";
+                jobs.markFailed(jobId, completion.error());
+                insertProblem(workspaceId, "provider", completion.error(), List.of());
+            } else {
+                assistantText = ChatReplyCleaner.visible(completion.text());
+                if (!ChatReplyCleaner.isUsable(assistantText)) {
+                    assistantText = ChatReplyCleaner.fallback(request.content());
+                }
             }
-        }
-        var assistantMsg = transcript.append(workspaceId, branchId, "assistant", assistantText, mode);
-        if (completion.error() == null) {
-            String generatedBy = target.provider() + ":" + target.model();
-            createdIds.addAll(applyTools(workspaceId, completion.toolCalls(), userMsg.id(), assistantMsg.id(),
-                    generatedBy));
-            createdIds.addAll(hydrateGraph(workspaceId, createdIds, request.content(), assistantText,
-                    userMsg.id(), assistantMsg.id(), generatedBy, request.focusObjectIds()));
-            jobs.markApplied(job.id(), createdIds);
-        }
+            var assistantMsg = transcript.append(workspaceId, branchId, "assistant", assistantText, mode);
+            if (completion.error() == null) {
+                String generatedBy = target.provider() + ":" + target.model();
+                createdIds.addAll(applyTools(workspaceId, completion.toolCalls(), userMsgId, assistantMsg.id(),
+                        generatedBy));
+                createdIds.addAll(hydrateGraph(workspaceId, createdIds, request.content(), assistantText,
+                        userMsgId, assistantMsg.id(), generatedBy, request.focusObjectIds()));
+                jobs.markApplied(jobId, createdIds);
+            }
 
-        usage.record(workspaceId, accountId, job.id(), target.provider(), target.model(), jobClass,
-                completion.inputTokens(), completion.outputTokens(), 0);
-        if (completion.error() == null) {
-            credits.debit(accountId, workspaceId, job.id(), jobClass);
-        }
+            usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
+                    completion.inputTokens(), completion.outputTokens(), 0);
+            if (completion.error() == null) {
+                credits.debit(accountId, workspaceId, jobId, jobClass);
+            }
 
-        if (("NORMAL".equals(jobClass) || "DEEP".equals(jobClass)) && completion.error() == null) {
-            cacheService.refresh(accountId, workspaceId, branchId, userMsg.id());
+            if (("NORMAL".equals(jobClass) || "DEEP".equals(jobClass)) && completion.error() == null) {
+                cacheService.refresh(accountId, workspaceId, branchId, userMsgId);
+            }
+        } catch (Exception ex) {
+            log.error("Turn {} failed after accept: {}", jobId, ex.getMessage(), ex);
+            try {
+                transcript.append(workspaceId, branchId, "assistant",
+                        "I saved your message, but something went wrong finishing the reply.", mode);
+            } catch (Exception ignored) {
+                // already logged
+            }
+            jobs.markFailed(jobId, ex.getMessage() == null ? "turn failed" : ex.getMessage());
         }
-
-        return new TurnResult(
-                assistantMsg.id(),
-                assistantText,
-                jobClass,
-                job.id(),
-                createdIds,
-                completion.error()
-        );
     }
 
     List<String> hydrateGraph(String workspaceId, List<String> createdIds, String userText, String assistantText,
@@ -492,7 +506,7 @@ public class TurnOrchestrator {
     public record BatchRequest(String mode, String agent, List<String> focusObjectIds) {}
 
     public record TurnResult(String assistantMessageId, String assistantText, String jobClass, String jobId,
-                             List<String> objectIds, String error) {}
+                             List<String> objectIds, String error, String userMessageId) {}
 
     private record ProviderTarget(String provider, String model, String baseUrl, String apiKey) {}
 

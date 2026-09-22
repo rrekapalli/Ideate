@@ -117,6 +117,10 @@ export class IdeateApi {
     return this.http.get<JobRecord[]>(this.url(`/workspaces/${workspaceId}/jobs`));
   }
 
+  getJob(workspaceId: string, jobId: string): Observable<JobRecord> {
+    return this.http.get<JobRecord>(this.url(`/workspaces/${workspaceId}/jobs/${jobId}`));
+  }
+
   enqueueJob(workspaceId: string, body: { jobClass?: string; mode?: string }) {
     return this.http.post<JobRecord>(this.url(`/workspaces/${workspaceId}/jobs`), body);
   }
