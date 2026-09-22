@@ -37,6 +37,7 @@ public class UsageService {
                 SELECT * FROM ai_usage_event WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 50
                 """, (rs, i) -> new UsageEvent(
                 rs.getString("id"),
+                rs.getString("job_id"),
                 rs.getString("provider"),
                 rs.getString("model"),
                 rs.getString("job_class"),
@@ -69,7 +70,7 @@ public class UsageService {
 
     public record UsageRollup(String workspaceId, int estimatedCostMinorInr, List<UsageEvent> recent) {}
 
-    public record UsageEvent(String id, String provider, String model, String jobClass,
+    public record UsageEvent(String id, String jobId, String provider, String model, String jobClass,
                              int inputTokens, int outputTokens, int estimatedCostMinor, Instant createdAt) {}
 
     private record Price(BigDecimal input, BigDecimal output, BigDecimal cached) {}

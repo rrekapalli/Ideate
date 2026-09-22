@@ -82,12 +82,16 @@
         } @else if (tab.kind === 'object') {
           <ideate-object-page
             [object]="tab.object"
+            [trail]="ancestorPathFor(tab.object)"
             [userMessage]="message(tab.object.sourceUserMessageId)"
             [assistantMessage]="message(tab.object.sourceAssistantMessageId)"
+            [jobs]="jobs()"
+            [timeline]="timeline()"
+            [usage]="usage()"
             (typeChange)="changeType(tab.object, $event)"
-            (newNode)="promptNewNode($event)"
             (menu)="promptMenu($event)"
             (openChat)="jumpChat($event)"
+            (open)="openObject($event)"
           />
         } @else {
           <div class="doc">

@@ -1,59 +1,381 @@
-import { Component, input, output } from '@angular/core';
-import { IdeaObject, TranscriptMessage } from '@ideate/api-client';
-import { ObjectCardChromeComponent } from '../cards/object-card-chrome.component';
+import { Component, computed, input, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import {
+  IdeaObject,
+  JobRecord,
+  OBJECT_TYPES,
+  TimelineEvent,
+  TranscriptMessage,
+  UsageEvent,
+  UsageRollup,
+} from '@ideate/api-client';
+import { MtButtonComponent, MtTabComponent, MtTabsComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
-import { MtButtonComponent } from '@ideate/ui';
 
 @Component({
   selector: 'ideate-object-page',
-  imports: [ObjectCardChromeComponent, MtButtonComponent, MdViewComponent],
+  imports: [FormsModule, MtButtonComponent, MtTabsComponent, MtTabComponent, MdViewComponent],
   template: `
     <div class="page">
-      <ideate-object-card-chrome
-        [object]="object()"
-        (open)="noop()"
-        (typeChange)="typeChange.emit($event)"
-        (newNode)="newNode.emit($event)"
-        (menu)="menu.emit($event)"
-        (openChat)="openChat.emit($event)"
-      />
-      <article class="body">
-        <h2>{{ object().title }}</h2>
-        <p class="meta">{{ object().displayId }} · {{ object().type }} · v{{ object().version }} · {{ object().objectCategory }}</p>
-        <div class="essay"><ideate-md [source]="object().body || object().summary || 'No body yet.'" /></div>
-        <section class="refs">
-          <h3>References</h3>
-          @if (userMessage(); as u) {
-            <p><strong>You</strong> {{ u.createdAt }}</p>
-            <ideate-md [source]="u.content" />
+      <nav class="crumb" aria-label="Path from parent">
+        @for (node of crumbs(); track node.id; let last = $last) {
+          @if (!last) {
+            <button type="button" class="crumb-node" (click)="open.emit(node)">
+              <span class="crumb-id">{{ node.displayId }}</span>
+              <span class="crumb-title">{{ shortTitle(node) }}</span>
+            </button>
+            <span class="sep" aria-hidden="true">›</span>
+          } @else {
+            <span class="crumb-node here">
+              <span class="crumb-id">{{ node.displayId }}</span>
+              <span class="crumb-title">{{ shortTitle(node) }}</span>
+            </span>
           }
-          @if (assistantMessage(); as a) {
-            <p><strong>Ideate</strong> {{ a.createdAt }}</p>
-            <ideate-md [source]="a.content" />
-          }
-          @if (!object().sourceUserMessageId) {
-            <p class="muted">Manual edit — no chat pair on this version.</p>
-          }
-          <mt-button size="sm" variant="outlined" [label]="'Open in Chat'" (clicked)="openChat.emit(object())" />
-        </section>
-        <p class="prov">generated_by: {{ object().generatedBy || 'user' }}</p>
-      </article>
+        }
+      </nav>
+
+      <header class="hero">
+        <div class="kicker">
+          <span class="id">{{ object().displayId }}</span>
+          <select [ngModel]="object().type" (ngModelChange)="typeChange.emit($event)">
+            @for (t of types; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+          <span class="pill">v{{ object().version }}</span>
+          <span class="pill">{{ object().objectCategory }}</span>
+        </div>
+        <div class="hero-row">
+          <h1>{{ object().title }}</h1>
+          <div class="actions">
+            <mt-button size="sm" variant="outlined" label="Open in Chat" (clicked)="openChat.emit(object())" />
+            <mt-button size="sm" variant="text" label="⋯" ariaLabel="More" (clicked)="menu.emit(object())" />
+          </div>
+        </div>
+      </header>
+
+      <mt-tabs [value]="pane()" (valueChange)="pane.set($event + '')">
+        <mt-tab value="page" [label]="object().displayId">
+          <div class="pane prose">
+            <section class="essay">
+              <ideate-md [source]="pageMarkdown()" />
+            </section>
+            @if (userMessage() || assistantMessage()) {
+              <section class="source">
+                <h2>Conversation</h2>
+                @if (userMessage(); as u) {
+                  <article class="quote">
+                    <p class="who">You · {{ when(u.createdAt) }}</p>
+                    <ideate-md [source]="u.content" />
+                  </article>
+                }
+                @if (assistantMessage(); as a) {
+                  <article class="quote ai">
+                    <p class="who">Ideate · {{ when(a.createdAt) }}</p>
+                    <ideate-md [source]="a.content" />
+                  </article>
+                }
+              </section>
+            }
+          </div>
+        </mt-tab>
+        <mt-tab value="stats" label="Stats">
+          <div class="pane stats">
+            <section>
+              <h2>This card</h2>
+              <dl>
+                <div><dt>Created</dt><dd>{{ when(object().createdAt) }}</dd></div>
+                <div><dt>Updated</dt><dd>{{ when(object().updatedAt) }}</dd></div>
+                <div><dt>Origin</dt><dd>{{ object().origin }}</dd></div>
+                <div><dt>Generated by</dt><dd>{{ object().generatedBy || 'user' }}</dd></div>
+                @if (object().sourceUserMessageId) {
+                  <div><dt>User message</dt><dd class="mono">{{ object().sourceUserMessageId }}</dd></div>
+                }
+                @if (object().sourceAssistantMessageId) {
+                  <div><dt>Assistant message</dt><dd class="mono">{{ object().sourceAssistantMessageId }}</dd></div>
+                }
+              </dl>
+            </section>
+            <section>
+              <h2>AI tokens</h2>
+              @if (tokenTotals(); as tot) {
+                <div class="metrics">
+                  <div class="metric">
+                    <span class="n">{{ tot.input }}</span>
+                    <span class="l">input</span>
+                  </div>
+                  <div class="metric">
+                    <span class="n">{{ tot.output }}</span>
+                    <span class="l">output</span>
+                  </div>
+                  <div class="metric">
+                    <span class="n">{{ tot.calls }}</span>
+                    <span class="l">calls</span>
+                  </div>
+                  <div class="metric">
+                    <span class="n">{{ rupees(tot.costMinor) }}</span>
+                    <span class="l">est. INR</span>
+                  </div>
+                </div>
+                @if (relatedUsage().length) {
+                  <table>
+                    <thead>
+                      <tr><th>When</th><th>Model</th><th>In</th><th>Out</th><th>Job</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (row of relatedUsage(); track row.id) {
+                        <tr>
+                          <td>{{ when(row.createdAt) }}</td>
+                          <td>{{ row.model || row.provider }}</td>
+                          <td>{{ row.inputTokens }}</td>
+                          <td>{{ row.outputTokens }}</td>
+                          <td class="mono">{{ row.jobClass }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                }
+              } @else {
+                <p class="muted">No token events tied to this card yet. Workspace estimate: {{ rupees(usage()?.estimatedCostMinorInr ?? 0) }}.</p>
+              }
+            </section>
+            <section>
+              <h2>Jobs</h2>
+              @if (relatedJobs().length === 0) {
+                <p class="muted">No jobs mention this card.</p>
+              }
+              @for (job of relatedJobs(); track job.id) {
+                <article class="log">
+                  <p><strong>{{ job.jobClass }}</strong> · {{ job.status }} · {{ when(job.createdAt) }}</p>
+                  @if (job.error) {
+                    <p class="err">{{ job.error }}</p>
+                  }
+                  <p class="mono muted">{{ job.id }}</p>
+                </article>
+              }
+            </section>
+            <section>
+              <h2>Log</h2>
+              @if (relatedEvents().length === 0) {
+                <p class="muted">No timeline events for this card.</p>
+              }
+              @for (ev of relatedEvents(); track ev.id) {
+                <article class="log">
+                  <p><strong>{{ ev.eventType }}</strong> · {{ when(ev.createdAt) }}</p>
+                  @if (ev.payload) {
+                    <pre>{{ ev.payload }}</pre>
+                  }
+                </article>
+              }
+            </section>
+          </div>
+        </mt-tab>
+      </mt-tabs>
     </div>
   `,
   styles: `
-    .page { display: grid; grid-template-columns: minmax(236px, 360px) 1fr; gap: 1rem; padding: 1rem; height: 100%; overflow: auto; align-items: start; }
-    .body { overflow: auto; }
-    .meta, .prov, .muted { color: var(--mt-text-muted); font-size: 0.85rem; }
-    .essay { line-height: 1.45; }
+    :host { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+    .page {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+      background: var(--mt-surface-card, #fff);
+    }
+    .crumb {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem 0.35rem;
+      padding: 0.7rem 1.25rem 0.35rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--mt-surface-border, #e5e7eb) 70%, transparent);
+    }
+    .crumb-node {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.05rem;
+      max-width: 14rem;
+      padding: 0.2rem 0.4rem;
+      border: 0;
+      border-radius: var(--mt-panel-border-radius, 2px);
+      background: color-mix(in srgb, var(--mt-text) 5%, transparent);
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .crumb-node.here {
+      background: color-mix(in srgb, var(--mt-primary, #10b981) 12%, transparent);
+      cursor: default;
+    }
+    button.crumb-node:hover { background: color-mix(in srgb, var(--mt-primary, #10b981) 16%, transparent); }
+    .crumb-id {
+      font-family: var(--font-family-mono, ui-monospace, monospace);
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--mt-primary, #10b981);
+    }
+    .crumb-title {
+      font-size: 0.75rem;
+      line-height: 1.25;
+      color: var(--mt-text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 13rem;
+    }
+    .sep { color: var(--mt-text-muted); padding: 0 0.1rem; }
+    .hero { padding: 0.85rem 1.25rem 0.55rem; }
+    .kicker { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-bottom: 0.35rem; }
+    .id { font-family: var(--font-family-mono, ui-monospace, monospace); font-weight: 700; }
+    select { background: transparent; color: inherit; border: 0; font: inherit; }
+    .pill {
+      font-size: 0.72rem;
+      color: var(--mt-text-muted);
+      padding: 0.08rem 0.35rem;
+      border: 1px solid var(--mt-surface-border, #e5e7eb);
+      border-radius: 99px;
+    }
+    .hero-row { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; }
+    h1 { margin: 0; font-size: 1.45rem; line-height: 1.25; font-weight: 650; }
+    .actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+    .pane { padding: 0.75rem 1.35rem 1.6rem; max-width: 46rem; }
+    .prose { font-size: 1rem; line-height: 1.65; color: var(--mt-text); }
+    .essay ::ng-deep .md h1 { font-size: 1.25rem; margin: 1.1rem 0 0.4rem; }
+    .essay ::ng-deep .md h2 { font-size: 1.1rem; margin: 1rem 0 0.35rem; }
+    .essay ::ng-deep .md h3 { font-size: 1rem; margin: 0.85rem 0 0.3rem; }
+    .essay ::ng-deep .md p { margin: 0 0 0.85em; }
+    .source { margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--mt-surface-border, #e5e7eb); }
+    .source h2, .stats h2 {
+      margin: 0 0 0.65rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--mt-text-muted);
+    }
+    .quote {
+      margin: 0 0 0.85rem;
+      padding: 0.65rem 0.8rem;
+      border-left: 3px solid var(--mt-primary, #10b981);
+      background: color-mix(in srgb, var(--mt-text) 4%, transparent);
+    }
+    .quote.ai { border-left-color: color-mix(in srgb, var(--mt-text) 28%, transparent); }
+    .who { margin: 0 0 0.35rem; font-size: 0.75rem; color: var(--mt-text-muted); font-weight: 650; }
+    .stats { display: flex; flex-direction: column; gap: 1.4rem; max-width: 52rem; }
+    dl { display: grid; gap: 0.45rem; margin: 0; }
+    dl > div { display: grid; grid-template-columns: 9.5rem 1fr; gap: 0.6rem; font-size: 0.88rem; }
+    dt { color: var(--mt-text-muted); }
+    dd { margin: 0; }
+    .metrics { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-bottom: 0.8rem; }
+    .metric {
+      min-width: 5.5rem;
+      padding: 0.55rem 0.7rem;
+      background: color-mix(in srgb, var(--mt-text) 5%, transparent);
+      border-radius: var(--mt-panel-border-radius, 2px);
+    }
+    .metric .n { display: block; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .metric .l { font-size: 0.7rem; color: var(--mt-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td { text-align: left; padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--mt-surface-border, #e5e7eb); }
+    th { color: var(--mt-text-muted); font-weight: 600; }
+    .log { margin: 0 0 0.65rem; }
+    .log p { margin: 0 0 0.2rem; }
+    .log pre {
+      margin: 0.25rem 0 0;
+      padding: 0.4rem 0.5rem;
+      overflow: auto;
+      font-size: 0.75rem;
+      background: color-mix(in srgb, var(--mt-text) 5%, transparent);
+    }
+    .mono { font-family: var(--font-family-mono, ui-monospace, monospace); font-size: 0.78rem; word-break: break-all; }
+    .muted { color: var(--mt-text-muted); font-size: 0.85rem; }
+    .err { color: #b45309; }
   `,
 })
 export class ObjectPageComponent {
   readonly object = input.required<IdeaObject>();
+  readonly trail = input<IdeaObject[]>([]);
   readonly userMessage = input<TranscriptMessage | null>(null);
   readonly assistantMessage = input<TranscriptMessage | null>(null);
+  readonly jobs = input<JobRecord[]>([]);
+  readonly timeline = input<TimelineEvent[]>([]);
+  readonly usage = input<UsageRollup | null>(null);
   readonly typeChange = output<string>();
-  readonly newNode = output<IdeaObject>();
   readonly menu = output<IdeaObject>();
   readonly openChat = output<IdeaObject>();
-  noop() {}
+  readonly open = output<IdeaObject>();
+  readonly types = OBJECT_TYPES;
+  readonly pane = signal<string>('page');
+  readonly crumbs = computed(() => {
+    const trail = this.trail();
+    return trail.length ? trail : [this.object()];
+  });
+
+  pageMarkdown(): string {
+    const body = (this.object().body ?? '').trim();
+    const summary = (this.object().summary ?? '').trim();
+    if (body) {
+      return body;
+    }
+    if (summary) {
+      return summary;
+    }
+    return '_No page content yet._';
+  }
+
+  shortTitle(node: IdeaObject): string {
+    const t = (node.title || '').trim();
+    return t.length > 42 ? t.slice(0, 41) + '…' : t;
+  }
+
+  relatedJobs(): JobRecord[] {
+    const id = this.object().id;
+    return this.jobs().filter((j) =>
+      (j.resultObjectIds ?? []).includes(id) || (j.focusObjectIds ?? []).includes(id),
+    );
+  }
+
+  relatedEvents(): TimelineEvent[] {
+    const id = this.object().id;
+    return this.timeline().filter((e) => e.objectId === id);
+  }
+
+  relatedUsage(): UsageEvent[] {
+    const jobIds = new Set(this.relatedJobs().map((j) => j.id));
+    const recent = this.usage()?.recent ?? [];
+    const tied = recent.filter((e) => e.jobId && jobIds.has(e.jobId));
+    if (tied.length) {
+      return tied;
+    }
+    return jobIds.size ? [] : recent.slice(0, 8);
+  }
+
+  tokenTotals() {
+    const rows = this.relatedUsage();
+    if (!rows.length) {
+      return null;
+    }
+    return {
+      input: rows.reduce((s, r) => s + (r.inputTokens || 0), 0),
+      output: rows.reduce((s, r) => s + (r.outputTokens || 0), 0),
+      calls: rows.length,
+      costMinor: rows.reduce((s, r) => s + (r.estimatedCostMinor || 0), 0),
+    };
+  }
+
+  rupees(minor: number): string {
+    return (minor / 100).toFixed(2);
+  }
+
+  when(raw?: string): string {
+    if (!raw) {
+      return '—';
+    }
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) {
+      return raw;
+    }
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
 }

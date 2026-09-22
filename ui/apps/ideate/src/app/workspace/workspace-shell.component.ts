@@ -15,6 +15,7 @@ import {
   OBJECT_TYPES,
   TimelineEvent,
   TranscriptMessage,
+  UsageRollup,
   Workspace,
   WorkspaceBranch,
 } from '@ideate/api-client';
@@ -64,6 +65,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   problems = signal<GraphProblem[]>([]);
   credits = signal(0);
   usageMinor = signal(0);
+  usage = signal<UsageRollup | null>(null);
   tabs = signal<EditorTab[]>([{ kind: 'graph' }]);
   activeTab = signal(0);
   rightOpen = signal(true);
@@ -160,7 +162,12 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       this.pushShell();
     });
     this.api.usage(this.workspaceId).subscribe((u) => {
-      this.usageMinor.set(u.estimatedCostMinorInr);
+      this.usage.set({
+        workspaceId: u.workspaceId ?? this.workspaceId,
+        estimatedCostMinorInr: u.estimatedCostMinorInr ?? 0,
+        recent: u.recent ?? [],
+      });
+      this.usageMinor.set(u.estimatedCostMinorInr ?? 0);
       this.pushShell();
     });
   }

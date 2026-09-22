@@ -93,10 +93,29 @@ export interface JobRecord {
   status: string;
   mode?: string;
   agent?: string;
+  focusObjectIds?: string[];
   resultObjectIds: string[];
   error?: string;
   createdAt: string;
   finishedAt?: string;
+}
+
+export interface UsageEvent {
+  id: string;
+  jobId?: string;
+  provider: string;
+  model: string;
+  jobClass: string;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostMinor: number;
+  createdAt: string;
+}
+
+export interface UsageRollup {
+  workspaceId?: string;
+  estimatedCostMinorInr: number;
+  recent?: UsageEvent[];
 }
 
 export interface DocumentFolder {

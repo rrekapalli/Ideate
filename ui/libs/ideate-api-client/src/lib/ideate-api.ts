@@ -13,6 +13,7 @@ import {
   TimelineEvent,
   TranscriptMessage,
   TurnResult,
+  UsageRollup,
   Workspace,
   WorkspaceBranch,
   WorkspaceSummary,
@@ -121,7 +122,7 @@ export class IdeateApi {
   }
 
   usage(workspaceId: string) {
-    return this.http.get<{ estimatedCostMinorInr: number }>(this.url(`/workspaces/${workspaceId}/usage`));
+    return this.http.get<UsageRollup>(this.url(`/workspaces/${workspaceId}/usage`));
   }
 
   documents(workspaceId: string) {
