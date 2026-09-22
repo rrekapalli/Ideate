@@ -24,6 +24,7 @@ import { DrawerResizeComponent } from '../core/nav/drawer-resize.component';
 import { GraphCanvasComponent } from './graph-canvas.component';
 import { ObjectPageComponent } from './object-page.component';
 import { DocsTreeComponent } from './docs-tree.component';
+import { ObjectsTreeComponent } from './objects-tree.component';
 import { BranchesTreeComponent } from './branches-tree.component';
 import { MdViewComponent } from '../shared/md-view.component';
 import { ancestorPath } from './chat-context';
@@ -39,7 +40,7 @@ type BottomTab = 'timeline' | 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -173,16 +174,6 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       this.usageMinor.set(u.estimatedCostMinorInr ?? 0);
       this.pushShell();
     });
-  }
-
-  objectGroups() {
-    const map = new Map<string, IdeaObject[]>();
-    for (const n of this.graph().nodes) {
-      const list = map.get(n.type) ?? [];
-      list.push(n);
-      map.set(n.type, list);
-    }
-    return [...map.entries()].map(([type, nodes]) => ({ type, nodes }));
   }
 
   currentTab(): EditorTab | undefined {

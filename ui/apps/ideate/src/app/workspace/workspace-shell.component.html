@@ -10,21 +10,15 @@
         <h2>{{ leftTitle() }}</h2>
         <mt-button variant="icon" icon="close" size="sm" ariaLabel="Close explorer" (clicked)="shell.closeLeft()" />
       </div>
-      <div class="filter-drawer-content" [class.filter-drawer-content--flush]="explorerTab() === 'documents' || explorerTab() === 'branches'">
+      <div class="filter-drawer-content" [class.filter-drawer-content--flush]="explorerTab() === 'objects' || explorerTab() === 'documents' || explorerTab() === 'branches'">
         @switch (explorerTab()) {
           @case ('objects') {
-            @for (group of objectGroups(); track group.type) {
-              <div class="group">{{ group.type }}</div>
-              @for (n of group.nodes; track n.id) {
-                <button
-                  type="button"
-                  class="tree"
-                  [class.active]="inspected()?.id === n.id"
-                  (click)="onObjectRowActivate(n)"
-                  (dblclick)="openObject(n)"
-                >{{ n.displayId }} {{ n.title }}</button>
-              }
-            }
+            <ideate-objects-tree
+              [nodes]="graph().nodes"
+              [activeId]="inspected()?.id ?? null"
+              (activate)="onObjectRowActivate($event)"
+              (openPage)="openObject($event)"
+            />
           }
           @case ('documents') {
             <ideate-docs-tree

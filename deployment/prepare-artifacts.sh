@@ -210,8 +210,12 @@ rm -f "$ZIP_PATH"
   cd "$DIST_DIR"
   zip -qr "$ZIP_PATH" .
 )
-if ! unzip -l "$ZIP_PATH" | grep -q 'main-.*\.js'; then
+# Capture listing first: `unzip | grep -q` under pipefail fails with SIGPIPE
+# when grep exits early (the zip is valid; the pipeline is not).
+ZIP_LISTING="$(unzip -l "$ZIP_PATH")"
+if ! grep -E 'main-[A-Za-z0-9_-]+\.js' <<<"$ZIP_LISTING" >/dev/null; then
   log_error "ideate-app.zip has no hashed main bundle; Angular build did not run"
+  log_error "$ZIP_LISTING"
   exit 1
 fi
 log_success "Wrote ${ZIP_PATH} ($(stat -c%s "$ZIP_PATH") bytes)"
