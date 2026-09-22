@@ -170,6 +170,29 @@ export function lookupLabel(value: string | null | undefined): string {
     .join(' ');
 }
 
+const TYPE_PLURALS: Record<string, string> = {
+  hypothesis: 'Hypotheses',
+  theory: 'Theories',
+  evidence: 'Evidence',
+};
+
+/** Group headings: question → Questions, hypothesis → Hypotheses. */
+export function lookupPluralLabel(value: string | null | undefined): string {
+  if (!value) return '';
+  const key = value.trim().toLowerCase();
+  if (TYPE_PLURALS[key]) {
+    return TYPE_PLURALS[key];
+  }
+  const singular = lookupLabel(value);
+  if (/[sxz]$/i.test(singular) || /[cs]h$/i.test(singular)) {
+    return singular + 'es';
+  }
+  if (/[^aeiou]y$/i.test(singular)) {
+    return singular.slice(0, -1) + 'ies';
+  }
+  return singular + 's';
+}
+
 const TYPE_ICONS: Record<string, string> = {
   thought: 'type_thought',
   concept: 'type_concept',

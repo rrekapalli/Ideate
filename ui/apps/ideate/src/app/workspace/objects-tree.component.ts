@@ -1,5 +1,5 @@
 import { Component, computed, input, output, signal } from '@angular/core';
-import { IdeaObject, lookupLabel, personaIcon } from '@ideate/api-client';
+import { IdeaObject, lookupLabel, lookupPluralLabel, personaIcon } from '@ideate/api-client';
 import { MtIconComponent } from '@ideate/ui';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 
@@ -167,7 +167,7 @@ export class ObjectsTreeComponent {
     return [...map.entries()].map(([type, items]) => ({
       type,
       id: 'type:' + type,
-      label: lookupLabel(type),
+      label: lookupPluralLabel(type),
       items,
     }));
   });
