@@ -412,6 +412,27 @@ $right-drawer-width: 320px;
   color: var(--mt-text-muted);
 }
 
+.think {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--mt-text-muted);
+  font-size: var(--mt-fs-sm);
+}
+
+.spin {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid color-mix(in srgb, var(--mt-primary, #10b981) 25%, transparent);
+  border-top-color: var(--mt-primary, #10b981);
+  border-radius: 50%;
+  animation: ideate-spin 0.8s linear infinite;
+}
+
+@keyframes ideate-spin {
+  to { transform: rotate(360deg); }
+}
+
 .muted {
   color: var(--mt-text-muted);
 }

@@ -28,11 +28,13 @@ import { ObjectsTreeComponent } from './objects-tree.component';
 import { BranchesTreeComponent } from './branches-tree.component';
 import { MdViewComponent } from '../shared/md-view.component';
 import { ancestorPath } from './chat-context';
+import { SettingsPageComponent } from './settings-page.component';
 
 type EditorTab =
   | { kind: 'graph' }
   | { kind: 'object'; object: IdeaObject }
-  | { kind: 'document'; item: DocumentItem };
+  | { kind: 'document'; item: DocumentItem }
+  | { kind: 'settings' };
 
 type LeftTab = 'objects' | 'documents' | 'branches';
 type RightTab = 'chat' | 'insights' | 'inspector' | 'outline';
@@ -40,7 +42,7 @@ type BottomTab = 'timeline' | 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -81,7 +83,6 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   searchQuery = '';
   searchObjects = signal<IdeaObject[]>([]);
   searchDocs = signal<DocumentItem[]>([]);
-  showSettings = signal(false);
   draft = '';
   mode = 'explore';
   modes = MODES;
@@ -115,8 +116,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       this.searchQuery = q;
       this.runSearch();
     }));
-    this.subs.add(this.shell.settingsClick.subscribe(() => this.showSettings.set(true)));
-    this.subs.add(this.shell.newThoughtClick.subscribe(() => this.newThought()));
+    this.subs.add(this.shell.settingsClick.subscribe(() => this.toggleSettings()));
   }
 
   explorerOpen(): boolean {
@@ -131,6 +131,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.clearPoll();
     this.subs.unsubscribe();
+    this.shell.settingsOpen.set(false);
     this.shell.clearWorkspace();
   }
 
@@ -182,14 +183,42 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
 
   tabKey(tab: EditorTab): string {
     if (tab.kind === 'graph') return 'graph';
+    if (tab.kind === 'settings') return 'settings';
     if (tab.kind === 'object') return 'obj-' + tab.object.id;
     return 'doc-' + tab.item.id;
   }
 
   tabLabel(tab: EditorTab): string {
     if (tab.kind === 'graph') return 'Graph';
+    if (tab.kind === 'settings') return 'Settings';
     if (tab.kind === 'object') return tab.object.displayId;
     return tab.item.name;
+  }
+
+  selectEditorTab(i: number) {
+    this.activeTab.set(i);
+    this.syncSettingsNav();
+  }
+
+  toggleSettings() {
+    const tabs = this.tabs();
+    const idx = tabs.findIndex((t) => t.kind === 'settings');
+    if (idx >= 0 && this.activeTab() === idx) {
+      this.closeTab(idx);
+      return;
+    }
+    if (idx >= 0) {
+      this.activeTab.set(idx);
+      this.syncSettingsNav();
+      return;
+    }
+    this.tabs.set([...tabs, { kind: 'settings' }]);
+    this.activeTab.set(this.tabs().length - 1);
+    this.syncSettingsNav();
+  }
+
+  private syncSettingsNav() {
+    this.shell.settingsOpen.set(this.currentTab()?.kind === 'settings');
   }
 
   openObject(object: IdeaObject) {
@@ -197,10 +226,12 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     const idx = tabs.findIndex((t) => t.kind === 'object' && t.object.id === object.id);
     if (idx >= 0) {
       this.activeTab.set(idx);
+      this.syncSettingsNav();
       return;
     }
     this.tabs.set([...tabs, { kind: 'object', object }]);
     this.activeTab.set(this.tabs().length - 1);
+    this.syncSettingsNav();
   }
 
   openDocument(item: DocumentItem) {
@@ -208,20 +239,24 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     const idx = tabs.findIndex((t) => t.kind === 'document' && t.item.id === item.id);
     if (idx >= 0) {
       this.activeTab.set(idx);
+      this.syncSettingsNav();
       return;
     }
     this.tabs.set([...tabs, { kind: 'document', item }]);
     this.activeTab.set(this.tabs().length - 1);
+    this.syncSettingsNav();
   }
 
   closeTab(i: number) {
     const next = this.tabs().filter((_, idx) => idx !== i);
     this.tabs.set(next);
-    this.activeTab.set(0);
+    this.activeTab.set(Math.min(this.activeTab(), Math.max(0, next.length - 1)));
+    this.syncSettingsNav();
   }
 
   focusObject(object: IdeaObject) {
     this.activeTab.set(0);
+    this.syncSettingsNav();
     this.setChatContext(object);
     window.setTimeout(() => this.canvas?.focus(object.id), 0);
   }
@@ -298,6 +333,10 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     return path.map((n) => n.displayId).join(' › ');
   }
 
+  activeBranchName(): string {
+    return this.branches().find((b) => b.id === this.activeBranchId())?.name ?? 'Mainstream';
+  }
+
   openById(objectId?: string) {
     if (!objectId) return;
     const found = this.graph().nodes.find((n) => n.id === objectId || n.displayId === objectId);
@@ -325,11 +364,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   }
 
   waitingForReply(): boolean {
-    if (this.awaitingJobId) {
-      return true;
-    }
-    const msgs = this.visibleChat();
-    return msgs.length > 0 && msgs[msgs.length - 1].role === 'user';
+    return this.sending() || this.awaitingJobId != null;
   }
 
   chatText(m: TranscriptMessage): string {
@@ -420,6 +455,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
           this.awaitingJobId = res.jobId;
           this.pollJob(res.jobId);
         } else {
+          this.awaitingJobId = null;
           this.refreshChat();
         }
       },
@@ -446,12 +482,16 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
             return;
           }
           if (Date.now() - started > 180000) {
+            this.awaitingJobId = null;
+            this.clearPoll();
             this.refreshChat();
-            this.pollTimer = setTimeout(tick, 2000);
             return;
           }
           if (job.status === 'failed') {
+            this.awaitingJobId = null;
+            this.clearPoll();
             this.refreshChat();
+            return;
           }
           this.pollTimer = setTimeout(tick, 700);
         },

@@ -14,8 +14,11 @@ import { ShellContextService } from '../shell/shell-context.service';
         <div class="header-left">
           <a class="app-title" routerLink="/">Ideate</a>
           <mt-menubar [items]="menuItems" ariaLabel="Main navigation" />
-          @if (shell.workspaceMeta()) {
-            <span class="ws-meta">{{ shell.workspaceMeta() }}</span>
+          @if (shell.workspaceName(); as wsName) {
+            <span class="ws-chip" [title]="shell.workspaceMeta() || wsName">
+              <span class="ws-chip-name">{{ wsName }}</span>
+              <button type="button" class="ws-chip-close" aria-label="Close workspace" (click)="closeWorkspace($event)">×</button>
+            </span>
           }
         </div>
         <div class="header-right">
@@ -57,7 +60,22 @@ import { ShellContextService } from '../shell/shell-context.service';
       font-size: var(--mt-fs-lg); font-weight: 700; letter-spacing: -0.02em;
       color: var(--primary-color); text-decoration: none;
     }
-    .ws-meta { color: var(--mt-text-muted); font-size: var(--mt-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ws-chip {
+      display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; max-width: 16rem;
+      padding: 0.12rem 0.2rem 0.12rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--mt-primary, #10b981) 30%, var(--mt-surface-border, var(--surface-border)));
+      background: color-mix(in srgb, var(--mt-primary, #10b981) 12%, var(--mt-surface-card, #fff));
+      color: var(--mt-text, var(--text-color));
+      font-size: var(--mt-fs-sm); font-weight: 600;
+    }
+    .ws-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ws-chip-close {
+      flex: none; width: 1.25rem; height: 1.25rem; border: 0; border-radius: 999px;
+      background: transparent; color: var(--mt-text-muted, var(--text-color-secondary));
+      cursor: pointer; font-size: 1rem; line-height: 1; padding: 0;
+    }
+    .ws-chip-close:hover { background: var(--surface-hover, #eee); color: var(--mt-text, var(--text-color)); }
     .header-right { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
     .search {
       width: 14rem; background: var(--mt-input-bg); border: 1px solid var(--mt-surface-border);
@@ -72,18 +90,24 @@ export class AppHeaderComponent {
   private readonly router = inject(Router);
 
   get menuItems(): MtMenubarItem[] {
-    const name = this.shell.workspaceName();
     return [
       {
         label: 'Home',
-        active: !name,
-        command: () => {
-          this.shell.showHomeDashboard();
-          void this.router.navigate(['/']);
-        },
+        active: !this.shell.workspaceName(),
+        command: () => this.goHome(),
       },
-      ...(name ? [{ label: name, active: true }] : []),
     ];
+  }
+
+  closeWorkspace(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.goHome();
+  }
+
+  private goHome(): void {
+    this.shell.showHomeDashboard();
+    void this.router.navigate(['/']);
   }
 
   submitSearch(): void {

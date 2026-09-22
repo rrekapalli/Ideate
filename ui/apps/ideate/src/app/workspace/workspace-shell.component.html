@@ -52,7 +52,7 @@
   <div class="main-content" [class.left-drawer-open]="explorerOpen()" [class.right-drawer-open]="rightOpen()">
     <nav class="tabs">
       @for (tab of tabs(); track tabKey(tab); let i = $index) {
-        <button type="button" [class.active]="i === activeTab()" (click)="activeTab.set(i)">
+        <button type="button" [class.active]="i === activeTab()" (click)="selectEditorTab(i)">
           {{ tabLabel(tab) }}
         </button>
         @if (tab.kind !== 'graph') {
@@ -86,6 +86,14 @@
             (menu)="promptMenu($event)"
             (openChat)="jumpChat($event)"
             (open)="openObject($event)"
+          />
+        } @else if (tab.kind === 'settings') {
+          <ideate-settings-page
+            [name]="workspace()?.name ?? ''"
+            [persona]="workspace()?.persona ?? ''"
+            [branch]="activeBranchName()"
+            [credits]="credits()"
+            [usageMinor]="usageMinor()"
           />
         } @else {
           <div class="doc">
@@ -273,13 +281,4 @@
     </div>
   }
 
-  @if (showSettings()) {
-    <div class="overlay" (click)="showSettings.set(false)">
-      <div class="palette" (click)="$event.stopPropagation()">
-        <p>Persona: {{ workspace()?.persona }}</p>
-        <p>Dev auth bypass is on. Credits: {{ credits() }}</p>
-        <p>Usage this workspace: {{ usageMinor() }} minor INR units</p>
-      </div>
-    </div>
-  }
 </div>

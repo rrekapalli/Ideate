@@ -31,15 +31,9 @@ import { ShellContextService } from '../shell/shell-context.service';
       </ul>
       <ul class="nav-menu nav-menu--end">
         <li>
-          <button type="button" class="nav-icon-btn" title="New thought" (click)="shell.newThoughtClick.next()">
-            <mt-icon name="add" [size]="14" />
-            <span class="btn-label">New</span>
-          </button>
-        </li>
-        <li>
-          <button type="button" class="nav-icon-btn" title="Settings" (click)="shell.settingsClick.next()">
+          <button type="button" class="nav-icon-btn" [class.active]="shell.settingsOpen()" title="Settings" (click)="shell.settingsClick.next()">
             <mt-icon name="settings" [size]="14" />
-            <span class="btn-label">Setup</span>
+            <span class="btn-label">Settings</span>
           </button>
         </li>
       </ul>

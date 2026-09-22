@@ -74,10 +74,16 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     .card[data-type='hypothesis'] { border-left-color: #0d9488; }
     .card[data-type='evidence'] { border-left-color: #16a34a; }
     .card[data-type='experiment'] { border-left-color: #ca8a04; }
-    header { display: flex; gap: 0.25rem; align-items: center; }
+    header {
+      display: flex;
+      gap: 0.25rem;
+      align-items: center;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px dotted var(--mt-surface-border, var(--surface-border));
+    }
     .id { font-family: var(--font-family-mono, monospace); font-size: 0.75rem; }
     select { background: transparent; color: inherit; border: 0; max-width: 7.5rem; }
-    h3 { margin: 0.35rem 0 0.2rem; font-size: 0.95rem; line-height: 1.25; }
+    h3 { margin: 0.4rem 0 0.2rem; font-size: 0.95rem; line-height: 1.25; }
     .summary { margin: 0; font-size: 0.8rem; color: var(--mt-text-muted); line-height: 1.35; }
     .acc {
       margin: 0 0 0 auto;
@@ -103,7 +109,9 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       display: flex;
       gap: 0.35rem;
       margin-top: 0.45rem;
+      padding-top: 0.35rem;
       align-items: center;
+      border-top: 1px dotted var(--mt-surface-border, var(--surface-border));
     }
     .chatref {
       flex: 0 0 auto;

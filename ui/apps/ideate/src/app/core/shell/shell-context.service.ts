@@ -13,7 +13,7 @@ export class ShellContextService {
   readonly searchQuery = signal('');
   readonly searchSubmit = new Subject<string>();
   readonly settingsClick = new Subject<void>();
-  readonly newThoughtClick = new Subject<void>();
+  readonly settingsOpen = signal(false);
   readonly workspacesChanged = new Subject<void>();
   readonly requestCreateWorkspace = new Subject<void>();
   readonly leftDrawer = signal<AppLeftDrawer>('workspaces');
@@ -71,6 +71,7 @@ export class ShellContextService {
     this.usageMinor.set(null);
     this.searchEnabled.set(false);
     this.searchQuery.set('');
+    this.settingsOpen.set(false);
     this.leftDrawer.set(null);
   }
 }
