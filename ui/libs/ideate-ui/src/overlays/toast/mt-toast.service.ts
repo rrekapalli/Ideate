@@ -45,19 +45,58 @@ export class MtToast {
   }
 }
 
+export interface MtConfirmRequest {
+  header?: string;
+  message: string;
+  acceptLabel?: string;
+  rejectLabel?: string;
+  danger?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MtConfirm {
-  /** Simple confirm via window.confirm until dedicated dialog host is mounted. */
-  ask(message: string, header = 'Confirm'): boolean {
-    return typeof window !== 'undefined' ? window.confirm(`${header}\n\n${message}`) : false;
+  private readonly requestSubject = new Subject<MtConfirmRequest | null>();
+  readonly request$ = this.requestSubject.asObservable();
+  private pending: ((ok: boolean) => void) | null = null;
+
+  ask(message: string, header = 'Confirm'): Promise<boolean> {
+    return this.open({ message, header });
+  }
+
+  open(data: MtConfirmRequest): Promise<boolean> {
+    this.settle(false);
+    this.requestSubject.next({
+      header: data.header ?? 'Confirm',
+      message: data.message,
+      acceptLabel: data.acceptLabel ?? 'OK',
+      rejectLabel: data.rejectLabel ?? 'Cancel',
+      danger: data.danger ?? false,
+    });
+    return new Promise((resolve) => {
+      this.pending = resolve;
+    });
   }
 
   /** Convenience: confirm then run action. */
-  confirm(opts: { message: string; header?: string; accept: () => void; reject?: () => void }): void {
-    if (this.ask(opts.message, opts.header ?? 'Confirm')) {
-      opts.accept();
-    } else {
-      opts.reject?.();
-    }
+  confirm(opts: {
+    message: string;
+    header?: string;
+    acceptLabel?: string;
+    rejectLabel?: string;
+    danger?: boolean;
+    accept: () => void;
+    reject?: () => void;
+  }): void {
+    void this.open(opts).then((ok) => {
+      if (ok) opts.accept();
+      else opts.reject?.();
+    });
+  }
+
+  settle(ok: boolean): void {
+    this.requestSubject.next(null);
+    const resolve = this.pending;
+    this.pending = null;
+    resolve?.(ok);
   }
 }

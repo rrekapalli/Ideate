@@ -35,7 +35,7 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
         <div class="hdr-actions">
           <span class="ver">v{{ object().version }}</span>
           <mt-button size="sm" variant="icon" icon="add" ariaLabel="Add related" (clicked)="emitNew()" />
-          <mt-button size="sm" variant="icon" icon="menu" ariaLabel="More actions" (clicked)="emitMenu()" />
+          <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="emitMenu()" />
         </div>
       </header>
       <h3>{{ object().title }}</h3>

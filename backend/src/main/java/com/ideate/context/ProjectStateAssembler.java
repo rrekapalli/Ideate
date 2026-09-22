@@ -28,7 +28,9 @@ public class ProjectStateAssembler {
         WorkspaceBits bits = loadWorkspace(workspaceId);
         sb.append("Talk with this person as a ").append(bits.persona)
                 .append(" thinking about \"").append(bits.name).append("\".\n");
-        sb.append("Answer the latest message in natural language. Do not describe cards or the graph.\n");
+        sb.append("Answer the latest message in natural language with a concise scientific explanation. ");
+        sb.append("Include typical measured values and units when they exist. Do not answer with bullets only. ");
+        sb.append("Do not describe cards or the graph.\n");
         if (utterance != null && !utterance.isBlank()) {
             sb.append("\nLatest message:\n").append(utterance).append("\n");
         }

@@ -52,7 +52,7 @@ import { TypeGlyphComponent } from '../shared/type-glyph.component';
           <h1>{{ object().title }}</h1>
           <div class="actions">
             <mt-button size="sm" variant="outlined" label="Open in Chat" (clicked)="openChat.emit(object())" />
-            <mt-button size="sm" variant="text" label="⋯" ariaLabel="More" (clicked)="menu.emit(object())" />
+            <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="menu.emit(object())" />
           </div>
         </div>
       </header>
@@ -60,11 +60,13 @@ import { TypeGlyphComponent } from '../shared/type-glyph.component';
       <mt-tabs [value]="pane()" (valueChange)="pane.set($event + '')">
         <mt-tab value="page" [label]="object().displayId">
           <div class="pane prose">
-            <section class="essay">
-              <ideate-md [source]="pageMarkdown()" />
-            </section>
+            @if (distinctPageCopy(); as copy) {
+              <section class="essay">
+                <ideate-md [source]="copy" />
+              </section>
+            }
             @if (userMessage() || assistantMessage()) {
-              <section class="source">
+              <section class="source" [class.source--solo]="!distinctPageCopy()">
                 <h2>Conversation</h2>
                 @if (userMessage(); as u) {
                   <article class="quote">
@@ -250,6 +252,7 @@ import { TypeGlyphComponent } from '../shared/type-glyph.component';
     .essay ::ng-deep .md h3 { font-size: 1rem; margin: 0.85rem 0 0.3rem; }
     .essay ::ng-deep .md p { margin: 0 0 0.85em; }
     .source { margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--mt-surface-border, #e5e7eb); }
+    .source--solo { margin-top: 0; padding-top: 0; border-top: 0; }
     .source h2, .stats h2 {
       margin: 0 0 0.65rem;
       font-size: 0.78rem;
@@ -316,16 +319,75 @@ export class ObjectPageComponent {
     return trail.length ? trail : [this.object()];
   });
 
-  pageMarkdown(): string {
-    const body = (this.object().body ?? '').trim();
-    const summary = (this.object().summary ?? '').trim();
-    if (body) {
-      return body;
+  distinctPageCopy(): string | null {
+    const raw = ((this.object().body || this.object().summary || '') + '').trim();
+    if (!raw || raw === '_No page content yet._') {
+      return null;
     }
-    if (summary) {
-      return summary;
+    const title = (this.object().title || '').trim();
+    let text = raw;
+    if (title) {
+      const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      text = text.replace(new RegExp(`^#{1,6}\\s*${escaped}\\s*`, 'i'), '').trim();
+      text = text.replace(new RegExp(`^${escaped}[.!?]?\\s*`, 'i'), '').trim();
     }
-    return '_No page content yet._';
+    for (const re of ObjectPageComponent.PAGE_FILLER) {
+      text = text.replace(re, ' ').trim();
+    }
+    text = text.replace(/\n{3,}/g, '\n\n').trim();
+    const conversation = [this.userMessage()?.content, this.assistantMessage()?.content]
+      .filter(Boolean)
+      .join('\n');
+    if (conversation && this.mostlyCoveredBy(text, `${title}\n${conversation}`)) {
+      return null;
+    }
+    if (conversation && this.wordCount(text) < 12) {
+      return null;
+    }
+    return text || null;
+  }
+
+  private static readonly PAGE_FILLER: RegExp[] = [
+    /this question grows from a card already on the graph\.?/gi,
+    /an answer that grows from a card already on the graph\.?/gi,
+    /stay with this question\.?/gi,
+    /a recap of the graph is not an answer\.?/gi,
+    /the unknown this thread is actually asking\.?/gi,
+    /the working explanation from this turn\.?/gi,
+    /a next question the explanation opened\.?/gi,
+    /a follow-up from this turn\.?/gi,
+    /a belief that is getting in the way of the answer\.?/gi,
+    /let['’]?s stay with your question:?/gi,
+    /no summary yet\.?/gi,
+  ];
+
+  private mostlyCoveredBy(text: string, shown: string): boolean {
+    const leftover = this.normalize(text);
+    const hay = this.normalize(shown);
+    if (!leftover) {
+      return true;
+    }
+    if (hay.includes(leftover)) {
+      return true;
+    }
+    const sentences = leftover.split(/[.!?]+/).map((s) => s.trim()).filter((s) => s.length > 8);
+    if (!sentences.length) {
+      return true;
+    }
+    return sentences.every((s) => hay.includes(s));
+  }
+
+  private normalize(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/[#*_`>[\]()]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private wordCount(value: string): number {
+    return value.split(/\s+/).filter(Boolean).length;
   }
 
   shortTitle(node: IdeaObject): string {

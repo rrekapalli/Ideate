@@ -60,6 +60,7 @@ import { NgTemplateOutlet } from '@angular/common';
         text-align: left;
         border-bottom: 1px solid var(--mt-surface-border, #e5e7eb);
         vertical-align: middle;
+        white-space: nowrap;
       }
       .mt-table th {
         background: color-mix(in srgb, var(--mt-surface-ground, #f4f4f5) 80%, var(--mt-surface-card));

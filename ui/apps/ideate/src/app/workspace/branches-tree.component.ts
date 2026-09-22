@@ -1,6 +1,6 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MtButtonComponent, MtCheckboxComponent, MtFieldComponent, MtIconComponent, MtTooltipDirective } from '@ideate/ui';
+import { MtButtonComponent, MtCheckboxComponent, MtConfirm, MtFieldComponent, MtIconComponent, MtTooltipDirective } from '@ideate/ui';
 import { IdeateApi, WorkspaceBranch } from '@ideate/api-client';
 
 type BranchNode = { branch: WorkspaceBranch; children: BranchNode[] };
@@ -15,7 +15,7 @@ type VisibleRow = { branch: WorkspaceBranch; depth: number; hasChildren: boolean
         <mt-checkbox [checked]="allSelected()" mtTooltip="Select all" (checkedChange)="toggleAll($event)" />
         <mt-button variant="icon" size="sm" icon="add" ariaLabel="New overlay" mtTooltip="New overlay" (clicked)="beginCreate()" />
         <mt-button variant="icon" size="sm" icon="visibility" ariaLabel="Open" mtTooltip="Open" [disabled]="!singleSelected()" (clicked)="openSelected()" />
-        <mt-button variant="icon" size="sm" icon="delete" ariaLabel="Delete" mtTooltip="Delete" [disabled]="!canDeleteSelection()" (clicked)="deleteSelected()" />
+        <mt-button variant="icon" size="sm" icon="recycle_bin" ariaLabel="Delete" mtTooltip="Delete" [disabled]="!canDeleteSelection()" (clicked)="deleteSelected()" />
       </div>
     </div>
     @if (creating()) {
@@ -70,6 +70,7 @@ type VisibleRow = { branch: WorkspaceBranch; depth: number; hasChildren: boolean
 })
 export class BranchesTreeComponent {
   private readonly api = inject(IdeateApi);
+  private readonly confirm = inject(MtConfirm);
   readonly workspaceId = input.required<string>();
   readonly branches = input.required<WorkspaceBranch[]>();
   readonly activeBranchId = input<string | null>(null);
@@ -156,16 +157,26 @@ export class BranchesTreeComponent {
 
   deleteSelected(): void {
     const selected = this.branches().filter((b) => this.selectedIds().has(b.id) && b.branchRole !== 'mainstream');
-    if (!selected.length || !window.confirm('Delete the selected overlay branches and their objects?')) return;
-    let pending = selected.length;
-    const done = () => {
-      pending -= 1;
-      if (pending <= 0) {
-        this.selectedIds.set(new Set());
-        this.changed.emit();
-      }
-    };
-    for (const b of selected) this.api.deleteBranch(this.workspaceId(), b.id).subscribe({ next: done, error: done });
+    if (!selected.length) return;
+    const names = selected.map((b) => b.name).join(', ');
+    this.confirm.confirm({
+      header: selected.length === 1 ? 'Delete overlay?' : 'Delete overlays?',
+      message: `Delete ${selected.length === 1 ? `overlay “${names}”` : `${selected.length} overlay branches`} and their objects? This cannot be undone.`,
+      acceptLabel: 'Delete',
+      rejectLabel: 'Cancel',
+      danger: true,
+      accept: () => {
+        let pending = selected.length;
+        const done = () => {
+          pending -= 1;
+          if (pending <= 0) {
+            this.selectedIds.set(new Set());
+            this.changed.emit();
+          }
+        };
+        for (const b of selected) this.api.deleteBranch(this.workspaceId(), b.id).subscribe({ next: done, error: done });
+      },
+    });
   }
 }
 

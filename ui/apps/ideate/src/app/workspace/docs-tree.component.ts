@@ -1,6 +1,6 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MtButtonComponent, MtCheckboxComponent, MtFieldComponent, MtIconComponent, MtTooltipDirective } from '@ideate/ui';
+import { MtButtonComponent, MtCheckboxComponent, MtConfirm, MtFieldComponent, MtIconComponent, MtTooltipDirective } from '@ideate/ui';
 import { DocumentFolder, DocumentItem, IdeateApi } from '@ideate/api-client';
 
 export type DocTreeNode =
@@ -20,7 +20,7 @@ type VisibleRow = { node: DocTreeNode; depth: number };
         <mt-button variant="icon" size="sm" icon="description" ariaLabel="New link" mtTooltip="New link" (clicked)="beginCreate('file')" />
         <mt-button variant="icon" size="sm" icon="open_in_new" ariaLabel="Open" mtTooltip="Open" [disabled]="selectedFiles().length === 0" (clicked)="openSelected()" />
         <mt-button variant="icon" size="sm" icon="share" ariaLabel="Attach" mtTooltip="Attach" [disabled]="selectedFiles().length === 0" (clicked)="attachSelected()" />
-        <mt-button variant="icon" size="sm" icon="delete" ariaLabel="Delete" mtTooltip="Delete" [disabled]="selectedIds().size === 0" (clicked)="deleteSelected()" />
+        <mt-button variant="icon" size="sm" icon="recycle_bin" ariaLabel="Delete" mtTooltip="Delete" [disabled]="selectedIds().size === 0" (clicked)="deleteSelected()" />
       </div>
     </div>
     @if (creating(); as mode) {
@@ -76,6 +76,7 @@ type VisibleRow = { node: DocTreeNode; depth: number };
 })
 export class DocsTreeComponent {
   private readonly api = inject(IdeateApi);
+  private readonly confirm = inject(MtConfirm);
   readonly workspaceId = input.required<string>();
   readonly folders = input.required<DocumentFolder[]>();
   readonly items = input.required<DocumentItem[]>();
@@ -185,19 +186,29 @@ export class DocsTreeComponent {
 
   deleteSelected(): void {
     const ids = [...this.selectedIds()];
-    if (!ids.length || !window.confirm('Delete the selected folders and files?')) return;
+    if (!ids.length) return;
     const folders = ids.filter((k) => k.startsWith('folder:')).map((k) => k.slice(7));
     const files = ids.filter((k) => k.startsWith('file:')).map((k) => k.slice(5));
-    let pending = folders.length + files.length;
-    const done = () => {
-      pending -= 1;
-      if (pending <= 0) {
-        this.selectedIds.set(new Set());
-        this.changed.emit();
-      }
-    };
-    for (const id of files) this.api.deleteDocument(this.workspaceId(), id).subscribe({ next: done, error: done });
-    for (const id of folders) this.api.deleteFolder(this.workspaceId(), id).subscribe({ next: done, error: done });
+    const n = folders.length + files.length;
+    this.confirm.confirm({
+      header: n === 1 ? 'Delete item?' : 'Delete items?',
+      message: `Delete the selected folders and files? This cannot be undone.`,
+      acceptLabel: 'Delete',
+      rejectLabel: 'Cancel',
+      danger: true,
+      accept: () => {
+        let pending = n;
+        const done = () => {
+          pending -= 1;
+          if (pending <= 0) {
+            this.selectedIds.set(new Set());
+            this.changed.emit();
+          }
+        };
+        for (const id of files) this.api.deleteDocument(this.workspaceId(), id).subscribe({ next: done, error: done });
+        for (const id of folders) this.api.deleteFolder(this.workspaceId(), id).subscribe({ next: done, error: done });
+      },
+    });
   }
 
   private parentFolderId(): string | undefined {

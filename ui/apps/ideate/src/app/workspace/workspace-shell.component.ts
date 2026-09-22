@@ -2,7 +2,7 @@ import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, inje
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { MtButtonComponent, MtIconComponent } from '@ideate/ui';
+import { MtButtonComponent, MtConfirm, MtIconComponent } from '@ideate/ui';
 import {
   DocumentFolder,
   DocumentItem,
@@ -52,6 +52,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   private readonly api = inject(IdeateApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly confirm = inject(MtConfirm);
   readonly shell = inject(ShellContextService);
   private readonly subs = new Subscription();
 
@@ -301,16 +302,22 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   }
 
   promptMenu(object: IdeaObject) {
-    const action = window.prompt('Action: delete | branch | category', 'delete');
-    if (action === 'delete') {
-      this.api.deleteObject(this.workspaceId, object.id).subscribe(() => this.reloadAll());
-    } else if (action === 'branch') {
-      const name = window.prompt('Overlay name');
-      if (name) this.api.newBranch(this.workspaceId, object.id, name).subscribe(() => this.reloadAll());
-    } else if (action === 'category') {
-      const cat = window.prompt('object_category', object.objectCategory);
-      if (cat) this.api.updateObject(this.workspaceId, object.id, { objectCategory: cat }).subscribe(() => this.reloadAll());
-    }
+    this.confirm.confirm({
+      header: 'Delete card?',
+      message: `Delete ${object.displayId} “${(object.title || 'Untitled').trim()}”? This cannot be undone.`,
+      acceptLabel: 'Delete',
+      rejectLabel: 'Cancel',
+      danger: true,
+      accept: () => {
+        this.api.deleteObject(this.workspaceId, object.id).subscribe(() => {
+          const idx = this.tabs().findIndex((t) => t.kind === 'object' && t.object.id === object.id);
+          if (idx >= 0) {
+            this.closeTab(idx);
+          }
+          this.reloadAll();
+        });
+      },
+    });
   }
 
   jumpChat(object: IdeaObject) {

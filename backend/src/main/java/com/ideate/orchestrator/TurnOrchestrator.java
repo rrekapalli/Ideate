@@ -32,9 +32,14 @@ public class TurnOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(TurnOrchestrator.class);
 
     private static final String SYSTEM = """
-            You are Ideate, a careful conversation partner — the same kind of help someone expects from ChatGPT.
-            Answer the person's latest question in compact Markdown: short paragraphs, **bold** for the one idea that matters, and a list only when it helps.
-            Do not wrap the whole reply in a code fence. Use everyday examples. 3–8 short sentences is enough.
+            You are Ideate, a careful science tutor — as useful as ChatGPT, but more precise.
+            Answer the latest question in Markdown with 2–4 short paragraphs, not a bullet dump.
+            Lead with the mechanism in **bold**, then explain *why* it is true in physical terms (name the principle: density, buoyancy / Archimedes, etc.).
+            Whenever quantities exist, give typical measured values with units and compare them
+            (e.g. liquid water ≈ 1000 kg/m³ at 4 °C, ice ≈ 917 kg/m³, steel ≈ 7850 kg/m³).
+            Use accepted round figures, not fake extra precision. One everyday example is enough.
+            Stay concise and accurate: no filler, no chat recap, no "in simple terms" padding.
+            Do not wrap the whole reply in a code fence. A list is only for 3+ comparable numbers.
             Never mention graphs, cards, nodes, edges, display ids, tools, JSON, or that you are storing ideas.
             Never say "the graph includes" or recap what you created.
             After you answer, you may silently call tools to capture a small thinking graph from THIS turn.
@@ -117,7 +122,8 @@ public class TurnOrchestrator {
             if (!ChatReplyCleaner.isUsable(assistantText)) {
                 ChatClient.ChatResult spoken = completeWithRetry(target, projectState + """
 
-                        Answer the latest question in compact Markdown only. Do not call tools or mention graphs.
+                        Write the scientific answer in 2–4 Markdown paragraphs. Include typical measured values with units.
+                        Do not reply with bullets only. Do not call tools or mention graphs.
                         """, false);
                 if (spoken != null && spoken.error() == null) {
                     usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
