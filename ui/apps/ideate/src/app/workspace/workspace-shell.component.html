@@ -15,6 +15,9 @@
           @case ('objects') {
             <ideate-objects-tree
               [nodes]="graph().nodes"
+              [name]="workspace()?.name ?? ''"
+              [persona]="workspace()?.persona ?? ''"
+              [kind]="'workspace'"
               [activeId]="inspected()?.id ?? null"
               (activate)="onObjectRowActivate($event)"
               (openPage)="openObject($event)"
@@ -52,7 +55,16 @@
   <div class="main-content" [class.left-drawer-open]="explorerOpen()" [class.right-drawer-open]="rightOpen()">
     <nav class="tabs">
       @for (tab of tabs(); track tabKey(tab); let i = $index) {
-        <button type="button" [class.active]="i === activeTab()" (click)="selectEditorTab(i)">
+        <button type="button" class="tab" [class.active]="i === activeTab()" (click)="selectEditorTab(i)">
+          @if (tab.kind === 'object') {
+            <ideate-type-glyph [type]="tab.object.type" [size]="12" />
+          } @else if (tab.kind === 'settings') {
+            <mt-icon name="settings" [size]="12" />
+          } @else if (tab.kind === 'document') {
+            <mt-icon name="description" [size]="12" />
+          } @else {
+            <mt-icon name="sitemap" [size]="12" />
+          }
           {{ tabLabel(tab) }}
         </button>
         @if (tab.kind !== 'graph') {
@@ -198,7 +210,10 @@
           }
           @case ('inspector') {
             @if (inspected(); as obj) {
-              <p><strong>{{ obj.displayId }}</strong> {{ obj.title }}</p>
+              <p class="inspect-title">
+                <ideate-type-glyph [type]="obj.type" [size]="14" />
+                <strong>{{ obj.displayId }}</strong> {{ obj.title }}
+              </p>
               <p class="muted">{{ lookupLabel(obj.type) }} · {{ lookupLabel(obj.objectCategory) }} · v{{ obj.version }}</p>
               <ideate-md [source]="obj.summary || obj.body || 'No body yet.'" />
               <mt-button size="sm" [label]="'Open tab'" (clicked)="openObject(obj)" />
@@ -208,7 +223,10 @@
           }
           @default {
             @for (n of graph().nodes; track n.id) {
-              <button type="button" class="tree" (click)="focusObject(n)">{{ n.displayId }} {{ n.title }}</button>
+              <button type="button" class="tree" (click)="focusObject(n)">
+                <ideate-type-glyph [type]="n.type" [size]="12" />
+                {{ n.displayId }} {{ n.title }}
+              </button>
             }
           }
         }
@@ -273,7 +291,10 @@
       <div class="palette" (click)="$event.stopPropagation()">
         <input [(ngModel)]="searchQuery" (keydown.enter)="runSearch()" autofocus />
         @for (o of searchObjects(); track o.id) {
-          <button type="button" (click)="pickSearchObject(o)">{{ o.displayId }} {{ o.title }}</button>
+          <button type="button" (click)="pickSearchObject(o)">
+            <ideate-type-glyph [type]="o.type" [size]="12" />
+            {{ o.displayId }} {{ o.title }}
+          </button>
         }
         @for (d of searchDocs(); track d.id) {
           <button type="button" (click)="openDocument(d); searchOpen.set(false)">{{ d.name }}</button>

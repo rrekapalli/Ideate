@@ -1,6 +1,7 @@
 import { Component, computed, input, output, signal } from '@angular/core';
-import { IdeaObject, lookupLabel } from '@ideate/api-client';
+import { IdeaObject, lookupLabel, personaIcon } from '@ideate/api-client';
 import { MtIconComponent } from '@ideate/ui';
+import { TypeGlyphComponent } from '../shared/type-glyph.component';
 
 type TreeRow =
   | { kind: 'root'; id: 'workspace'; depth: 0 }
@@ -9,7 +10,7 @@ type TreeRow =
 
 @Component({
   selector: 'ideate-objects-tree',
-  imports: [MtIconComponent],
+  imports: [MtIconComponent, TypeGlyphComponent],
   template: `
     <div class="tree" role="tree" aria-label="Workspace objects">
       @for (row of visibleRows(); track row.kind + ':' + row.id) {
@@ -18,17 +19,26 @@ type TreeRow =
             <span class="twist">
               <mt-icon [name]="isOpen('workspace') ? 'expand_more' : 'chevron_right'" [size]="14" />
             </span>
-            <mt-icon name="sitemap" [size]="14" />
-            <span class="name strong">Workspace</span>
+            <mt-icon
+              [name]="personaIcon(persona())"
+              [size]="14"
+              class="root-icon"
+              [style.color]="persona() ? 'var(--ideate-persona-' + persona() + ')' : null"
+            />
+            <span class="root-meta">
+              <span class="name strong">{{ name() || 'Workspace' }}</span>
+              @if (persona() || kind()) {
+                <span class="root-sub">{{ lookupLabel(kind() || 'workspace') }} · {{ lookupLabel(persona()) }}</span>
+              }
+            </span>
           </button>
         } @else if (row.kind === 'type') {
           <button type="button" class="row branch" role="treeitem" [attr.aria-expanded]="isOpen(row.id)" (click)="toggle(row.id)">
             <span class="twist">
               <mt-icon [name]="isOpen(row.id) ? 'expand_more' : 'chevron_right'" [size]="14" />
             </span>
-            <mt-icon name="folder" [size]="14" />
-            <span class="name strong">{{ row.label }}</span>
-            <span class="count">{{ row.count }}</span>
+            <ideate-type-glyph [type]="row.type" [size]="14" />
+            <span class="name strong">{{ row.label }} - ({{ row.count }})</span>
           </button>
         } @else {
           <button
@@ -40,8 +50,11 @@ type TreeRow =
             (dblclick)="openPage.emit(row.object)"
           >
             <span class="twist"></span>
-            <span class="id">{{ row.object.displayId }}</span>
-            <span class="name">{{ row.object.title }}</span>
+            <ideate-type-glyph [type]="row.object.type" [size]="12" />
+            <span class="item-text">
+              <span class="id">{{ row.object.displayId }}</span>
+              <span class="name">{{ row.object.title }}</span>
+            </span>
           </button>
         }
       }
@@ -55,11 +68,11 @@ type TreeRow =
     .tree { padding: 0.3rem 0 0.6rem; }
     .row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 0.28rem;
       width: 100%;
       min-height: 1.65rem;
-      padding: 0 0.4rem 0 0.35rem;
+      padding: 0.2rem 0.4rem 0.2rem 0.35rem;
       border: 0;
       background: none;
       color: inherit;
@@ -68,8 +81,10 @@ type TreeRow =
       box-sizing: border-box;
       cursor: pointer;
     }
+    .twist, ideate-type-glyph, .root-icon { margin-top: 0.12rem; }
     .root:hover, .branch:hover { background: var(--surface-hover); }
-    .branch { padding-left: 1.15rem; }
+    .branch { padding-left: 1.15rem; align-items: center; }
+    .branch .twist, .branch ideate-type-glyph { margin-top: 0; }
     .item { padding-left: 2.05rem; cursor: pointer; border-radius: var(--mt-panel-border-radius, 1px); }
     .item:hover { background: var(--surface-hover); }
     .item.active {
@@ -89,27 +104,54 @@ type TreeRow =
       display: inline-flex;
       flex: 0 0 1rem;
     }
+    .root-meta {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.05rem;
+    }
+    .root-sub {
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: var(--mt-text-muted);
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .item-text {
+      min-width: 0;
+      flex: 1 1 auto;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.3;
+    }
     .name {
       min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
     .name.strong { font-weight: 650; font-size: 0.78rem; letter-spacing: 0.02em; }
     .id {
-      flex: 0 0 auto;
+      display: inline;
+      margin-right: 0.3rem;
       font-family: var(--font-family-mono, ui-monospace, monospace);
       font-size: 0.72rem;
       font-weight: 700;
       color: var(--mt-primary, #10b981);
     }
-    .count { margin-left: auto; font-size: 0.68rem; color: var(--mt-text-muted); }
+    .root-icon { color: var(--mt-primary, #10b981); }
     .muted { margin: 0.5rem 0.7rem; font-size: 0.75rem; color: var(--mt-text-muted); }
   `,
 })
 export class ObjectsTreeComponent {
   readonly nodes = input.required<IdeaObject[]>();
+  readonly name = input('');
+  readonly persona = input('');
+  readonly kind = input('workspace');
   readonly activeId = input<string | null>(null);
+  readonly lookupLabel = lookupLabel;
+  readonly personaIcon = personaIcon;
   readonly activate = output<IdeaObject>();
   readonly openPage = output<IdeaObject>();
 

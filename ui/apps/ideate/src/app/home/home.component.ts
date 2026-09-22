@@ -1,13 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { MtButtonComponent, MtFieldComponent, MtTableComponent } from '@ideate/ui';
-import { IdeateApi, PERSONAS, Persona, WorkspaceSummary, lookupLabel } from '@ideate/api-client';
+import { MtButtonComponent, MtFieldComponent, MtIconComponent, MtTableComponent } from '@ideate/ui';
+import { IdeateApi, PERSONAS, Persona, WorkspaceSummary, lookupLabel, personaIcon } from '@ideate/api-client';
 import { ShellContextService } from '../core/shell/shell-context.service';
 
 @Component({
   selector: 'ideate-home',
-  imports: [FormsModule, MtButtonComponent, MtFieldComponent, MtTableComponent],
+  imports: [FormsModule, MtButtonComponent, MtFieldComponent, MtIconComponent, MtTableComponent],
   template: `
     <div class="dash">
       <header class="hero">
@@ -63,7 +63,11 @@ import { ShellContextService } from '../core/shell/shell-context.service';
             @for (p of personas; track p) {
               <li>
                 <button type="button" [class.active]="filter() === p" (click)="filter.set(p)">
-                  <span>{{ lookupLabel(p) }}</span><strong>{{ countByPersona()[p] }}</strong>
+                  <span class="persona-label">
+                    <mt-icon [name]="personaIcon(p)" [size]="13" [style.color]="'var(--ideate-persona-' + p + ')'" />
+                    {{ lookupLabel(p) }}
+                  </span>
+                  <strong>{{ countByPersona()[p] }}</strong>
                 </button>
               </li>
             }
@@ -156,6 +160,7 @@ import { ShellContextService } from '../core/shell/shell-context.service';
     .alert { color: var(--mt-severity-danger, #b91c1c); }
     .list li { display: flex; flex-direction: column; padding: 0.2rem 0; border-bottom: 1px solid var(--surface-border); }
     .list li:last-child { border-bottom: 0; }
+    .persona-label { display: inline-flex; align-items: center; gap: 0.3rem; }
     .actions, .row-actions { display: flex; gap: 0.3rem; }
     .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
     .table-section { min-width: 0; }
@@ -167,6 +172,7 @@ export class HomeComponent {
   private readonly shell = inject(ShellContextService);
   readonly personas = PERSONAS;
   readonly lookupLabel = lookupLabel;
+  readonly personaIcon = personaIcon;
   readonly rows = signal<WorkspaceSummary[]>([]);
   readonly error = signal('');
   readonly creating = signal(false);

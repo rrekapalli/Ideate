@@ -30,6 +30,7 @@ import { BranchesTreeComponent } from './branches-tree.component';
 import { MdViewComponent } from '../shared/md-view.component';
 import { ancestorPath } from './chat-context';
 import { SettingsPageComponent } from './settings-page.component';
+import { TypeGlyphComponent } from '../shared/type-glyph.component';
 
 type EditorTab =
   | { kind: 'graph' }
@@ -43,7 +44,7 @@ type BottomTab = 'timeline' | 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })

@@ -12,10 +12,11 @@ import {
 } from '@ideate/api-client';
 import { MtButtonComponent, MtTabComponent, MtTabsComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
+import { TypeGlyphComponent } from '../shared/type-glyph.component';
 
 @Component({
   selector: 'ideate-object-page',
-  imports: [FormsModule, MtButtonComponent, MtTabsComponent, MtTabComponent, MdViewComponent],
+  imports: [FormsModule, MtButtonComponent, MtTabsComponent, MtTabComponent, MdViewComponent, TypeGlyphComponent],
   template: `
     <div class="page">
       <nav class="crumb" aria-label="Path from parent">
@@ -37,6 +38,7 @@ import { MdViewComponent } from '../shared/md-view.component';
 
       <header class="hero">
         <div class="kicker">
+          <ideate-type-glyph [type]="object().type" [size]="16" />
           <span class="id">{{ object().displayId }}</span>
           <select [ngModel]="object().type" (ngModelChange)="typeChange.emit($event)">
             @for (t of types; track t) {

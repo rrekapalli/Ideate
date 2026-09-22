@@ -1,14 +1,15 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
-import { MtButtonComponent, MtTagComponent } from '@ideate/ui';
+import { MtButtonComponent, MtIconComponent, MtTagComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
+import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { cardBox } from './card-layout';
 import { DiagramCanvasBridge } from './diagram-canvas-bridge';
 
 @Component({
   selector: 'ideate-object-card-chrome',
-  imports: [FormsModule, MtButtonComponent, MtTagComponent, MdViewComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, MtTagComponent, MdViewComponent, TypeGlyphComponent],
   template: `
     <article
       class="card"
@@ -23,6 +24,7 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     >
       <header (click)="$event.stopPropagation()">
         <div class="hdr-left">
+          <ideate-type-glyph [type]="object().type" [size]="14" />
           <span class="id">{{ object().displayId }}</span>
           <select [ngModel]="object().type" (ngModelChange)="emitType($event)" [attr.aria-label]="'Type'">
             @for (t of types; track t) {
@@ -39,7 +41,9 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       <h3>{{ object().title }}</h3>
       <div class="summary"><ideate-md [source]="object().summary || 'No summary yet.'" /></div>
       <footer>
-        <button type="button" class="chatref" (click)="$event.stopPropagation(); emitChat()" aria-label="Chat">💬</button>
+        <button type="button" class="chatref" (click)="$event.stopPropagation(); emitChat()" aria-label="Chat">
+          <mt-icon name="chat" [size]="14" />
+        </button>
         <span class="tags">
           @for (tag of object().tags; track tag) {
             <mt-tag [value]="tag" />
@@ -68,16 +72,32 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       color: var(--mt-text);
       touch-action: manipulation;
     }
-    .card[data-category='abandoned'] { border-left-color: #9ca3af; opacity: 0.85; }
-    .card[data-category='misconception'] { border-left-color: #f59e0b; }
-    .card[data-category='unknown'] { border-left-color: #6366f1; }
-    .card[data-category='speculative'] { border-left-color: #22d3ee; }
-    .card[data-category='supported'] { border-left-color: #34d399; }
-    .card[data-type='question'] { border-left-color: #2563eb; }
-    .card[data-type='concept'] { border-left-color: #7c3aed; }
-    .card[data-type='hypothesis'] { border-left-color: #0d9488; }
-    .card[data-type='evidence'] { border-left-color: #16a34a; }
-    .card[data-type='experiment'] { border-left-color: #ca8a04; }
+    .card[data-category='abandoned'] { border-left-color: var(--surface-400, #9ca3af); opacity: 0.85; }
+    .card[data-category='misconception'] { border-left-color: var(--ideate-type-misconception); }
+    .card[data-category='unknown'] { border-left-color: var(--ideate-type-unknown); }
+    .card[data-category='speculative'] { border-left-color: var(--ideate-type-assumption); }
+    .card[data-category='supported'] { border-left-color: var(--ideate-type-evidence); }
+    .card[data-type='thought'] { border-left-color: var(--ideate-type-thought); }
+    .card[data-type='concept'] { border-left-color: var(--ideate-type-concept); }
+    .card[data-type='unknown'] { border-left-color: var(--ideate-type-unknown); }
+    .card[data-type='question'] { border-left-color: var(--ideate-type-question); }
+    .card[data-type='hypothesis'] { border-left-color: var(--ideate-type-hypothesis); }
+    .card[data-type='assumption'] { border-left-color: var(--ideate-type-assumption); }
+    .card[data-type='evidence'] { border-left-color: var(--ideate-type-evidence); }
+    .card[data-type='experiment'] { border-left-color: var(--ideate-type-experiment); }
+    .card[data-type='observation'] { border-left-color: var(--ideate-type-observation); }
+    .card[data-type='claim'] { border-left-color: var(--ideate-type-claim); }
+    .card[data-type='critique'] { border-left-color: var(--ideate-type-critique); }
+    .card[data-type='decision'] { border-left-color: var(--ideate-type-decision); }
+    .card[data-type='evaluation'] { border-left-color: var(--ideate-type-evaluation); }
+    .card[data-type='theory'] { border-left-color: var(--ideate-type-theory); }
+    .card[data-type='misconception'] { border-left-color: var(--ideate-type-misconception); }
+    .card[data-type='constraint'] { border-left-color: var(--ideate-type-constraint); }
+    .card[data-type='calculation'] { border-left-color: var(--ideate-type-calculation); }
+    .card[data-type='target'] { border-left-color: var(--ideate-type-target); }
+    .card[data-type='design_artifact'] { border-left-color: var(--ideate-type-design_artifact); }
+    .card[data-type='architecture'] { border-left-color: var(--ideate-type-architecture); }
+    .card[data-type='component'] { border-left-color: var(--ideate-type-component); }
     header {
       display: flex;
       align-items: center;
@@ -158,11 +178,13 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     }
     .chatref {
       flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
       padding: 0;
       border: 0;
       background: none;
       cursor: pointer;
-      font-size: 0.95rem;
+      color: var(--mt-primary, currentColor);
       line-height: 1;
     }
     .tags { display: flex; gap: 0.25rem; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; }

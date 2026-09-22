@@ -203,6 +203,12 @@ $right-drawer-width: 320px;
   min-height: var(--mt-control-height);
 }
 
+.tabs button.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
 .tabs button.active {
   border-bottom: 2px solid var(--mt-primary);
 }
@@ -256,7 +262,9 @@ $right-drawer-width: 320px;
 }
 
 .tree {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
   width: 100%;
   text-align: left;
   background: none;
@@ -265,6 +273,12 @@ $right-drawer-width: 320px;
   cursor: pointer;
   padding: 0.35rem 0.4rem;
   border-radius: var(--mt-panel-border-radius, 1px);
+}
+
+.inspect-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .tree:hover {

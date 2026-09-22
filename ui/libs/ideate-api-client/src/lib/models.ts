@@ -170,6 +170,46 @@ export function lookupLabel(value: string | null | undefined): string {
     .join(' ');
 }
 
+const TYPE_ICONS: Record<string, string> = {
+  thought: 'type_thought',
+  concept: 'type_concept',
+  unknown: 'type_unknown',
+  question: 'type_question',
+  hypothesis: 'type_hypothesis',
+  assumption: 'type_assumption',
+  evidence: 'type_evidence',
+  experiment: 'type_experiment',
+  observation: 'type_observation',
+  claim: 'type_claim',
+  critique: 'type_critique',
+  decision: 'type_decision',
+  evaluation: 'type_evaluation',
+  theory: 'type_theory',
+  misconception: 'type_misconception',
+  constraint: 'type_constraint',
+  calculation: 'type_calculation',
+  target: 'type_target',
+  design_artifact: 'type_design_artifact',
+  architecture: 'type_architecture',
+  component: 'type_component',
+};
+
+const PERSONA_ICONS: Record<string, string> = {
+  student: 'school',
+  researcher: 'type_hypothesis',
+  inventor: 'type_concept',
+  analyst: 'chart',
+  explorer: 'explore',
+};
+
+export function objectTypeIcon(type: string | null | undefined): string {
+  return TYPE_ICONS[type ?? ''] ?? 'type_unknown';
+}
+
+export function personaIcon(persona: string | null | undefined): string {
+  return PERSONA_ICONS[persona ?? ''] ?? 'person';
+}
+
 export const PERSONAS: Persona[] = ['student', 'researcher', 'inventor', 'analyst', 'explorer'];
 
 export const MODES = ['explore', 'learn', 'challenge', 'research', 'create', 'review', 'explain', 'debate', 'practice'] as const;

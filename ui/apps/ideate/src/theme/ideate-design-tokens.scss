@@ -130,6 +130,33 @@
   --mt-si-overview-chart-area-min-height: clamp(12rem, 33.75dvh, 36rem);
   /* Scale applied to computed TradingView live-chart slot heights (1 = full budget). */
   --mt-live-chart-height-scale: 0.75;
+
+  --ideate-type-thought: #64748b;
+  --ideate-type-concept: #7c3aed;
+  --ideate-type-unknown: #6366f1;
+  --ideate-type-question: #2563eb;
+  --ideate-type-hypothesis: #0d9488;
+  --ideate-type-assumption: #0ea5e9;
+  --ideate-type-evidence: #16a34a;
+  --ideate-type-experiment: #ca8a04;
+  --ideate-type-observation: #0284c7;
+  --ideate-type-claim: #db2777;
+  --ideate-type-critique: #e11d48;
+  --ideate-type-decision: #4f46e5;
+  --ideate-type-evaluation: #059669;
+  --ideate-type-theory: #9333ea;
+  --ideate-type-misconception: #d97706;
+  --ideate-type-constraint: #b45309;
+  --ideate-type-calculation: #0f766e;
+  --ideate-type-target: #dc2626;
+  --ideate-type-design_artifact: #c026d3;
+  --ideate-type-architecture: #1d4ed8;
+  --ideate-type-component: #7c3aed;
+  --ideate-persona-student: #2563eb;
+  --ideate-persona-researcher: #0d9488;
+  --ideate-persona-inventor: #7c3aed;
+  --ideate-persona-analyst: #d97706;
+  --ideate-persona-explorer: #0284c7;
 }
 
 html:not(.app-dark) {
@@ -218,4 +245,31 @@ html.app-dark {
   --mt-control-border: color-mix(in srgb, var(--surface-border) 52%, var(--surface-ground) 48%);
   --mt-accordion-active-border: color-mix(in srgb, var(--primary-color) 36%, var(--surface-border) 64%);
   --mt-subtle-surface: color-mix(in srgb, var(--surface-card) 93%, var(--surface-border) 7%);
+
+  --ideate-type-thought: #94a3b8;
+  --ideate-type-concept: #c4b5fd;
+  --ideate-type-unknown: #a5b4fc;
+  --ideate-type-question: #93c5fd;
+  --ideate-type-hypothesis: #5eead4;
+  --ideate-type-assumption: #7dd3fc;
+  --ideate-type-evidence: #86efac;
+  --ideate-type-experiment: #fde047;
+  --ideate-type-observation: #7dd3fc;
+  --ideate-type-claim: #f9a8d4;
+  --ideate-type-critique: #fda4af;
+  --ideate-type-decision: #a5b4fc;
+  --ideate-type-evaluation: #6ee7b7;
+  --ideate-type-theory: #d8b4fe;
+  --ideate-type-misconception: #fbbf24;
+  --ideate-type-constraint: #fdba74;
+  --ideate-type-calculation: #5eead4;
+  --ideate-type-target: #fca5a5;
+  --ideate-type-design_artifact: #f0abfc;
+  --ideate-type-architecture: #93c5fd;
+  --ideate-type-component: #c4b5fd;
+  --ideate-persona-student: #93c5fd;
+  --ideate-persona-researcher: #5eead4;
+  --ideate-persona-inventor: #c4b5fd;
+  --ideate-persona-analyst: #fbbf24;
+  --ideate-persona-explorer: #7dd3fc;
 }
