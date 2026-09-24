@@ -22,7 +22,7 @@ export const appConfig: ApplicationConfig = {
     provideAppUpdateBootstrap(),
     provideServiceWorker('ngsw-worker.js', {
       enabled: environment.production && !isDevMode(),
-      registrationStrategy: 'registerWhenStable:30000',
+      registrationStrategy: 'registerImmediately',
     }),
   ],
 };

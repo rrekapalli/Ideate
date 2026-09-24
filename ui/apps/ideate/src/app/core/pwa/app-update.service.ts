@@ -1,23 +1,19 @@
-import { Injectable, OnDestroy, inject, signal } from '@angular/core';
+import { Injectable, NgZone, OnDestroy, computed, inject, signal } from '@angular/core';
 import { SwUpdate, VersionEvent } from '@angular/service-worker';
-import { Subscription, fromEvent, interval, timer } from 'rxjs';
+import { Subscription, timer } from 'rxjs';
 import {
   APP_SW_UNRECOVERABLE_GUARD_KEY,
   clearServiceWorkerActivationGuard,
   clearServiceWorkerCaches,
   clearServiceWorkerRecoveryGuards,
   consumeOneTimeServiceWorkerRecoveryGuard,
-  getWaitingServiceWorkerRegistration,
   requestServiceWorkerUpdate,
   unregisterStaleServiceWorkers,
 } from './service-worker.util';
 
-const UPDATE_POLL_MS = 15 * 60 * 1000;
 const SW_ARM_RETRY_MS = 500;
 const SW_ARM_MAX_ATTEMPTS = 60;
 const DOWNLOAD_BANNER_MS = 12_000;
-const DOWNLOAD_WATCH_POLL_MS = 2_000;
-const DOWNLOAD_WATCH_MAX_POLLS = 30;
 const UPDATE_DISMISSED_HASH_KEY = 'ideate-app-update-dismissed-hash';
 
 export type AppUpdatePhase = 'idle' | 'checking' | 'downloading' | 'ready' | 'applying';
@@ -25,16 +21,21 @@ export type AppUpdatePhase = 'idle' | 'checking' | 'downloading' | 'ready' | 'ap
 @Injectable({ providedIn: 'root' })
 export class AppUpdateService implements OnDestroy {
   private readonly swUpdate = inject(SwUpdate);
+  private readonly zone = inject(NgZone);
   private subs = new Subscription();
   private swArmed = false;
   private applying = false;
-  private downloadWatchSub: Subscription | null = null;
   private downloadBannerSub: Subscription | null = null;
   private latestReadyHash: string | null = null;
 
   readonly updateReady = signal(false);
   readonly updatePhase = signal<AppUpdatePhase>('idle');
   readonly downloadBannerVisible = signal(false);
+
+  readonly showDownloadBanner = computed(
+    () => this.downloadBannerVisible() && this.updatePhase() === 'downloading'
+  );
+  readonly showUpdateReadyBanner = computed(() => this.updateReady() && !this.applying);
 
   start(): void {
     this.resetIdlePhase();
@@ -43,17 +44,8 @@ export class AppUpdateService implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.clearDownloadWatch();
     this.clearDownloadBannerTimer();
     this.subs.unsubscribe();
-  }
-
-  showDownloadBanner(): boolean {
-    return this.downloadBannerVisible() && this.updatePhase() === 'downloading';
-  }
-
-  showUpdateReadyBanner(): boolean {
-    return this.updateReady() && !this.applying;
   }
 
   async checkNow(): Promise<void> {
@@ -68,7 +60,7 @@ export class AppUpdateService implements OnDestroy {
     try {
       const found = await this.swUpdate.checkForUpdate();
       if (found) {
-        if (this.updatePhase() === 'checking') {
+        if (this.updatePhase() === 'checking' || this.updatePhase() === 'idle') {
           this.beginDownloading();
         }
         return;
@@ -93,10 +85,10 @@ export class AppUpdateService implements OnDestroy {
     }
 
     this.applying = true;
-    this.clearDownloadWatch();
     this.clearDownloadBannerTimer();
     this.updatePhase.set('applying');
     this.downloadBannerVisible.set(false);
+    this.updateReady.set(false);
 
     if (!this.swUpdate.isEnabled) {
       globalThis.location.reload();
@@ -110,7 +102,8 @@ export class AppUpdateService implements OnDestroy {
       })
       .catch(() => {
         this.applying = false;
-        this.resetIdlePhase();
+        this.updateReady.set(true);
+        this.updatePhase.set('ready');
       });
   }
 
@@ -131,7 +124,6 @@ export class AppUpdateService implements OnDestroy {
 
     await unregisterStaleServiceWorkers();
     await requestServiceWorkerUpdate();
-    await this.markUpdateReadyIfWaiting();
   }
 
   private waitForSwAndArm(): void {
@@ -151,7 +143,7 @@ export class AppUpdateService implements OnDestroy {
       this.swArmed = true;
       sub.unsubscribe();
       this.attachVersionListener();
-      this.scheduleChecks();
+      void this.checkNow();
       this.subs.add(timer(10_000).subscribe(() => clearServiceWorkerRecoveryGuards()));
     });
     this.subs.add(sub);
@@ -160,28 +152,34 @@ export class AppUpdateService implements OnDestroy {
   private attachVersionListener(): void {
     this.subs.add(
       this.swUpdate.versionUpdates.subscribe((evt: VersionEvent) => {
-        if (evt.type === 'VERSION_DETECTED') {
-          this.beginDownloading();
-          return;
-        }
-        if (evt.type === 'VERSION_READY') {
-          this.latestReadyHash = evt.latestVersion?.hash ?? null;
-          this.markUpdateReady();
-          return;
-        }
-        if (evt.type === 'NO_NEW_VERSION_DETECTED') {
-          if (this.updatePhase() === 'checking') {
-            this.resetIdlePhase();
-          }
-        }
+        this.zone.run(() => this.onVersionEvent(evt));
       })
     );
 
     this.subs.add(
       this.swUpdate.unrecoverable.subscribe(() => {
-        void this.recoverUnrecoverableState();
+        this.zone.run(() => {
+          void this.recoverUnrecoverableState();
+        });
       })
     );
+  }
+
+  private onVersionEvent(evt: VersionEvent): void {
+    if (evt.type === 'VERSION_DETECTED') {
+      this.beginDownloading();
+      return;
+    }
+    if (evt.type === 'VERSION_READY') {
+      this.latestReadyHash = evt.latestVersion?.hash ?? null;
+      this.markUpdateReady();
+      return;
+    }
+    if (evt.type === 'NO_NEW_VERSION_DETECTED') {
+      if (this.updatePhase() === 'checking') {
+        this.resetIdlePhase();
+      }
+    }
   }
 
   private async recoverUnrecoverableState(): Promise<void> {
@@ -195,15 +193,20 @@ export class AppUpdateService implements OnDestroy {
   }
 
   private markUpdateReady(): void {
+    if (this.applying) {
+      return;
+    }
     if (this.isUpdateDismissed()) {
       return;
     }
+    this.clearDownloadBannerTimer();
+    this.downloadBannerVisible.set(false);
     this.updateReady.set(true);
     this.updatePhase.set('ready');
   }
 
   private beginDownloading(): void {
-    if (this.applying) {
+    if (this.applying || this.updateReady()) {
       return;
     }
     this.updatePhase.set('downloading');
@@ -213,88 +216,22 @@ export class AppUpdateService implements OnDestroy {
       this.downloadBannerVisible.set(false);
     });
     this.subs.add(this.downloadBannerSub);
-    this.armDownloadWatch();
-  }
-
-  private armDownloadWatch(): void {
-    this.clearDownloadWatch();
-    let polls = 0;
-    this.downloadWatchSub = timer(0, DOWNLOAD_WATCH_POLL_MS).subscribe(() => {
-      polls += 1;
-      void this.markUpdateReadyIfWaiting();
-      if (this.updateReady() || polls >= DOWNLOAD_WATCH_MAX_POLLS) {
-        this.clearDownloadWatch();
-        if (polls >= DOWNLOAD_WATCH_MAX_POLLS && this.updatePhase() === 'downloading') {
-          this.resetIdlePhase();
-        }
-      }
-    });
-    this.subs.add(this.downloadWatchSub);
-  }
-
-  private async markUpdateReadyIfWaiting(): Promise<void> {
-    if (this.applying || this.updateReady()) {
-      return;
-    }
-    const waiting = await getWaitingServiceWorkerRegistration();
-    if (!waiting) {
-      return;
-    }
-    this.latestReadyHash = waiting.waiting?.scriptURL ?? this.latestReadyHash;
-    this.markUpdateReady();
   }
 
   private resetIdlePhase(): void {
+    if (this.applying) {
+      return;
+    }
     this.updateReady.set(false);
     this.updatePhase.set('idle');
     this.downloadBannerVisible.set(false);
-    this.clearDownloadWatch();
     this.clearDownloadBannerTimer();
     clearServiceWorkerActivationGuard();
-  }
-
-  private clearDownloadWatch(): void {
-    this.downloadWatchSub?.unsubscribe();
-    this.downloadWatchSub = null;
   }
 
   private clearDownloadBannerTimer(): void {
     this.downloadBannerSub?.unsubscribe();
     this.downloadBannerSub = null;
-  }
-
-  private scheduleChecks(): void {
-    void this.checkNow();
-    this.subs.add(timer(2_000).subscribe(() => void this.checkNow()));
-    this.subs.add(timer(6_000).subscribe(() => void this.checkNow()));
-    this.subs.add(interval(UPDATE_POLL_MS).subscribe(() => void this.checkNow()));
-
-    if (typeof document !== 'undefined') {
-      this.subs.add(
-        fromEvent(document, 'visibilitychange').subscribe(() => {
-          if (document.visibilityState !== 'visible') {
-            return;
-          }
-          void this.bootstrapServiceWorkerUpdate();
-          void this.checkNow();
-        })
-      );
-    }
-
-    if (typeof window !== 'undefined') {
-      this.subs.add(
-        fromEvent(window, 'focus').subscribe(() => {
-          void this.checkNow();
-        })
-      );
-
-      this.subs.add(
-        fromEvent(window, 'pageshow').subscribe(() => {
-          void this.bootstrapServiceWorkerUpdate();
-          void this.checkNow();
-        })
-      );
-    }
   }
 
   private isUpdateDismissed(): boolean {

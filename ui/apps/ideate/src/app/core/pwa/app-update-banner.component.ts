@@ -1,4 +1,4 @@
-import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MtButtonComponent, MtIconComponent } from '@ideate/ui';
 import { AppUpdateService } from './app-update.service';
 
@@ -19,7 +19,7 @@ import { AppUpdateService } from './app-update.service';
         <span class="app-update-banner__text">A new version of Ideate is ready.</span>
         <div class="app-update-banner__actions">
           <mt-button
-            label="Restart"
+            label="Update"
             icon="refresh"
             variant="filled"
             size="sm"
@@ -33,6 +33,10 @@ import { AppUpdateService } from './app-update.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
+      :host {
+        display: contents;
+      }
+
       .app-update-banner {
         position: fixed;
         left: 0;
@@ -45,8 +49,8 @@ import { AppUpdateService } from './app-update.service';
         justify-content: space-between;
         gap: 0.5rem;
         padding: 0.75rem 1rem;
-        background: var(--mt-primary, var(--p-primary-color));
-        color: var(--mt-on-primary, var(--p-primary-contrast-color, #fff));
+        background: var(--mt-primary, #10b981);
+        color: var(--mt-on-primary, #fff);
         box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
       }
 
@@ -61,11 +65,14 @@ import { AppUpdateService } from './app-update.service';
         align-items: center;
         gap: 0.35rem;
         flex-shrink: 0;
+        --mt-primary: #fff;
+        --mt-on-primary: #065f46;
+        --mt-primary-hover: #ecfdf5;
       }
 
       .app-update-banner--info {
         justify-content: center;
-        background: color-mix(in srgb, var(--mt-primary, var(--p-primary-color)) 92%, #000);
+        background: color-mix(in srgb, var(--mt-primary, #10b981) 92%, #000);
       }
 
       .app-update-banner--info .app-update-banner__text {
