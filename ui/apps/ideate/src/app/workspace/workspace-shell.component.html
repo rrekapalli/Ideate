@@ -318,6 +318,45 @@
     </ul>
   </nav>
 
+  <mt-dialog
+    [visible]="newNodeOpen()"
+    (visibleChange)="!$event && closeNewNode()"
+    header="Add related node"
+    [closable]="true"
+    [dismissableMask]="true"
+    width="24rem"
+  >
+    @if (newNodeParent(); as parent) {
+      <p class="new-node-lead">Create a node linked from {{ parent.displayId }}.</p>
+    }
+    <form class="new-node-form" (ngSubmit)="submitNewNode()">
+      <label>
+        Type
+        <select [ngModel]="newNodeType()" (ngModelChange)="newNodeType.set($event)" name="newNodeType">
+          @for (t of types; track t) {
+            <option [value]="t">{{ lookupLabel(t) }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Title
+        <input
+          [ngModel]="newNodeTitle()"
+          (ngModelChange)="newNodeTitle.set($event)"
+          name="newNodeTitle"
+          required
+          autofocus
+          placeholder="Untitled"
+          (keydown.enter)="$event.preventDefault(); submitNewNode()"
+        />
+      </label>
+    </form>
+    <div class="dlg-actions" mtDialogFooter>
+      <mt-button variant="text" label="Cancel" (clicked)="closeNewNode()" />
+      <mt-button variant="filled" label="Create" [disabled]="!newNodeTitle().trim()" (clicked)="submitNewNode()" />
+    </div>
+  </mt-dialog>
+
   @if (searchOpen()) {
     <div class="overlay" (click)="searchOpen.set(false)">
       <div class="palette" (click)="$event.stopPropagation()">

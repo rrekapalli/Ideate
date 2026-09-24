@@ -2,7 +2,7 @@ import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, inje
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription, forkJoin, of } from 'rxjs';
-import { MtButtonComponent, MtConfirm, MtIconComponent } from '@ideate/ui';
+import { MtButtonComponent, MtConfirm, MtDialogComponent, MtIconComponent } from '@ideate/ui';
 import {
   ATTACHMENT_ACCEPT,
   ATTACHMENT_MAX_BYTES,
@@ -50,7 +50,7 @@ type BottomTab = 'timeline' | 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent],
+  imports: [FormsModule, MtButtonComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -60,6 +60,10 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly confirm = inject(MtConfirm);
   readonly shell = inject(ShellContextService);
+  readonly newNodeOpen = signal(false);
+  readonly newNodeParent = signal<IdeaObject | null>(null);
+  readonly newNodeType = signal('thought');
+  readonly newNodeTitle = signal('');
   readonly attachments = inject(AttachmentStore);
   private readonly subs = new Subscription();
 
@@ -306,10 +310,26 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   }
 
   promptNewNode(object: IdeaObject) {
-    const type = window.prompt('New node type', 'thought') ?? '';
-    const title = window.prompt('Title', 'Untitled') ?? '';
-    if (!type || !title) return;
-    this.api.newNode(this.workspaceId, object.id, { type, title }).subscribe(() => this.reloadAll());
+    this.newNodeParent.set(object);
+    this.newNodeType.set('thought');
+    this.newNodeTitle.set('');
+    this.newNodeOpen.set(true);
+  }
+
+  closeNewNode() {
+    this.newNodeOpen.set(false);
+    this.newNodeParent.set(null);
+  }
+
+  submitNewNode() {
+    const parent = this.newNodeParent();
+    const type = this.newNodeType().trim();
+    const title = this.newNodeTitle().trim();
+    if (!parent || !type || !title) {
+      return;
+    }
+    this.closeNewNode();
+    this.api.newNode(this.workspaceId, parent.id, { type, title }).subscribe(() => this.reloadAll());
   }
 
   promptMenu(object: IdeaObject) {

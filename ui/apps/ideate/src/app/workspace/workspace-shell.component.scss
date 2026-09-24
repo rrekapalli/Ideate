@@ -588,3 +588,38 @@ $right-drawer-width: 320px;
 .doc {
   padding: 1rem;
 }
+
+.new-node-lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--mt-text-muted);
+}
+
+.new-node-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.new-node-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.new-node-form input,
+.new-node-form select {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 400;
+  color: inherit;
+  background: var(--mt-input-bg, transparent);
+  border: 1px solid var(--mt-surface-border);
+  padding: 0.35rem 0.45rem;
+  min-height: 1.85rem;
+}
