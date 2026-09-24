@@ -1,12 +1,13 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MtButtonComponent, MtCheckboxComponent, MtConfirm, MtFieldComponent, MtIconComponent, MtTooltipDirective } from '@ideate/ui';
-import { Attachment, DocumentFolder, DocumentItem, IdeaObject, IdeateApi, lookupPluralLabel } from '@ideate/api-client';
+import { Attachment, DocumentFolder, DocumentItem, IdeaObject, IdeateApi, lookupLabel, lookupPluralLabel, personaIcon } from '@ideate/api-client';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 
 export type DocTreeNode =
   | { kind: 'folder'; id: string; name: string; folder: DocumentFolder; children: DocTreeNode[] }
   | { kind: 'file'; id: string; name: string; item: DocumentItem }
+  | { kind: 'root'; id: string; name: string; persona: string; workspaceKind: string; children: DocTreeNode[] }
   | { kind: 'group'; id: string; name: string; type: string | null; children: DocTreeNode[] }
   | { kind: 'node'; id: string; name: string; displayId: string; object: IdeaObject; children: DocTreeNode[] }
   | { kind: 'attachment'; id: string; name: string; attachment: Attachment };
@@ -47,11 +48,13 @@ type VisibleRow = { node: DocTreeNode; depth: number };
             [checked]="selectedIds().has(row.node.kind + ':' + row.node.id)"
             (checkedChange)="toggle(row.node, $event)"
           />
-          @if (row.node.kind === 'folder' || row.node.kind === 'group' || row.node.kind === 'node') {
+          @if (row.node.kind === 'root' || row.node.kind === 'folder' || row.node.kind === 'group' || row.node.kind === 'node') {
             <button type="button" class="twist" (click)="toggleExpand(row.node.id)">
               <mt-icon [name]="isOpen(row.node) ? 'expand_more' : 'chevron_right'" [size]="14" />
             </button>
-            @if (row.node.kind === 'group' && row.node.type) {
+            @if (row.node.kind === 'root') {
+              <mt-icon [name]="personaIcon(row.node.persona)" [size]="14" [style.color]="row.node.persona ? 'var(--ideate-persona-' + row.node.persona + ')' : null" />
+            } @else if (row.node.kind === 'group' && row.node.type) {
               <ideate-type-glyph [type]="row.node.type" [size]="14" />
             } @else if (row.node.kind === 'node') {
               <ideate-type-glyph [type]="row.node.object.type" [size]="12" />
@@ -59,23 +62,28 @@ type VisibleRow = { node: DocTreeNode; depth: number };
               <mt-icon name="folder" [size]="14" />
             }
             <button type="button" class="name" (click)="row.node.kind === 'folder' ? focusFolder(row.node.id) : toggleExpand(row.node.id)">
-              @if (row.node.kind === 'node') {
-                <span class="id">{{ row.node.displayId }}</span>
+              @if (row.node.kind === 'root') {
+                <span class="strong">{{ row.node.name }}</span>
+                <span class="sub">{{ lookupLabel(row.node.workspaceKind) }} · {{ lookupLabel(row.node.persona) }}</span>
+              } @else {
+                @if (row.node.kind === 'node') {
+                  <span class="id">{{ row.node.displayId }}</span>
+                }
+                {{ row.node.name }}
               }
-              {{ row.node.name }}
             </button>
           } @else if (row.node.kind === 'attachment') {
             <span class="twist"></span>
             <mt-icon name="description" [size]="14" />
             <button type="button" class="name" (dblclick)="openAttachment(row.node.attachment)">{{ row.node.name }}</button>
-          } @else {
+          } @else if (row.node.kind === 'file') {
             <span class="twist"></span>
             <mt-icon name="description" [size]="14" />
             <button type="button" class="name" (dblclick)="open.emit(row.node.item)">{{ row.node.name }}</button>
           }
         </div>
       }
-      @if (visibleRows().length === 0) {
+      @if (libraryEmpty()) {
         <p class="muted">No documents yet. Attach a file on a card, or add a folder or link above.</p>
       }
     </div>
@@ -89,7 +97,10 @@ type VisibleRow = { node: DocTreeNode; depth: number };
     .docs-tree { flex: 1; min-height: 0; overflow: auto; padding: 0.25rem 0; }
     .row { display: flex; align-items: center; gap: 0.25rem; min-height: 1.6rem; }
     .twist { width: 1rem; height: 1rem; border: 0; background: none; padding: 0; color: inherit; cursor: pointer; display: inline-flex; }
-    .name { flex: 1; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; padding: 0.1rem 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .name { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; padding: 0.1rem 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .name:has(.sub) { white-space: normal; display: flex; flex-direction: column; align-items: flex-start; }
+    .strong { font-weight: 650; }
+    .sub { display: block; font-size: 0.68rem; font-weight: 500; color: var(--mt-text-muted); }
     .id { margin-right: 0.3rem; font-family: var(--font-family-mono, ui-monospace, monospace); font-size: 0.72rem; font-weight: 700; color: var(--mt-primary, #10b981); }
     .name:hover { background: var(--surface-hover); }
   `,
@@ -102,6 +113,11 @@ export class DocsTreeComponent {
   readonly items = input.required<DocumentItem[]>();
   readonly nodes = input<IdeaObject[]>([]);
   readonly attachments = input<Attachment[]>([]);
+  readonly workspaceName = input('');
+  readonly persona = input('');
+  readonly workspaceKind = input('workspace');
+  readonly lookupLabel = lookupLabel;
+  readonly personaIcon = personaIcon;
   readonly open = output<DocumentItem>();
   readonly changed = output<void>();
 
@@ -114,10 +130,25 @@ export class DocsTreeComponent {
   newDocName = '';
   newDocUrl = '';
 
-  readonly tree = computed(() => [
-    ...buildAttachmentTree(this.nodes(), this.attachments()),
-    ...buildDocTree(this.folders(), this.items()),
-  ]);
+  readonly tree = computed(() => {
+    const children = [
+      ...buildAttachmentTree(this.nodes(), this.attachments()),
+      ...buildDocTree(this.folders(), this.items()),
+    ];
+    const root: DocTreeNode = {
+      kind: 'root',
+      id: 'workspace',
+      name: this.workspaceName() || 'Workspace',
+      persona: this.persona(),
+      workspaceKind: this.workspaceKind(),
+      children,
+    };
+    return [root];
+  });
+  readonly libraryEmpty = computed(() => {
+    const root = this.tree()[0];
+    return root.kind === 'root' && root.children.length === 0;
+  });
   readonly visibleRows = computed(() => flattenVisible(this.tree(), this.expanded(), this.collapsed()));
   readonly selectedFiles = computed(() => {
     const ids = this.selectedIds();
@@ -145,7 +176,7 @@ export class DocsTreeComponent {
   }
 
   isOpen(node: DocTreeNode): boolean {
-    if (node.kind === 'group' || node.kind === 'node') {
+    if (node.kind === 'root' || node.kind === 'group' || node.kind === 'node') {
       return !this.collapsed().has(node.id);
     }
     return this.expanded().has(node.id);
@@ -161,7 +192,7 @@ export class DocsTreeComponent {
 
   toggleExpand(id: string): void {
     const node = this.visibleRows().find((row) => row.node.id === id)?.node;
-    if (node && (node.kind === 'group' || node.kind === 'node')) {
+    if (node && (node.kind === 'root' || node.kind === 'group' || node.kind === 'node')) {
       this.collapsed.update((s) => {
         const next = new Set(s);
         if (next.has(id)) next.delete(id);
@@ -276,7 +307,7 @@ export class DocsTreeComponent {
 
 function collectKeys(node: DocTreeNode): string[] {
   const keys = [node.kind + ':' + node.id];
-  if (node.kind === 'folder' || node.kind === 'group' || node.kind === 'node') {
+  if (node.kind === 'root' || node.kind === 'folder' || node.kind === 'group' || node.kind === 'node') {
     for (const child of node.children) keys.push(...collectKeys(child));
   }
   return keys;
@@ -286,10 +317,10 @@ function flattenVisible(nodes: DocTreeNode[], expanded: Set<string>, collapsed: 
   const rows: VisibleRow[] = [];
   for (const node of nodes) {
     rows.push({ node, depth });
-    const open = node.kind === 'group' || node.kind === 'node'
+    const open = node.kind === 'root' || node.kind === 'group' || node.kind === 'node'
       ? !collapsed.has(node.id)
       : node.kind === 'folder' && expanded.has(node.id);
-    if (open && (node.kind === 'folder' || node.kind === 'group' || node.kind === 'node')) {
+    if (open && (node.kind === 'root' || node.kind === 'folder' || node.kind === 'group' || node.kind === 'node')) {
       rows.push(...flattenVisible(node.children, expanded, collapsed, depth + 1));
     }
   }

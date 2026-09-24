@@ -257,14 +257,19 @@ public class AttachmentService {
     }
 
     public void deleteWorkspaceFiles(String workspaceId) {
-        Path dir = root().resolve(safeSegment(workspaceId)).normalize();
-        if (!dir.startsWith(root()) || !Files.isDirectory(dir)) {
+        deleteTree(root().resolve(safeSegment(workspaceFolder(workspaceId))));
+        deleteTree(root().resolve(safeSegment(workspaceId)));
+    }
+
+    private void deleteTree(Path dir) {
+        Path normalized = dir.normalize();
+        if (!normalized.startsWith(root()) || !Files.isDirectory(normalized)) {
             return;
         }
-        try (Stream<Path> walk = Files.walk(dir)) {
+        try (Stream<Path> walk = Files.walk(normalized)) {
             walk.sorted(Comparator.reverseOrder()).forEach(AttachmentService::deleteQuietly);
         } catch (IOException ex) {
-            log.warn("Could not remove attachment dir for {}: {}", workspaceId, ex.getMessage());
+            log.warn("Could not remove attachment dir {}: {}", normalized, ex.getMessage());
         }
     }
 
@@ -369,7 +374,7 @@ public class AttachmentService {
             Files.createDirectories(to.getParent());
             if (Files.isRegularFile(from)) {
                 Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
-                pruneEmptyParents(from.getParent(), root().resolve(safeSegment(row.workspaceId())));
+                pruneEmptyParents(from.getParent(), root().resolve(safeSegment(workspaceFolder(row.workspaceId()))));
             }
         } catch (IOException ex) {
             log.warn("Could not move attachment {} to {}: {}", row.id(), desired, ex.getMessage());
@@ -381,18 +386,30 @@ public class AttachmentService {
 
     private String storageKeyFor(String workspaceId, String objectId, String attachmentId, String originalName) {
         String file = safeSegment(attachmentId) + "__" + fileSegment(originalName);
+        String root = workspaceFolder(workspaceId);
         if (objectId == null || objectId.isBlank()) {
-            return workspaceId + "/Misc/" + file;
+            return root + "/Misc/" + file;
         }
         List<Map<String, Object>> found = jdbc.queryForList(
                 "SELECT display_id, type FROM idea_object WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL",
                 workspaceId, objectId);
         if (found.isEmpty()) {
-            return workspaceId + "/Misc/" + file;
+            return root + "/Misc/" + file;
         }
         String type = String.valueOf(found.getFirst().get("type"));
         String displayId = String.valueOf(found.getFirst().get("display_id"));
-        return workspaceId + "/" + folderSegment(typeFolder(type)) + "/" + folderSegment(displayId) + "/" + file;
+        return root + "/" + folderSegment(typeFolder(type)) + "/" + folderSegment(displayId) + "/" + file;
+    }
+
+    private String workspaceFolder(String workspaceId) {
+        String name = null;
+        try {
+            name = jdbc.queryForObject("SELECT name FROM workspace WHERE id = ?", String.class, workspaceId);
+        } catch (RuntimeException ignored) {
+            name = null;
+        }
+        String folder = folderSegment(name);
+        return "Misc".equals(folder) ? folderSegment(workspaceId) : folder;
     }
 
     private static String typeFolder(String type) {

@@ -30,6 +30,9 @@
               [items]="documents()"
               [nodes]="graph().nodes"
               [attachments]="attachments.items()"
+              [workspaceName]="workspace()?.name ?? ''"
+              [persona]="workspace()?.persona ?? ''"
+              [workspaceKind]="'workspace'"
               (open)="openDocument($event)"
               (changed)="reloadAll()"
             />
