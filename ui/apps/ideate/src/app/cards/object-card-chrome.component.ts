@@ -1,17 +1,16 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ATTACHMENT_ACCEPT, Attachment, IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
+import { ATTACHMENT_ACCEPT, IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
 import { MtButtonComponent, MtIconComponent, MtTagComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
-import { AttachmentListComponent } from '../shared/attachment-list.component';
 import { AttachmentStore } from '../workspace/attachment.store';
 import { cardBox } from './card-layout';
 import { DiagramCanvasBridge } from './diagram-canvas-bridge';
 
 @Component({
   selector: 'ideate-object-card-chrome',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, MtTagComponent, MdViewComponent, TypeGlyphComponent, AttachmentListComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, MtTagComponent, MdViewComponent, TypeGlyphComponent],
   template: `
     <article
       class="card"
@@ -77,16 +76,6 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
           </button>
         }
       </footer>
-      @if (attachments().length) {
-        <div class="attach-pop" (click)="$event.stopPropagation()" (pointerup)="$event.stopPropagation()">
-          <ideate-attachment-list
-            [items]="attachments()"
-            [compact]="true"
-            [canAdd]="false"
-            (remove)="removeFile($event)"
-          />
-        </div>
-      }
       @if (hasBody() && expanded()) {
         <div class="body"><ideate-md [source]="object().body" /></div>
       }
@@ -232,12 +221,6 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       line-height: 1;
     }
     .attach .n { font-size: 0.68rem; font-weight: 700; }
-    .attach-pop {
-      margin-top: 0.35rem;
-      padding: 0.35rem;
-      border: 1px solid var(--mt-surface-border, var(--surface-border));
-      background: var(--mt-surface-card);
-    }
     .tags { display: flex; gap: 0.25rem; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; }
     .ver { font-size: 0.7rem; color: var(--mt-text-muted); }
   `,
@@ -332,10 +315,6 @@ export class ObjectCardChromeComponent {
     }
   }
 
-  removeFile(item: Attachment) {
-    this.attachmentsStore.remove(item.id).subscribe();
-  }
-
   private lastTapAt = 0;
   private lastTapX = 0;
   private lastTapY = 0;
@@ -343,7 +322,7 @@ export class ObjectCardChromeComponent {
   private openedAt = 0;
 
   private isChromeControl(target: EventTarget | null): boolean {
-    return target instanceof Element && !!target.closest('button, select, a, input, textarea, label, ideate-attachment-list, .attach-pop');
+    return target instanceof Element && !!target.closest('button, select, a, input, textarea, label');
   }
 
   private noteTap(x: number, y: number): boolean {

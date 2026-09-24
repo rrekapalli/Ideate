@@ -1,6 +1,7 @@
 package com.ideate.graph;
 
 import com.ideate.Ids;
+import com.ideate.attachments.AttachmentService;
 import com.ideate.db.AgeClient;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,10 +21,12 @@ import java.util.Map;
 public class GraphService {
     private final JdbcTemplate jdbc;
     private final AgeClient age;
+    private final AttachmentService attachments;
 
-    public GraphService(JdbcTemplate jdbc, AgeClient age) {
+    public GraphService(JdbcTemplate jdbc, AgeClient age, AttachmentService attachments) {
         this.jdbc = jdbc;
         this.age = age;
+        this.attachments = attachments;
     }
 
     public GraphSnapshot graph(String workspaceId, String branchId) {
@@ -152,6 +155,9 @@ public class GraphService {
             replaceTags(objectId, req.tags());
         }
         recordEvent(workspaceId, objectId, "object.updated", Map.of("version", version, "type", type));
+        if (!displayId.equals(current.displayId()) || !type.equals(current.type())) {
+            attachments.relocateObject(workspaceId, objectId);
+        }
         IdeaObject updated = getObject(workspaceId, objectId);
         age.upsertVertex(updated.id(), updated.type(), workspaceId, updated.displayId(), updated.title());
         return updated;
@@ -159,6 +165,7 @@ public class GraphService {
 
     public void deleteObject(String workspaceId, String objectId) {
         getObject(workspaceId, objectId);
+        attachments.releaseObject(workspaceId, objectId);
         jdbc.update("UPDATE idea_object SET deleted_at = now() WHERE id = ?", objectId);
         jdbc.update("UPDATE idea_edge SET deleted_at = now() WHERE from_object_id = ? OR to_object_id = ?",
                 objectId, objectId);

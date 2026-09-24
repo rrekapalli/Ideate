@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -70,7 +71,7 @@ public class AttachmentService {
             objectId = null;
         }
         String id = Ids.id("att_");
-        String storageKey = workspaceId + "/" + id;
+        String storageKey = storageKeyFor(workspaceId, objectId, id, original);
         Path dest = resolveKey(storageKey);
         try {
             Files.createDirectories(dest.getParent());
@@ -103,6 +104,16 @@ public class AttachmentService {
     }
 
     public List<Attachment> list(String workspaceId) {
+        List<Row> rows = jdbc.query("""
+                SELECT id, workspace_id, object_id, message_id, original_name, content_type,
+                       byte_size, storage_key, extract_text, extract_status, created_at
+                FROM attachment
+                WHERE workspace_id = ?
+                ORDER BY created_at ASC
+                """, rowMapper(), workspaceId);
+        for (Row row : rows) {
+            relocate(row);
+        }
         return jdbc.query("""
                 SELECT id, workspace_id, object_id, message_id, original_name, content_type,
                        byte_size, extract_status, created_at
@@ -152,9 +163,38 @@ public class AttachmentService {
         get(workspaceId, attachmentId);
         jdbc.update("UPDATE attachment SET object_id = ? WHERE workspace_id = ? AND id = ?",
                 objectId, workspaceId, attachmentId);
+        relocate(loadRow(workspaceId, attachmentId));
         recordEvent(workspaceId, objectId, "attachment.added",
                 Map.of("attachmentId", attachmentId));
         return get(workspaceId, attachmentId);
+    }
+
+    /** Move a card's files when its type or display id changes. */
+    public void relocateObject(String workspaceId, String objectId) {
+        List<Row> rows = jdbc.query("""
+                SELECT id, workspace_id, object_id, message_id, original_name, content_type,
+                       byte_size, storage_key, extract_text, extract_status, created_at
+                FROM attachment
+                WHERE workspace_id = ? AND object_id = ?
+                """, rowMapper(), workspaceId, objectId);
+        for (Row row : rows) {
+            relocate(row);
+        }
+    }
+
+    /** Drop the card link and move its files into Misc. */
+    public void releaseObject(String workspaceId, String objectId) {
+        List<String> ids = jdbc.queryForList(
+                "SELECT id FROM attachment WHERE workspace_id = ? AND object_id = ?",
+                String.class, workspaceId, objectId);
+        if (ids.isEmpty()) {
+            return;
+        }
+        jdbc.update("UPDATE attachment SET object_id = NULL WHERE workspace_id = ? AND object_id = ?",
+                workspaceId, objectId);
+        for (String id : ids) {
+            relocate(loadRow(workspaceId, id));
+        }
     }
 
     public void linkToMessage(String workspaceId, List<String> attachmentIds, String messageId) {
@@ -318,12 +358,123 @@ public class AttachmentService {
         return Paths.get(properties.getStorage().getRoot()).toAbsolutePath().normalize();
     }
 
+    private void relocate(Row row) {
+        String desired = storageKeyFor(row.workspaceId(), row.objectId(), row.id(), row.originalName());
+        if (desired.equals(row.storageKey())) {
+            return;
+        }
+        Path from = resolveKey(row.storageKey());
+        Path to = resolveKey(desired);
+        try {
+            Files.createDirectories(to.getParent());
+            if (Files.isRegularFile(from)) {
+                Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
+                pruneEmptyParents(from.getParent(), root().resolve(safeSegment(row.workspaceId())));
+            }
+        } catch (IOException ex) {
+            log.warn("Could not move attachment {} to {}: {}", row.id(), desired, ex.getMessage());
+            return;
+        }
+        jdbc.update("UPDATE attachment SET storage_key = ? WHERE workspace_id = ? AND id = ?",
+                desired, row.workspaceId(), row.id());
+    }
+
+    private String storageKeyFor(String workspaceId, String objectId, String attachmentId, String originalName) {
+        String file = safeSegment(attachmentId) + "__" + fileSegment(originalName);
+        if (objectId == null || objectId.isBlank()) {
+            return workspaceId + "/Misc/" + file;
+        }
+        List<Map<String, Object>> found = jdbc.queryForList(
+                "SELECT display_id, type FROM idea_object WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL",
+                workspaceId, objectId);
+        if (found.isEmpty()) {
+            return workspaceId + "/Misc/" + file;
+        }
+        String type = String.valueOf(found.getFirst().get("type"));
+        String displayId = String.valueOf(found.getFirst().get("display_id"));
+        return workspaceId + "/" + folderSegment(typeFolder(type)) + "/" + folderSegment(displayId) + "/" + file;
+    }
+
+    private static String typeFolder(String type) {
+        if (type == null || type.isBlank()) {
+            return "Misc";
+        }
+        return switch (type) {
+            case "hypothesis" -> "Hypotheses";
+            case "theory" -> "Theories";
+            case "evidence" -> "Evidence";
+            case "citation" -> "Citations";
+            default -> pluralize(lookupLabel(type));
+        };
+    }
+
+    private static String lookupLabel(String value) {
+        String[] parts = value.split("[_-]+");
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            if (part.isBlank()) {
+                continue;
+            }
+            if (!sb.isEmpty()) {
+                sb.append(' ');
+            }
+            sb.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                sb.append(part.substring(1).toLowerCase(Locale.ROOT));
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String pluralize(String singular) {
+        if (singular.matches(".*[sxz]$") || singular.matches(".*[cs]h$")) {
+            return singular + "es";
+        }
+        if (singular.matches(".*[^aeiou]y$")) {
+            return singular.substring(0, singular.length() - 1) + "ies";
+        }
+        return singular + "s";
+    }
+
+    private static String fileSegment(String name) {
+        String base = sanitizeName(name).replaceAll("[^A-Za-z0-9._-]", "_");
+        if (base.length() > 120) {
+            base = base.substring(base.length() - 120);
+        }
+        return base.isBlank() ? "file" : base;
+    }
+
+    private static String folderSegment(String value) {
+        String cleaned = value == null ? "" : value.replaceAll("[\\\\/]+", " ").trim();
+        if (cleaned.isBlank() || cleaned.contains("..")) {
+            return "Misc";
+        }
+        return cleaned;
+    }
+
+    private static void pruneEmptyParents(Path dir, Path stop) throws IOException {
+        Path current = dir;
+        while (current != null && !current.equals(stop) && current.startsWith(stop) && Files.isDirectory(current)) {
+            try (Stream<Path> children = Files.list(current)) {
+                if (children.findAny().isPresent()) {
+                    return;
+                }
+            }
+            Files.deleteIfExists(current);
+            current = current.getParent();
+        }
+    }
+
     private Path resolveKey(String storageKey) {
         String[] parts = storageKey.split("/");
-        if (parts.length != 2) {
+        if (parts.length < 2) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid storage key");
         }
-        Path resolved = root().resolve(safeSegment(parts[0])).resolve(safeSegment(parts[1])).normalize();
+        Path resolved = root();
+        for (String part : parts) {
+            resolved = resolved.resolve(safeSegment(part));
+        }
+        resolved = resolved.normalize();
         if (!resolved.startsWith(root())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid storage path");
         }

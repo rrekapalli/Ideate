@@ -28,6 +28,8 @@
               [workspaceId]="workspaceId"
               [folders]="folders()"
               [items]="documents()"
+              [nodes]="graph().nodes"
+              [attachments]="attachments.items()"
               (open)="openDocument($event)"
               (changed)="reloadAll()"
             />
