@@ -1,6 +1,6 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Attachment, IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
+import { ATTACHMENT_ACCEPT, Attachment, IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
 import { MtButtonComponent, MtIconComponent, MtTagComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
@@ -46,12 +46,20 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
         <button type="button" class="chatref" (click)="$event.stopPropagation(); emitChat()" aria-label="Chat">
           <mt-icon name="chat" [size]="14" />
         </button>
+        <input
+          #picker
+          type="file"
+          hidden
+          multiple
+          [attr.accept]="accept"
+          (click)="$event.stopPropagation()"
+          (change)="onPick($event)"
+        />
         <button
           type="button"
           class="attach"
-          [class.open]="attachOpen()"
-          (click)="$event.stopPropagation(); toggleAttach()"
-          [attr.aria-label]="'Attachments' + (attachCount() ? ' (' + attachCount() + ')' : '')"
+          (click)="$event.stopPropagation(); picker.click()"
+          [attr.aria-label]="'Attach files' + (attachCount() ? ' (' + attachCount() + ')' : '')"
         >
           <mt-icon name="attach_file" [size]="14" />
           @if (attachCount()) {
@@ -69,13 +77,12 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
           </button>
         }
       </footer>
-      @if (attachOpen()) {
+      @if (attachments().length) {
         <div class="attach-pop" (click)="$event.stopPropagation()" (pointerup)="$event.stopPropagation()">
           <ideate-attachment-list
             [items]="attachments()"
             [compact]="true"
-            [canAdd]="true"
-            (addFiles)="addFiles($event)"
+            [canAdd]="false"
             (remove)="removeFile($event)"
           />
         </div>
@@ -224,7 +231,6 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       color: var(--mt-primary, currentColor);
       line-height: 1;
     }
-    .attach.open { color: var(--mt-text); }
     .attach .n { font-size: 0.68rem; font-weight: 700; }
     .attach-pop {
       margin-top: 0.35rem;
@@ -243,7 +249,7 @@ export class ObjectCardChromeComponent {
   readonly types = OBJECT_TYPES;
   readonly lookupLabel = lookupLabel;
   readonly expanded = signal(false);
-  readonly attachOpen = signal(false);
+  readonly accept = ATTACHMENT_ACCEPT;
   readonly open = output<IdeaObject>();
   readonly typeChange = output<string>();
   readonly newNode = output<IdeaObject>();
@@ -317,15 +323,13 @@ export class ObjectCardChromeComponent {
     this.bridge?.openChat$.next(this.object());
   }
 
-  toggleAttach() {
-    this.attachOpen.update((v) => !v);
-  }
-
-  addFiles(files: File[]) {
+  onPick(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
     for (const file of files) {
       this.attachmentsStore.upload(file, this.object().id).subscribe();
     }
-    this.attachOpen.set(true);
   }
 
   removeFile(item: Attachment) {

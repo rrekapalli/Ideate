@@ -7,6 +7,7 @@ import { provideIdeateApiClient } from '@ideate/api-client';
 import { environment } from '../environments/environment';
 import { routes } from './app.routes';
 import { ThemeService } from './core/theme/theme.service';
+import { provideAppUpdateBootstrap } from './core/pwa/app-update.bootstrap';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,6 +19,7 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(ThemeService);
     }),
+    provideAppUpdateBootstrap(),
     provideServiceWorker('ngsw-worker.js', {
       enabled: environment.production && !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',

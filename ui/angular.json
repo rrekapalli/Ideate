@@ -23,15 +23,21 @@
               "apps/ideate/src/manifest.webmanifest",
               "apps/ideate/src/assets"
             ],
-            "styles": ["apps/ideate/src/styles.scss"],
-            "serviceWorker": "apps/ideate/ngsw-config.json"
+            "styles": ["apps/ideate/src/styles.scss"]
           },
           "configurations": {
             "production": {
               "budgets": [
                 { "type": "initial", "maximumWarning": "2mb", "maximumError": "5mb" }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "apps/ideate/src/environments/environment.ts",
+                  "with": "apps/ideate/src/environments/environment.prod.ts"
+                }
+              ],
+              "serviceWorker": "apps/ideate/ngsw-config.json"
             },
             "development": {
               "optimization": false,

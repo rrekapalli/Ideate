@@ -20,6 +20,16 @@ server {
         access_log off;
     }
 
+    location = /safety-worker.js {
+        add_header Cache-Control "no-cache";
+        access_log off;
+    }
+
+    location = /worker-basic.min.js {
+        add_header Cache-Control "no-cache";
+        access_log off;
+    }
+
     location = /manifest.webmanifest {
         default_type application/manifest+json;
         add_header Cache-Control "public, max-age=3600";
@@ -85,7 +95,19 @@ server {
         proxy_pass $ideate_api;
     }
 
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files $uri $uri/ @spa;
+    }
+    location @spa {
+        try_files /index.html =404;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
     }
 }
