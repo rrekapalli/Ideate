@@ -13,6 +13,7 @@ import {
 } from '@ideate/api-client';
 import { MtButtonComponent, MtTabComponent, MtTabsComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
+import { hasMermaidFence } from '../shared/render-markdown';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { AttachmentListComponent } from '../shared/attachment-list.component';
 import { AttachmentStore } from './attachment.store';
@@ -65,7 +66,7 @@ import { AttachmentStore } from './attachment.store';
           <div class="pane prose">
             @if (distinctPageCopy(); as copy) {
               <section class="essay">
-                <ideate-md [source]="copy" />
+                <ideate-md [source]="copy" [diagrams]="true" />
               </section>
             }
             @if (userMessage() || assistantMessage()) {
@@ -74,13 +75,13 @@ import { AttachmentStore } from './attachment.store';
                 @if (userMessage(); as u) {
                   <article class="quote">
                     <p class="who">You · {{ when(u.createdAt) }}</p>
-                    <ideate-md [source]="u.content" />
+                    <ideate-md [source]="u.content" [diagrams]="true" />
                   </article>
                 }
                 @if (assistantMessage(); as a) {
                   <article class="quote ai">
                     <p class="who">Ideate · {{ when(a.createdAt) }}</p>
-                    <ideate-md [source]="a.content" />
+                    <ideate-md [source]="a.content" [diagrams]="true" />
                   </article>
                 }
               </section>
@@ -263,6 +264,7 @@ import { AttachmentStore } from './attachment.store';
     .essay ::ng-deep .md h2 { font-size: 1.1rem; margin: 1rem 0 0.35rem; }
     .essay ::ng-deep .md h3 { font-size: 1rem; margin: 0.85rem 0 0.3rem; }
     .essay ::ng-deep .md p { margin: 0 0 0.85em; }
+    .essay ::ng-deep .mermaid-slot { margin: 1rem 0; }
     .source { margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--mt-surface-border, #e5e7eb); }
     .source--solo { margin-top: 0; padding-top: 0; border-top: 0; }
     .files { margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--mt-surface-border, #e5e7eb); }
@@ -360,13 +362,14 @@ export class ObjectPageComponent {
       text = text.replace(re, ' ').trim();
     }
     text = text.replace(/\n{3,}/g, '\n\n').trim();
+    const keepDiagram = hasMermaidFence(raw);
     const conversation = [this.userMessage()?.content, this.assistantMessage()?.content]
       .filter(Boolean)
       .join('\n');
-    if (conversation && this.mostlyCoveredBy(text, `${title}\n${conversation}`)) {
+    if (!keepDiagram && conversation && this.mostlyCoveredBy(text, `${title}\n${conversation}`)) {
       return null;
     }
-    if (conversation && this.wordCount(text) < 12) {
+    if (!keepDiagram && conversation && this.wordCount(text) < 12) {
       return null;
     }
     return text || null;

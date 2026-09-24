@@ -16,6 +16,8 @@ import java.util.regex.Pattern;
  * summaries, and bodies from the user/assistant text and infers missing edges.
  */
 public final class ConversationGraphHydrator {
+    private static final Pattern MERMAID_FENCE = Pattern.compile(
+            "(?is)```mermaid\\s*\\r?\\n.*?```");
     private static final Pattern EXPLICIT = Pattern.compile(
             "(?i)\\b([A-Z]{1,4}-\\d+)\\b[^\\n]{0,40}?title:\\s*(.+?)(?:\\s+summary:\\s*(.+?))?(?=\\s+[A-Z]{1,4}-\\d+\\b|\\s+Then\\b|$)");
     private static final Pattern EDGE = Pattern.compile(
@@ -55,8 +57,18 @@ public final class ConversationGraphHydrator {
                     titleFor(type, user, assistant));
             String summary = firstNonBlank(ex == null ? null : ex.summary, usable(obj.summary()),
                     summaryFor(type, title));
-            String body = firstNonBlank(usable(obj.body()),
-                    typedBody(type, title, summary, user, assistantForType(type, assistant)));
+            String mermaid = extractMermaidFence(assistant);
+            String spoken = mermaid == null ? assistant : stripMermaidFences(assistant);
+            String body;
+            if (containsMermaid(obj.body())) {
+                body = obj.body().trim();
+            } else {
+                body = firstNonBlank(usable(obj.body()),
+                        typedBody(type, title, summary, user, assistantForType(type, spoken)));
+                if (mermaid != null && !containsMermaid(body)) {
+                    body = join(body, mermaid);
+                }
+            }
             if (needsFill(obj) || ex != null || !type.equals(obj.type())) {
                 patches.add(new NodePatch(obj.id(), type,
                         title == null ? "Untitled" : title,
@@ -321,6 +333,25 @@ public final class ConversationGraphHydrator {
                 || usable(obj.title()) == null
                 || usable(obj.summary()) == null
                 || usable(obj.body()) == null;
+    }
+
+    static boolean containsMermaid(String text) {
+        return text != null && MERMAID_FENCE.matcher(text).find();
+    }
+
+    static String extractMermaidFence(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher m = MERMAID_FENCE.matcher(text);
+        return m.find() ? m.group().trim() : null;
+    }
+
+    static String stripMermaidFences(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        return MERMAID_FENCE.matcher(text).replaceAll("").replaceAll("\n{3,}", "\n\n").trim();
     }
 
     private static List<EdgeSpec> suggestedEdges(List<IdeaObject> created, List<NodePatch> patches) {

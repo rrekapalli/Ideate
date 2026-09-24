@@ -1,15 +1,41 @@
 /** Compact Markdown → HTML. Escape first so only the tags we add are markup. */
-export function renderMarkdown(source: string | null | undefined): string {
+
+export type MarkdownDocument = {
+  html: string;
+  diagrams: string[];
+};
+
+const FENCE_RE = /```([a-zA-Z0-9_-]*)[ \t]*\n([\s\S]*?)```/g;
+
+export function hasMermaidFence(source: string | null | undefined): boolean {
+  return /```mermaid\b/i.test(source ?? '');
+}
+
+export function renderMarkdown(
+  source: string | null | undefined,
+  options?: { diagrams?: boolean },
+): MarkdownDocument {
   const raw = (source ?? '').replace(/\r\n/g, '\n').trim();
   if (!raw) {
-    return '';
+    return { html: '', diagrams: [] };
   }
+  const showDiagrams = options?.diagrams === true;
+  const diagrams: string[] = [];
   const fences: string[] = [];
-  let text = escapeHtml(raw).replace(/```[a-zA-Z0-9_-]*\n([\s\S]*?)```/g, (_m, code: string) => {
+  let text = raw.replace(FENCE_RE, (_m, lang: string, code: string) => {
+    const body = code.replace(/^\n+|\n+$/g, '');
     const i = fences.length;
-    fences.push(`<pre><code>${code.replace(/^\n|\n$/g, '')}</code></pre>`);
+    const mermaid = (lang || '').toLowerCase() === 'mermaid';
+    if (mermaid && showDiagrams) {
+      const d = diagrams.length;
+      diagrams.push(body);
+      fences.push(`<div class="mermaid-slot" data-diagram="${d}"></div>`);
+    } else {
+      fences.push(`<pre><code>${escapeHtml(body)}</code></pre>`);
+    }
     return `\u0000F${i}\u0000`;
   });
+  text = escapeHtml(text);
   text = text.replace(/`([^`\n]+)`/g, '<code>$1</code>');
   text = text.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
@@ -22,7 +48,10 @@ export function renderMarkdown(source: string | null | undefined): string {
     .split(/\n{2,}/)
     .map((block) => renderBlock(block))
     .join('');
-  return html.replace(/\u0000F(\d+)\u0000/g, (_m, i: string) => fences[Number(i)] ?? '');
+  return {
+    html: html.replace(/\u0000F(\d+)\u0000/g, (_m, i: string) => fences[Number(i)] ?? ''),
+    diagrams,
+  };
 }
 
 function renderBlock(block: string): string {

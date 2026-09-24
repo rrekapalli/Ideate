@@ -51,6 +51,7 @@ public class TurnOrchestrator {
             Never mention graphs, cards, nodes, edges, display ids, tools, JSON, or that you are storing ideas.
             Never say "the graph includes" or recap what you created.
             After you answer, you may silently call tools to capture a small thinking graph from THIS turn.
+            If a mechanism, sequence, comparison, or structure is clearer as a picture, put one ```mermaid fence in that card's create_node body (flowchart, sequenceDiagram, or stateDiagram-v2). Keep summary as prose. The chat reply stays prose.
             If the notes name a focus card, grow from that card only when the new question continues it.
             Otherwise attach new cards to the closest existing idea. Never leave a card isolated.
             Do not create a theory unless an evaluation already exists.

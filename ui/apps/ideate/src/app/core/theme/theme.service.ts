@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { applyMoneytreeAppearance, MONEYTREE_UI_CONFIG, type MtAppearancePreference } from '@ideate/ui';
 
 const STORAGE_KEY = 'ideate.appearance.v2';
@@ -27,6 +27,7 @@ export class ThemeService {
   private readonly ui = inject(MONEYTREE_UI_CONFIG, { optional: true });
   private last = readStored();
   private media?: MediaQueryList;
+  readonly dark = signal(false);
 
   constructor() {
     this.apply(this.last);
@@ -54,8 +55,9 @@ export class ThemeService {
   }
 
   private apply(pref: MtAppearancePreference): void {
-    applyMoneytreeAppearance(document, pref, {
+    const result = applyMoneytreeAppearance(document, pref, {
       darkModeSelector: this.ui?.darkModeSelector ?? '.app-dark',
     });
+    this.dark.set(result.effectiveDark);
   }
 }

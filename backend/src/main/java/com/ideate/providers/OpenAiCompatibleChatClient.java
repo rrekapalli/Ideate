@@ -101,7 +101,11 @@ public class OpenAiCompatibleChatClient implements ChatClient {
                                 "type", Map.of("type", "string"),
                                 "title", Map.of("type", "string"),
                                 "summary", Map.of("type", "string"),
-                                "body", Map.of("type", "string")
+                                "body", Map.of(
+                                        "type", "string",
+                                        "description",
+                                        "Markdown essay. When a mechanism, sequence, comparison, or structure is clearer as a picture, include one mermaid fence (flowchart, sequenceDiagram, or stateDiagram-v2). Summary stays prose."
+                                )
                         ),
                         "required", List.of("type", "title"))),
                 fn("create_edge", Map.of(
@@ -118,7 +122,11 @@ public class OpenAiCompatibleChatClient implements ChatClient {
                         "properties", Map.of(
                                 "displayId", Map.of("type", "string"),
                                 "summary", Map.of("type", "string"),
-                                "body", Map.of("type", "string"),
+                                "body", Map.of(
+                                        "type", "string",
+                                        "description",
+                                        "Markdown essay. When a mechanism, sequence, comparison, or structure is clearer as a picture, include one mermaid fence (flowchart, sequenceDiagram, or stateDiagram-v2). Summary stays prose."
+                                ),
                                 "title", Map.of("type", "string")
                         ),
                         "required", List.of("displayId"))),

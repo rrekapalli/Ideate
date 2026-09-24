@@ -167,7 +167,7 @@ Click → [full object page](#full-object-page). Click an edge → highlight the
 A complete reading surface (editor tab or route `/workspaces/:id/objects/:id`):
 
 - Header: same identity chrome and **[header actions](#header-actions)** (type, new node, new branch, ⋯).
-- **Main:** the **elaborate body** — the full persisted AI idea text (and later user edits). Not a teaser.
+- **Main:** the **elaborate body** — the full persisted AI idea text (and later user edits). Not a teaser. The body may include one Mermaid fence, rendered on this tab.
 - **References:** the **user message** and the **assistant message** for this version (timestamps, excerpts, jump into the Chat rail). Required for AI-generated versions. See [Chat references](./object-model.md#chat-references).
 - **Attachments:** files hung on this card (preview / download / remove). Not the Documents tree.
 - Provenance: `generated_by`, attachments, edges.

@@ -148,6 +148,53 @@ class ConversationGraphHydratorTest {
         assertEquals("Q-001", picked.displayId());
     }
 
+    @Test
+    void keepsAnExistingMermaidFenceWhenFillingAnUntitledCard() {
+        String diagram = """
+                Ice is less dense than liquid water.
+
+                ```mermaid
+                flowchart TD
+                  A["a < b"] --> B[Ice floats]
+                ```
+                """;
+        IdeaObject created = bodyObj("1", "H-001", "hypothesis", "Untitled", "", diagram);
+        var plan = hydrator.plan("Why does ice float?", "A recap that must not replace the diagram.",
+                List.of(created));
+        assertEquals(1, plan.nodes().size());
+        assertTrue(plan.nodes().get(0).body().contains("```mermaid"));
+        assertTrue(plan.nodes().get(0).body().contains("a < b"));
+        assertFalse(plan.nodes().get(0).body().contains("A recap that must not replace"));
+    }
+
+    @Test
+    void copiesAFullMermaidFenceFromTheAssistantWhenTheToolBodyIsEmpty() {
+        String padding = "The crystal lattice of ice holds molecules farther apart than liquid water. ".repeat(8);
+        String assistant = padding + """
+
+                ```mermaid
+                flowchart TD
+                  Freeze[Water freezes] --> Lattice[Open crystal lattice]
+                  Lattice --> Volume[More volume same mass]
+                  Volume --> Float[Ice floats]
+                ```
+                """;
+        IdeaObject created = obj("1", "H-001", "hypothesis");
+        var plan = hydrator.plan("Why does ice float?", assistant, List.of(created));
+        assertTrue(plan.nodes().get(0).body().contains("```mermaid"));
+        assertTrue(plan.nodes().get(0).body().contains("Open crystal lattice"));
+        assertTrue(plan.nodes().get(0).body().contains("Ice floats"));
+        assertFalse(plan.nodes().get(0).body().contains("…```"));
+        assertTrue(assistant.length() > 400);
+    }
+
+    private static IdeaObject bodyObj(String id, String displayId, String type, String title,
+                                     String summary, String body) {
+        return new IdeaObject(id, "ws", "br", displayId, type, "original", null, "speculative",
+                title, summary, body, 1, "ollama", "u", "a", null, null, Instant.now(), Instant.now(),
+                List.of(), List.of());
+    }
+
     private static IdeaObject titled(String id, String displayId, String type, String title) {
         return new IdeaObject(id, "ws", "br", displayId, type, "original", null, "speculative",
                 title, title, title, 1, "ollama", "u", "a", null, null, Instant.now(), Instant.now(),
