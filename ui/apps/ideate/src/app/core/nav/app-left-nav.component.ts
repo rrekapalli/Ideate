@@ -28,6 +28,12 @@ import { ShellContextService } from '../shell/shell-context.service';
             <span class="btn-label">Branch</span>
           </button>
         </li>
+        <li>
+          <button type="button" class="nav-icon-btn" [class.active]="shell.leftDrawer() === 'reports'" title="Reports" (click)="shell.toggleLeft('reports')">
+            <mt-icon name="article" [size]="14" />
+            <span class="btn-label">Reports</span>
+          </button>
+        </li>
       </ul>
       <ul class="nav-menu nav-menu--end">
         <li>

@@ -10,7 +10,7 @@
         <h2>{{ leftTitle() }}</h2>
         <mt-button variant="icon" icon="close" size="sm" ariaLabel="Close explorer" (clicked)="shell.closeLeft()" />
       </div>
-      <div class="filter-drawer-content" [class.filter-drawer-content--flush]="explorerTab() === 'objects' || explorerTab() === 'documents' || explorerTab() === 'branches'">
+      <div class="filter-drawer-content" [class.filter-drawer-content--flush]="explorerTab() === 'objects' || explorerTab() === 'documents' || explorerTab() === 'branches' || explorerTab() === 'reports'">
         @switch (explorerTab()) {
           @case ('objects') {
             <ideate-objects-tree
@@ -47,6 +47,21 @@
               (changed)="reloadAll()"
             />
           }
+          @case ('reports') {
+            <ideate-reports-tree
+              [workspaceId]="workspaceId"
+              [report]="report()"
+              [versions]="reportVersions()"
+              [activeVersionId]="activeReportVersionId()"
+              [jobStatus]="reportJobStatus()"
+              (prepare)="prepareReport()"
+              (update)="updateReport()"
+              (open)="openReportFromTree($event)"
+              (select)="activeReportVersionId.set($event?.id ?? null)"
+              (deleted)="onReportDeleted()"
+              (exported)="reloadAll()"
+            />
+          }
         }
       </div>
       <ideate-drawer-resize
@@ -66,6 +81,8 @@
             <ideate-type-glyph [type]="tab.object.type" [size]="12" />
           } @else if (tab.kind === 'settings') {
             <mt-icon name="settings" [size]="12" />
+          } @else if (tab.kind === 'report') {
+            <mt-icon name="article" [size]="12" />
           } @else if (tab.kind === 'document' || tab.kind === 'attachment') {
             <mt-icon name="description" [size]="12" />
           } @else {
@@ -129,6 +146,14 @@
             [credits]="credits()"
             [usageMinor]="usageMinor()"
             [usage]="usage()"
+          />
+        } @else if (tab.kind === 'report') {
+          <ideate-report-page
+            [version]="tab.version"
+            [generating]="reportGenerating()"
+            [jobStatus]="reportJobStatus()"
+            [error]="report()?.error ?? null"
+            [fileName]="reportFileName(tab.version)"
           />
         } @else {
           <div class="doc">

@@ -23,6 +23,8 @@ import {
   UsageRollup,
   Workspace,
   WorkspaceBranch,
+  WorkspaceReport,
+  WorkspaceReportVersion,
   lookupLabel,
 } from '@ideate/api-client';
 import { ShellContextService } from '../core/shell/shell-context.service';
@@ -32,6 +34,8 @@ import { ObjectPageComponent } from './object-page.component';
 import { DocsTreeComponent } from './docs-tree.component';
 import { ObjectsTreeComponent } from './objects-tree.component';
 import { BranchesTreeComponent } from './branches-tree.component';
+import { ReportsTreeComponent } from './reports-tree.component';
+import { ReportPageComponent } from './report-page.component';
 import { MdViewComponent } from '../shared/md-view.component';
 import { AttachmentListComponent } from '../shared/attachment-list.component';
 import { ancestorPath } from './chat-context';
@@ -44,15 +48,16 @@ type EditorTab =
   | { kind: 'object'; object: IdeaObject }
   | { kind: 'document'; item: DocumentItem }
   | { kind: 'attachment'; attachment: Attachment }
+  | { kind: 'report'; reportId: string; version: WorkspaceReportVersion | null }
   | { kind: 'settings' };
 
-type LeftTab = 'objects' | 'documents' | 'branches';
+type LeftTab = 'objects' | 'documents' | 'branches' | 'reports';
 type RightTab = 'chat' | 'insights' | 'inspector' | 'outline';
 type BottomTab = 'timeline' | 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent],
+  imports: [FormsModule, MtButtonComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, ReportsTreeComponent, ReportPageComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -81,6 +86,10 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   documents = signal<DocumentItem[]>([]);
   folders = signal<DocumentFolder[]>([]);
   branches = signal<WorkspaceBranch[]>([]);
+  report = signal<WorkspaceReport | null>(null);
+  reportVersions = signal<WorkspaceReportVersion[]>([]);
+  activeReportVersionId = signal<string | null>(null);
+  reportJobStatus = signal<string | null>(null);
   activeBranchId = signal<string | null>(null);
   jobs = signal<JobRecord[]>([]);
   timeline = signal<TimelineEvent[]>([]);
@@ -114,7 +123,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   private objectRowTapAt = 0;
   private objectRowTapId = '';
   private awaitingJobId: string | null = null;
+  private awaitingReportJobId: string | null = null;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private reportPollTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit() {
     this.restoreChrome();
@@ -147,11 +158,12 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
 
   explorerTab(): LeftTab {
     const d = this.shell.leftDrawer();
-    return d === 'documents' || d === 'branches' ? d : 'objects';
+    return d === 'documents' || d === 'branches' || d === 'reports' ? d : 'objects';
   }
 
   ngOnDestroy() {
     this.clearPoll();
+    this.clearReportPoll();
     this.subs.unsubscribe();
     this.shell.settingsOpen.set(false);
     this.shell.clearWorkspace();
@@ -186,6 +198,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       this.folders.set(d.folders ?? []);
       this.documents.set(d.items ?? []);
     });
+    this.loadReport();
     this.attachments.load(this.workspaceId);
     this.api.jobs(this.workspaceId).subscribe((j) => this.jobs.set(j));
     this.api.timeline(this.workspaceId).subscribe((t) => this.timeline.set(t));
@@ -217,6 +230,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     if (tab.kind === 'settings') return 'settings';
     if (tab.kind === 'object') return 'obj-' + tab.object.id;
     if (tab.kind === 'attachment') return 'att-' + tab.attachment.id;
+    if (tab.kind === 'report') return 'rpt-' + tab.reportId;
     return 'doc-' + tab.item.id;
   }
 
@@ -225,7 +239,18 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     if (tab.kind === 'settings') return 'Settings';
     if (tab.kind === 'object') return tab.object.displayId;
     if (tab.kind === 'attachment') return tab.attachment.originalName;
+    if (tab.kind === 'report') return this.reportFileName(tab.version);
     return tab.item.name;
+  }
+
+  reportFileName(version: WorkspaceReportVersion | null): string {
+    const title = version?.title || this.report()?.title || 'Workspace report';
+    return title.toLowerCase().endsWith('.md') ? title : `${title}.md`;
+  }
+
+  reportGenerating(): boolean {
+    const status = this.report()?.status;
+    return status === 'preparing' || status === 'updating';
   }
 
   selectEditorTab(i: number) {
@@ -354,6 +379,151 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.tabs.set([...tabs, { kind: 'document', item }]);
     this.activeTab.set(this.tabs().length - 1);
     this.syncSettingsNav();
+  }
+
+  loadReport(opts?: { open?: boolean }) {
+    this.api.getReport(this.workspaceId, this.activeBranchId() ?? undefined).subscribe((bundle) => {
+      const report = bundle.report ?? null;
+      const versions = bundle.versions ?? [];
+      this.report.set(report);
+      this.reportVersions.set(versions);
+      const latest = versions.length ? versions[versions.length - 1] : null;
+      const tabs = this.tabs().map((tab) => {
+        if (tab.kind !== 'report' || !report) return tab;
+        if (tab.reportId !== report.id && tab.reportId !== 'pending') return tab;
+        const keep = tab.version ? versions.find((v) => v.id === tab.version?.id) : null;
+        return { kind: 'report' as const, reportId: report.id, version: keep ?? latest };
+      });
+      this.tabs.set(tabs);
+      if (latest && !this.activeReportVersionId()) {
+        this.activeReportVersionId.set(latest.id);
+      }
+      if (opts?.open && report) {
+        this.openReportTab(report.id, latest);
+      }
+    });
+  }
+
+  prepareReport() {
+    this.markReportBusy('preparing');
+    this.api.prepareReport(this.workspaceId, this.activeBranchId() ?? undefined).subscribe({
+      next: (job) => {
+        this.reportJobStatus.set(job.status);
+        this.api.jobs(this.workspaceId).subscribe((j) => this.jobs.set(j));
+        this.pollReportJob(job.id);
+        this.loadReport({ open: true });
+      },
+    });
+  }
+
+  updateReport() {
+    this.markReportBusy('updating');
+    this.api.updateReport(this.workspaceId, this.activeBranchId() ?? undefined).subscribe({
+      next: (job) => {
+        this.reportJobStatus.set(job.status);
+        this.api.jobs(this.workspaceId).subscribe((j) => this.jobs.set(j));
+        this.pollReportJob(job.id);
+        this.loadReport({ open: true });
+      },
+    });
+  }
+
+  private markReportBusy(status: 'preparing' | 'updating') {
+    this.reportJobStatus.set('queued');
+    const current = this.report();
+    const latest = this.reportVersions().length
+      ? this.reportVersions()[this.reportVersions().length - 1]
+      : null;
+    if (current) {
+      this.report.set({ ...current, status, error: null });
+      this.openReportTab(current.id, latest);
+      return;
+    }
+    this.report.set({
+      id: 'pending',
+      workspaceId: this.workspaceId,
+      branchId: this.activeBranchId() ?? '',
+      status,
+      currentVersion: 0,
+      title: 'Workspace report',
+      createdAt: '',
+      updatedAt: '',
+    });
+    this.openReportTab('pending', null);
+  }
+
+  openReportFromTree(version: WorkspaceReportVersion | null) {
+    const report = this.report();
+    if (!report) return;
+    this.openReportTab(report.id, version);
+  }
+
+  openReportVersion(version: WorkspaceReportVersion) {
+    this.openReportTab(version.reportId, version);
+  }
+
+  openReportTab(reportId: string, version: WorkspaceReportVersion | null) {
+    this.activeReportVersionId.set(version?.id ?? null);
+    const tabs = this.tabs();
+    const idx = tabs.findIndex(
+      (t) => t.kind === 'report' && (t.reportId === reportId || t.reportId === 'pending' || reportId === 'pending'),
+    );
+    const next: EditorTab = { kind: 'report', reportId, version };
+    if (idx >= 0) {
+      const copy = [...tabs];
+      copy[idx] = next;
+      this.tabs.set(copy);
+      this.activeTab.set(idx);
+      this.syncSettingsNav();
+      return;
+    }
+    this.tabs.set([...tabs, next]);
+    this.activeTab.set(this.tabs().length - 1);
+    this.syncSettingsNav();
+  }
+
+  private pollReportJob(jobId: string) {
+    this.clearReportPoll();
+    this.awaitingReportJobId = jobId;
+    const started = Date.now();
+    const tick = () => {
+      if (this.awaitingReportJobId !== jobId) {
+        return;
+      }
+      this.api.getJob(this.workspaceId, jobId).subscribe({
+        next: (job) => {
+          this.reportJobStatus.set(job.status);
+          if (job.status === 'applied' || job.status === 'failed') {
+            this.awaitingReportJobId = null;
+            this.clearReportPoll();
+            this.loadReport({ open: true });
+            this.api.jobs(this.workspaceId).subscribe((j) => this.jobs.set(j));
+            if (job.status === 'applied') {
+              this.reportJobStatus.set(null);
+            }
+            return;
+          }
+          if (Date.now() - started > 240000) {
+            this.awaitingReportJobId = null;
+            this.clearReportPoll();
+            this.loadReport({ open: true });
+            return;
+          }
+          this.reportPollTimer = setTimeout(tick, 900);
+        },
+        error: () => {
+          this.reportPollTimer = setTimeout(tick, 1500);
+        },
+      });
+    };
+    this.reportPollTimer = setTimeout(tick, 400);
+  }
+
+  private clearReportPoll() {
+    if (this.reportPollTimer != null) {
+      clearTimeout(this.reportPollTimer);
+      this.reportPollTimer = null;
+    }
   }
 
   closeTab(i: number) {
@@ -549,7 +719,19 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   openBranch(branch: WorkspaceBranch) {
     this.activeBranchId.set(branch.id);
     this.activeTab.set(0);
+    this.activeReportVersionId.set(null);
     this.reloadAll();
+  }
+
+  onReportDeleted() {
+    this.report.set(null);
+    this.reportVersions.set([]);
+    this.activeReportVersionId.set(null);
+    this.reportJobStatus.set(null);
+    const next = this.tabs().filter((t) => t.kind !== 'report');
+    this.tabs.set(next);
+    this.activeTab.set(Math.min(this.activeTab(), Math.max(0, next.length - 1)));
+    this.syncSettingsNav();
   }
 
   send() {
@@ -805,6 +987,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
         return 'Docs';
       case 'branches':
         return 'Branches';
+      case 'reports':
+        return 'Reports';
       default:
         return 'Objects';
     }
@@ -846,9 +1030,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       if (!raw) return;
       const v = JSON.parse(raw);
       if (typeof v.rightOpen === 'boolean') this.rightOpen.set(v.rightOpen);
-      if (v.leftDrawer === 'objects' || v.leftDrawer === 'documents' || v.leftDrawer === 'branches' || v.leftDrawer === null) {
+      if (v.leftDrawer === 'objects' || v.leftDrawer === 'documents' || v.leftDrawer === 'branches' || v.leftDrawer === 'reports' || v.leftDrawer === null) {
         this.shell.leftDrawer.set(v.leftDrawer);
-      } else if (v.leftOpen === true && (v.leftTab === 'objects' || v.leftTab === 'documents' || v.leftTab === 'branches')) {
+      } else if (v.leftOpen === true && (v.leftTab === 'objects' || v.leftTab === 'documents' || v.leftTab === 'branches' || v.leftTab === 'reports')) {
         this.shell.leftDrawer.set(v.leftTab);
       }
       if (v.rightTab === 'chat' || v.rightTab === 'insights' || v.rightTab === 'inspector' || v.rightTab === 'outline') {

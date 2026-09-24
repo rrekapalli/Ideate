@@ -121,6 +121,7 @@ public class WorkspaceService {
         branches(workspaceId).stream()
                 .filter((b) -> branchId.equals(b.parentBranchId()))
                 .forEach((child) -> deleteBranch(workspaceId, child.id()));
+        jdbc.update("DELETE FROM workspace_report WHERE workspace_id = ? AND branch_id = ?", workspaceId, branchId);
         jdbc.update("DELETE FROM conversation_cache WHERE workspace_id = ? AND branch_id = ?", workspaceId, branchId);
         jdbc.update("DELETE FROM transcript_message WHERE workspace_id = ? AND branch_id = ?", workspaceId, branchId);
         jdbc.update("DELETE FROM idea_edge WHERE workspace_id = ? AND branch_id = ?", workspaceId, branchId);

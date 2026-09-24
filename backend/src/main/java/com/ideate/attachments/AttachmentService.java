@@ -116,17 +116,72 @@ public class AttachmentService {
         }
         return jdbc.query("""
                 SELECT id, workspace_id, object_id, message_id, original_name, content_type,
-                       byte_size, extract_status, created_at
+                       byte_size, storage_key, extract_status, created_at
                 FROM attachment
                 WHERE workspace_id = ?
                 ORDER BY created_at ASC
                 """, summaryMapper(), workspaceId);
     }
 
+    public Attachment storeGenerated(String workspaceId, String folder, String originalName, String contentType,
+                                     byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A file is required");
+        }
+        String original = sanitizeName(originalName);
+        String ext = AttachmentTextExtractor.extension(original);
+        if (!ALLOWED_EXT.contains(ext)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File type not allowed: " + ext);
+        }
+        long max = properties.getStorage().getMaxFileBytes();
+        if (bytes.length > max) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "File exceeds " + max + " bytes");
+        }
+        String dir = folderSegment(folder == null || folder.isBlank() ? "Reports" : folder);
+        String storageKey = workspaceFolder(workspaceId) + "/" + dir + "/" + fileSegment(original);
+        Path dest = resolveKey(storageKey);
+        try {
+            Files.createDirectories(dest.getParent());
+            Files.write(dest, bytes);
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not store file");
+        }
+        String mime = contentType == null || contentType.isBlank() ? guessMime(ext) : contentType.split(";")[0].trim();
+        var extract = AttachmentTextExtractor.extract(dest, original, mime);
+        Instant now = Instant.now();
+        List<String> existing = jdbc.queryForList(
+                "SELECT id FROM attachment WHERE workspace_id = ? AND storage_key = ?",
+                String.class, workspaceId, storageKey);
+        if (!existing.isEmpty()) {
+            String id = existing.getFirst();
+            jdbc.update("""
+                    UPDATE attachment
+                    SET original_name = ?, content_type = ?, byte_size = ?, extract_text = ?, extract_status = ?
+                    WHERE workspace_id = ? AND id = ?
+                    """, original, mime, (long) bytes.length, extract.text(), extract.status(), workspaceId, id);
+            return get(workspaceId, id);
+        }
+        String id = Ids.id("att_");
+        try {
+            jdbc.update("""
+                    INSERT INTO attachment (
+                        id, workspace_id, original_name, content_type, byte_size,
+                        storage_key, extract_text, extract_status, created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?)
+                    """,
+                    id, workspaceId, original, mime, (long) bytes.length,
+                    storageKey, extract.text(), extract.status(), Timestamp.from(now));
+        } catch (RuntimeException ex) {
+            deleteQuietly(dest);
+            throw ex;
+        }
+        return get(workspaceId, id);
+    }
+
     public Attachment get(String workspaceId, String attachmentId) {
         List<Attachment> found = jdbc.query("""
                 SELECT id, workspace_id, object_id, message_id, original_name, content_type,
-                       byte_size, extract_status, created_at
+                       byte_size, storage_key, extract_status, created_at
                 FROM attachment
                 WHERE workspace_id = ? AND id = ?
                 """, summaryMapper(), workspaceId, attachmentId);
@@ -364,6 +419,9 @@ public class AttachmentService {
     }
 
     private void relocate(Row row) {
+        if (row.storageKey() != null && row.storageKey().contains("/Reports/")) {
+            return;
+        }
         String desired = storageKeyFor(row.workspaceId(), row.objectId(), row.id(), row.originalName());
         if (desired.equals(row.storageKey())) {
             return;
@@ -596,8 +654,17 @@ public class AttachmentService {
                 rs.getString("content_type"),
                 rs.getLong("byte_size"),
                 rs.getString("extract_status"),
-                rs.getTimestamp("created_at").toInstant()
+                rs.getTimestamp("created_at").toInstant(),
+                folderFromKey(columnOrNull(rs, "storage_key"))
         );
+    }
+
+    private static String folderFromKey(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return null;
+        }
+        String[] parts = storageKey.split("/");
+        return parts.length >= 2 ? parts[1] : null;
     }
 
     private static String columnOrNull(ResultSet rs, String column) {
@@ -617,7 +684,8 @@ public class AttachmentService {
             String contentType,
             long byteSize,
             String extractStatus,
-            Instant createdAt
+            Instant createdAt,
+            String folder
     ) {}
 
     public record StoredFile(String originalName, String contentType, long byteSize, Resource resource) {}

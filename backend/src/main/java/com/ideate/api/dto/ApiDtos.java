@@ -60,4 +60,8 @@ public final class ApiDtos {
             String body,
             List<String> tags
     ) {}
+
+    public record ReportBranchBody(String branchId) {}
+
+    public record ReportExportBody(String format, List<String> diagrams) {}
 }

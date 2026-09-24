@@ -17,6 +17,7 @@ import {
   UsageRollup,
   Workspace,
   WorkspaceBranch,
+  WorkspaceReportBundle,
   WorkspaceSummary,
 } from './models';
 
@@ -208,5 +209,35 @@ export class IdeateApi {
 
   problems(workspaceId: string) {
     return this.http.get<GraphProblem[]>(this.url(`/workspaces/${workspaceId}/problems`));
+  }
+
+  getReport(workspaceId: string, branchId?: string) {
+    const q = branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
+    return this.http.get<WorkspaceReportBundle>(this.url(`/workspaces/${workspaceId}/reports${q}`));
+  }
+
+  prepareReport(workspaceId: string, branchId?: string) {
+    return this.http.post<JobRecord>(this.url(`/workspaces/${workspaceId}/reports/prepare`), { branchId });
+  }
+
+  updateReport(workspaceId: string, branchId?: string) {
+    return this.http.post<JobRecord>(this.url(`/workspaces/${workspaceId}/reports/update`), { branchId });
+  }
+
+  deleteReport(workspaceId: string, reportId: string) {
+    return this.http.delete(this.url(`/workspaces/${workspaceId}/reports/${reportId}`));
+  }
+
+  exportReport(
+    workspaceId: string,
+    reportId: string,
+    version: number,
+    body: { format: 'md' | 'pdf' | 'docx'; diagrams?: string[] },
+  ) {
+    return this.http.post(
+      this.url(`/workspaces/${workspaceId}/reports/${reportId}/versions/${version}/export`),
+      body,
+      { responseType: 'blob', observe: 'response' },
+    );
   }
 }

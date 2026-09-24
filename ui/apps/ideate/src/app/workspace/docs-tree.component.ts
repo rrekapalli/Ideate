@@ -326,9 +326,12 @@ function flattenVisible(nodes: DocTreeNode[], expanded: Set<string>, collapsed: 
 
 function buildAttachmentTree(nodes: IdeaObject[], attachments: Attachment[]): DocTreeNode[] {
   const byObject = new Map<string, Attachment[]>();
+  const reports: Attachment[] = [];
   const misc: Attachment[] = [];
   for (const file of attachments) {
-    if (file.objectId && nodes.some((n) => n.id === file.objectId)) {
+    if (file.folder === 'Reports') {
+      reports.push(file);
+    } else if (file.objectId && nodes.some((n) => n.id === file.objectId)) {
       const list = byObject.get(file.objectId) ?? [];
       list.push(file);
       byObject.set(file.objectId, list);
@@ -343,7 +346,17 @@ function buildAttachmentTree(nodes: IdeaObject[], attachments: Attachment[]): Do
     list.push(object);
     byType.set(object.type, list);
   }
-  const groups: DocTreeNode[] = [...byType.entries()].map(([type, objects]) => {
+  const groups: DocTreeNode[] = [];
+  if (reports.length) {
+    groups.push({
+      kind: 'group',
+      id: 'type:reports',
+      name: 'Reports - (' + reports.length + ')',
+      type: null,
+      children: reports.map((file) => attachmentNode(file)),
+    });
+  }
+  groups.push(...[...byType.entries()].map(([type, objects]) => {
     const files = objects.flatMap((object) =>
       (byObject.get(object.id) ?? []).map((file) => attachmentNode(file, object.displayId)),
     );
@@ -354,7 +367,7 @@ function buildAttachmentTree(nodes: IdeaObject[], attachments: Attachment[]): Do
       type,
       children: files,
     };
-  });
+  }));
   if (misc.length) {
     groups.push({
       kind: 'group',

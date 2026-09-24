@@ -8,6 +8,7 @@ import com.ideate.documents.DocumentService;
 import com.ideate.graph.GraphService;
 import com.ideate.jobs.JobService;
 import com.ideate.orchestrator.TurnOrchestrator;
+import com.ideate.reports.ReportService;
 import com.ideate.search.SearchService;
 import com.ideate.transcript.TranscriptService;
 import com.ideate.usage.UsageService;
@@ -40,12 +41,14 @@ public class IdeateApiController {
     private final DocumentService documents;
     private final AttachmentService attachments;
     private final SearchService search;
+    private final ReportService reports;
     private final JdbcTemplate jdbc;
 
     public IdeateApiController(CurrentUserHolder currentUser, WorkspaceService workspaces, GraphService graph,
                                TranscriptService transcript, TurnOrchestrator turns, JobService jobs,
                                UsageService usage, CreditService credits, DocumentService documents,
-                               AttachmentService attachments, SearchService search, JdbcTemplate jdbc) {
+                               AttachmentService attachments, SearchService search, ReportService reports,
+                               JdbcTemplate jdbc) {
         this.currentUser = currentUser;
         this.workspaces = workspaces;
         this.graph = graph;
@@ -57,6 +60,7 @@ public class IdeateApiController {
         this.documents = documents;
         this.attachments = attachments;
         this.search = search;
+        this.reports = reports;
         this.jdbc = jdbc;
     }
 
@@ -326,6 +330,57 @@ public class IdeateApiController {
                                       @RequestBody ApiDtos.AttachBody body) {
         workspaces.get(currentUser.get().accountId(), id);
         return Map.of("objectId", documents.attachToCard(id, itemId, body.objectId()));
+    }
+
+    @GetMapping("/workspaces/{id}/reports")
+    public ReportService.ReportBundle getReport(@PathVariable String id,
+                                                @RequestParam(required = false) String branchId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return reports.get(id, branchId);
+    }
+
+    @PostMapping("/workspaces/{id}/reports/prepare")
+    public JobService.JobRecord prepareReport(@PathVariable String id, @RequestBody(required = false) ApiDtos.ReportBranchBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        String branchId = body == null ? null : body.branchId();
+        return reports.prepare(currentUser.get().accountId(), id, branchId);
+    }
+
+    @PostMapping("/workspaces/{id}/reports/update")
+    public JobService.JobRecord updateReport(@PathVariable String id, @RequestBody(required = false) ApiDtos.ReportBranchBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        String branchId = body == null ? null : body.branchId();
+        return reports.update(currentUser.get().accountId(), id, branchId);
+    }
+
+    @DeleteMapping("/workspaces/{id}/reports/{reportId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteReport(@PathVariable String id, @PathVariable String reportId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        reports.delete(id, reportId);
+    }
+
+    @PostMapping("/workspaces/{id}/reports/{reportId}/versions/{version}/export")
+    public ResponseEntity<byte[]> exportReport(@PathVariable String id, @PathVariable String reportId,
+                                               @PathVariable int version,
+                                               @RequestBody(required = false) ApiDtos.ReportExportBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        String format = body == null ? "md" : body.format();
+        List<String> diagrams = body == null || body.diagrams() == null ? List.of() : body.diagrams();
+        ReportService.ExportedFile file = reports.export(id, reportId, version, format, diagrams);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(file.filename(), StandardCharsets.UTF_8)
+                .build();
+        MediaType media = MediaType.APPLICATION_OCTET_STREAM;
+        try {
+            media = MediaType.parseMediaType(file.contentType().split(";")[0].trim());
+        } catch (Exception ignored) {
+            // keep octet-stream
+        }
+        return ResponseEntity.ok()
+                .contentType(media)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(file.bytes());
     }
 
     @GetMapping("/workspaces/{id}/attachments")

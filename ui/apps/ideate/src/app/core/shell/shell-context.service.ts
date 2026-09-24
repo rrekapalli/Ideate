@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 
-export type AppLeftDrawer = 'workspaces' | 'objects' | 'documents' | 'branches' | null;
+export type AppLeftDrawer = 'workspaces' | 'objects' | 'documents' | 'branches' | 'reports' | null;
 
 @Injectable({ providedIn: 'root' })
 export class ShellContextService {
@@ -25,7 +25,7 @@ export class ShellContextService {
   readonly showLeftNav = computed(() => this.inWorkspace());
   readonly explorerDrawerOpen = computed(() => {
     const d = this.leftDrawer();
-    return d === 'objects' || d === 'documents' || d === 'branches';
+    return d === 'objects' || d === 'documents' || d === 'branches' || d === 'reports';
   });
 
   toggleLeft(id: Exclude<AppLeftDrawer, null>): void {

@@ -87,6 +87,7 @@ export interface Attachment {
   byteSize: number;
   extractStatus: string;
   createdAt: string;
+  folder?: string | null;
 }
 
 export const ATTACHMENT_ACCEPT =
@@ -170,6 +171,40 @@ export interface GraphProblem {
   objectIds: string[];
   createdAt: string;
 }
+
+export type WorkspaceReportStatus = 'preparing' | 'ready' | 'updating' | 'failed';
+
+export interface WorkspaceReport {
+  id: string;
+  workspaceId: string;
+  branchId: string;
+  status: WorkspaceReportStatus;
+  currentVersion: number;
+  title: string;
+  error?: string | null;
+  lastJobId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceReportVersion {
+  id: string;
+  reportId: string;
+  version: number;
+  title: string;
+  summary: string;
+  body: string;
+  generatedBy?: string | null;
+  jobId?: string | null;
+  createdAt: string;
+}
+
+export interface WorkspaceReportBundle {
+  report: WorkspaceReport | null;
+  versions: WorkspaceReportVersion[];
+}
+
+export type ReportExportFormat = 'md' | 'pdf' | 'docx';
 
 export const OBJECT_TYPES = [
   'thought', 'concept', 'unknown', 'question', 'hypothesis', 'assumption',

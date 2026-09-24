@@ -43,7 +43,7 @@ public class OpenAiCompatibleChatClient implements ChatClient {
             body.put("model", request.model());
             body.put("temperature", 0.2);
             if (request.tokenBudget() > 0) {
-                body.put("max_tokens", Math.min(request.tokenBudget(), 1600));
+                body.put("max_tokens", Math.min(request.tokenBudget(), 8192));
             }
             List<Map<String, Object>> messages = new ArrayList<>();
             for (Message m : request.messages()) {
