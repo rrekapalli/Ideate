@@ -74,6 +74,8 @@ Revenue at ₹199/month × 1,000 = ₹1.99 lakh → **underwater**. Do not sell 
 - Let an expensive model read 50 raw web pages. Cheap extract → rank → then reason.
 - Skip the usage row. Every model call writes **tokens, model, cache hits, retrieval, search, estimated cost** against a **workspace**.
 
+Chat and card **attachments** are stored on local disk. A turn may include **capped extracts** (~4k chars per file, ~8k per turn) and image parts only when the resolved model is multimodal. Never put raw PDFs or full file bytes in the project-state prompt.
+
 ## Request path
 
 ```text

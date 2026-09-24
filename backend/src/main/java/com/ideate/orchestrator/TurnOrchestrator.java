@@ -3,6 +3,7 @@ package com.ideate.orchestrator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ideate.IdeateProperties;
+import com.ideate.attachments.AttachmentService;
 import com.ideate.context.ProjectStateAssembler;
 import com.ideate.credits.CreditService;
 import com.ideate.embed.EmbedService;
@@ -69,6 +70,7 @@ public class TurnOrchestrator {
     private final ObjectMapper mapper;
     private final EmbedService embedService;
     private final ConversationCacheService cacheService;
+    private final AttachmentService attachments;
     private final ConversationGraphHydrator hydrator = new ConversationGraphHydrator();
     private final Executor turnPool = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "ideate-turn");
@@ -80,7 +82,8 @@ public class TurnOrchestrator {
                             ProjectStateAssembler assembler, JobClassifier classifier, CreditService credits,
                             UsageService usage, JobService jobs, OpenAiCompatibleChatClient chatClient,
                             IdeateProperties properties, JdbcTemplate jdbc, ObjectMapper mapper,
-                            EmbedService embedService, ConversationCacheService cacheService) {
+                            EmbedService embedService, ConversationCacheService cacheService,
+                            AttachmentService attachments) {
         this.workspaces = workspaces;
         this.transcript = transcript;
         this.graph = graph;
@@ -95,16 +98,26 @@ public class TurnOrchestrator {
         this.mapper = mapper;
         this.embedService = embedService;
         this.cacheService = cacheService;
+        this.attachments = attachments;
     }
 
     public TurnResult turn(String accountId, String workspaceId, TurnRequest request) {
         var ws = workspaces.get(accountId, workspaceId);
         String branchId = request.branchId() == null ? ws.mainstreamBranchId() : request.branchId();
         String mode = request.mode() == null ? "explore" : request.mode();
-        String jobClass = classifier.classify(mode, request.content(), request.jobClass());
+        String content = request.content() == null ? "" : request.content();
+        List<String> attachmentIds = request.attachmentIds() == null ? List.of() : request.attachmentIds();
+        if (content.isBlank() && attachmentIds.isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Message or attachment required");
+        }
+        String jobClass = classifier.classify(mode, content, request.jobClass());
         credits.require(accountId, jobClass);
 
-        var userMsg = transcript.append(workspaceId, branchId, "user", request.content(), mode);
+        var userMsg = transcript.append(workspaceId, branchId, "user", content, mode);
+        if (!attachmentIds.isEmpty()) {
+            attachments.linkToMessage(workspaceId, attachmentIds, userMsg.id());
+        }
         var job = jobs.enqueue(workspaceId, accountId, jobClass, mode, "orchestrator", request.focusObjectIds());
         jobs.markRunning(job.id());
         turnPool.execute(() -> finishTurn(accountId, workspaceId, branchId, mode, jobClass, request, userMsg.id(), job.id()));
@@ -114,9 +127,10 @@ public class TurnOrchestrator {
     private void finishTurn(String accountId, String workspaceId, String branchId, String mode, String jobClass,
                             TurnRequest request, String userMsgId, String jobId) {
         try {
-            String projectState = assembler.assemble(workspaceId, branchId, request.content(), request.focusObjectIds());
+            String projectState = assembler.assemble(workspaceId, branchId, request.content(),
+                    request.focusObjectIds(), request.attachmentIds());
             ProviderTarget target = resolveProvider(accountId, workspaceId, jobClass);
-            ChatClient.ChatResult completion = completeWithRetry(target, projectState, true);
+            ChatClient.ChatResult completion = completeWithRetry(target, projectState, true, request.attachmentIds(), workspaceId);
             usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
                     completion.inputTokens(), completion.outputTokens(), 0);
             if (completion.error() != null) {
@@ -133,7 +147,7 @@ public class TurnOrchestrator {
                         Write 2–4 Markdown paragraphs with typical measured values and units for this topic.
                         If a real paper supports the claim, end with a ### Citations list (Author et al. (Year). Title. Venue. DOI).
                         Never invent citations. Do not reply with bullets only. Do not call tools or mention graphs.
-                        """, false);
+                        """, false, request.attachmentIds(), workspaceId);
                 if (spoken != null && spoken.error() == null) {
                     usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
                             spoken.inputTokens(), spoken.outputTokens(), 0);
@@ -162,6 +176,11 @@ public class TurnOrchestrator {
     }
 
     private ChatClient.ChatResult completeWithRetry(ProviderTarget target, String projectState, boolean enableTools) {
+        return completeWithRetry(target, projectState, enableTools, List.of(), null);
+    }
+
+    private ChatClient.ChatResult completeWithRetry(ProviderTarget target, String projectState, boolean enableTools,
+                                                    List<String> attachmentIds, String workspaceId) {
         List<String> bases = new ArrayList<>();
         addUnique(bases, target.baseUrl());
         addUnique(bases, properties.getOllama().getBaseUrl());
@@ -177,13 +196,19 @@ public class TurnOrchestrator {
             boolean hostDead = false;
             for (String model : models) {
                 for (int attempt = 1; attempt <= 2; attempt++) {
+                    List<ChatClient.ContentPart> vision = workspaceId == null
+                            ? List.of()
+                            : attachments.visionParts(workspaceId, attachmentIds, model);
+                    ChatClient.Message user = vision.isEmpty()
+                            ? new ChatClient.Message("user", projectState)
+                            : new ChatClient.Message("user", projectState, vision);
                     last = chatClient.complete(new ChatClient.ChatRequest(
                             model,
                             base,
                             target.apiKey(),
                             List.of(
                                     new ChatClient.Message("system", SYSTEM),
-                                    new ChatClient.Message("user", projectState)
+                                    user
                             ),
                             1600,
                             enableTools
@@ -411,7 +436,15 @@ public class TurnOrchestrator {
                                 null, userMsgId, assistantMsgId
                         ));
                     }
-                    case "attach_file" -> log.debug("attach_file is a later object-store path");
+                    case "attach_file" -> {
+                        String attachmentId = textOrNull(args, "attachmentId");
+                        IdeaObject targetObj = resolveByKey(workspaceId, args, "displayId", "objectId");
+                        if (attachmentId != null && targetObj != null) {
+                            attachments.linkToObject(workspaceId, attachmentId, targetObj.id());
+                        } else {
+                            log.debug("attach_file needs attachmentId and a target node");
+                        }
+                    }
                     case "start_evaluation" -> {
                         IdeaObject hyp = resolveByKey(workspaceId, args, "hypothesisDisplayId", "hypothesisId");
                         if (hyp == null) {
@@ -583,7 +616,8 @@ public class TurnOrchestrator {
         return value == null ? 160.0 : value + 90;
     }
 
-    public record TurnRequest(String content, String mode, String branchId, String jobClass, List<String> focusObjectIds) {}
+    public record TurnRequest(String content, String mode, String branchId, String jobClass, List<String> focusObjectIds,
+                             List<String> attachmentIds) {}
 
     public record BatchRequest(String mode, String agent, List<String> focusObjectIds) {}
 

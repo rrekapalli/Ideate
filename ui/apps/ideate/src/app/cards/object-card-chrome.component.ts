@@ -1,15 +1,17 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
+import { Attachment, IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
 import { MtButtonComponent, MtIconComponent, MtTagComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
+import { AttachmentListComponent } from '../shared/attachment-list.component';
+import { AttachmentStore } from '../workspace/attachment.store';
 import { cardBox } from './card-layout';
 import { DiagramCanvasBridge } from './diagram-canvas-bridge';
 
 @Component({
   selector: 'ideate-object-card-chrome',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, MtTagComponent, MdViewComponent, TypeGlyphComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, MtTagComponent, MdViewComponent, TypeGlyphComponent, AttachmentListComponent],
   template: `
     <article
       class="card"
@@ -44,6 +46,18 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
         <button type="button" class="chatref" (click)="$event.stopPropagation(); emitChat()" aria-label="Chat">
           <mt-icon name="chat" [size]="14" />
         </button>
+        <button
+          type="button"
+          class="attach"
+          [class.open]="attachOpen()"
+          (click)="$event.stopPropagation(); toggleAttach()"
+          [attr.aria-label]="'Attachments' + (attachCount() ? ' (' + attachCount() + ')' : '')"
+        >
+          <mt-icon name="attach_file" [size]="14" />
+          @if (attachCount()) {
+            <span class="n">{{ attachCount() }}</span>
+          }
+        </button>
         <span class="tags">
           @for (tag of object().tags; track tag) {
             <mt-tag [value]="tag" />
@@ -55,6 +69,17 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
           </button>
         }
       </footer>
+      @if (attachOpen()) {
+        <div class="attach-pop" (click)="$event.stopPropagation()" (pointerup)="$event.stopPropagation()">
+          <ideate-attachment-list
+            [items]="attachments()"
+            [compact]="true"
+            [canAdd]="true"
+            (addFiles)="addFiles($event)"
+            (remove)="removeFile($event)"
+          />
+        </div>
+      }
       @if (hasBody() && expanded()) {
         <div class="body"><ideate-md [source]="object().body" /></div>
       }
@@ -187,21 +212,45 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       color: var(--mt-primary, currentColor);
       line-height: 1;
     }
+    .attach {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.12rem;
+      padding: 0;
+      border: 0;
+      background: none;
+      cursor: pointer;
+      color: var(--mt-primary, currentColor);
+      line-height: 1;
+    }
+    .attach.open { color: var(--mt-text); }
+    .attach .n { font-size: 0.68rem; font-weight: 700; }
+    .attach-pop {
+      margin-top: 0.35rem;
+      padding: 0.35rem;
+      border: 1px solid var(--mt-surface-border, var(--surface-border));
+      background: var(--mt-surface-card);
+    }
     .tags { display: flex; gap: 0.25rem; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; }
     .ver { font-size: 0.7rem; color: var(--mt-text-muted); }
   `,
 })
 export class ObjectCardChromeComponent {
   private readonly bridge = inject(DiagramCanvasBridge, { optional: true });
+  private readonly attachmentsStore = inject(AttachmentStore);
   readonly object = input.required<IdeaObject>();
   readonly types = OBJECT_TYPES;
   readonly lookupLabel = lookupLabel;
   readonly expanded = signal(false);
+  readonly attachOpen = signal(false);
   readonly open = output<IdeaObject>();
   readonly typeChange = output<string>();
   readonly newNode = output<IdeaObject>();
   readonly menu = output<IdeaObject>();
   readonly openChat = output<IdeaObject>();
+  readonly attachments = computed(() => this.attachmentsStore.forObject(this.object().id));
+  readonly attachCount = computed(() => this.attachments().length);
 
   box() {
     return cardBox(this.object(), this.expanded());
@@ -268,6 +317,21 @@ export class ObjectCardChromeComponent {
     this.bridge?.openChat$.next(this.object());
   }
 
+  toggleAttach() {
+    this.attachOpen.update((v) => !v);
+  }
+
+  addFiles(files: File[]) {
+    for (const file of files) {
+      this.attachmentsStore.upload(file, this.object().id).subscribe();
+    }
+    this.attachOpen.set(true);
+  }
+
+  removeFile(item: Attachment) {
+    this.attachmentsStore.remove(item.id).subscribe();
+  }
+
   private lastTapAt = 0;
   private lastTapX = 0;
   private lastTapY = 0;
@@ -275,7 +339,7 @@ export class ObjectCardChromeComponent {
   private openedAt = 0;
 
   private isChromeControl(target: EventTarget | null): boolean {
-    return target instanceof Element && !!target.closest('button, select, a, input, textarea, label');
+    return target instanceof Element && !!target.closest('button, select, a, input, textarea, label, ideate-attachment-list, .attach-pop');
   }
 
   private noteTap(x: number, y: number): boolean {

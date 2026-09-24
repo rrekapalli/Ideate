@@ -1,6 +1,7 @@
 package com.ideate.workspace;
 
 import com.ideate.Ids;
+import com.ideate.attachments.AttachmentService;
 import com.ideate.graph.ObjectCatalog;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,9 +17,11 @@ import java.util.Locale;
 @Service
 public class WorkspaceService {
     private final JdbcTemplate jdbc;
+    private final AttachmentService attachments;
 
-    public WorkspaceService(JdbcTemplate jdbc) {
+    public WorkspaceService(JdbcTemplate jdbc, AttachmentService attachments) {
         this.jdbc = jdbc;
+        this.attachments = attachments;
     }
 
     public List<WorkspaceRecord> list(String accountId) {
@@ -128,6 +131,7 @@ public class WorkspaceService {
     @Transactional
     public void deleteWorkspace(String accountId, String workspaceId) {
         get(accountId, workspaceId);
+        attachments.deleteWorkspaceFiles(workspaceId);
         jdbc.update("DELETE FROM workspace WHERE id = ? AND account_id = ?", workspaceId, accountId);
     }
 

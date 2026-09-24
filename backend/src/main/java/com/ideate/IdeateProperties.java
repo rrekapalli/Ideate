@@ -9,6 +9,7 @@ public class IdeateProperties {
     private final Ollama ollama = new Ollama();
     private final Openai openai = new Openai();
     private final Cors cors = new Cors();
+    private final Storage storage = new Storage();
 
     public String getMigrationsPath() {
         return migrationsPath;
@@ -28,6 +29,10 @@ public class IdeateProperties {
 
     public Cors getCors() {
         return cors;
+    }
+
+    public Storage getStorage() {
+        return storage;
     }
 
     public static class Ollama {
@@ -78,6 +83,27 @@ public class IdeateProperties {
 
         public void setModel(String model) {
             this.model = model;
+        }
+    }
+
+    public static class Storage {
+        private String root = "./data/attachments";
+        private long maxFileBytes = 15L * 1024 * 1024;
+
+        public String getRoot() {
+            return root;
+        }
+
+        public void setRoot(String root) {
+            this.root = root;
+        }
+
+        public long getMaxFileBytes() {
+            return maxFileBytes;
+        }
+
+        public void setMaxFileBytes(long maxFileBytes) {
+            this.maxFileBytes = maxFileBytes;
         }
     }
 

@@ -1,6 +1,7 @@
 package com.ideate.api;
 
 import com.ideate.api.dto.ApiDtos;
+import com.ideate.attachments.AttachmentService;
 import com.ideate.auth.CurrentUserHolder;
 import com.ideate.credits.CreditService;
 import com.ideate.documents.DocumentService;
@@ -11,10 +12,17 @@ import com.ideate.search.SearchService;
 import com.ideate.transcript.TranscriptService;
 import com.ideate.usage.UsageService;
 import com.ideate.workspace.WorkspaceService;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -30,13 +38,14 @@ public class IdeateApiController {
     private final UsageService usage;
     private final CreditService credits;
     private final DocumentService documents;
+    private final AttachmentService attachments;
     private final SearchService search;
     private final JdbcTemplate jdbc;
 
     public IdeateApiController(CurrentUserHolder currentUser, WorkspaceService workspaces, GraphService graph,
                                TranscriptService transcript, TurnOrchestrator turns, JobService jobs,
                                UsageService usage, CreditService credits, DocumentService documents,
-                               SearchService search, JdbcTemplate jdbc) {
+                               AttachmentService attachments, SearchService search, JdbcTemplate jdbc) {
         this.currentUser = currentUser;
         this.workspaces = workspaces;
         this.graph = graph;
@@ -46,6 +55,7 @@ public class IdeateApiController {
         this.usage = usage;
         this.credits = credits;
         this.documents = documents;
+        this.attachments = attachments;
         this.search = search;
         this.jdbc = jdbc;
     }
@@ -219,7 +229,8 @@ public class IdeateApiController {
     public TurnOrchestrator.TurnResult turn(@PathVariable String id, @RequestBody ApiDtos.TurnBody body) {
         workspaces.get(currentUser.get().accountId(), id);
         return turns.turn(currentUser.get().accountId(), id, new TurnOrchestrator.TurnRequest(
-                body.content(), body.mode(), body.branchId(), body.jobClass(), body.focusObjectIds()
+                body.content(), body.mode(), body.branchId(), body.jobClass(), body.focusObjectIds(),
+                body.attachmentIds()
         ));
     }
 
@@ -315,6 +326,59 @@ public class IdeateApiController {
                                       @RequestBody ApiDtos.AttachBody body) {
         workspaces.get(currentUser.get().accountId(), id);
         return Map.of("objectId", documents.attachToCard(id, itemId, body.objectId()));
+    }
+
+    @GetMapping("/workspaces/{id}/attachments")
+    public List<AttachmentService.Attachment> listAttachments(@PathVariable String id) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return attachments.list(id);
+    }
+
+    @PostMapping(path = "/workspaces/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public AttachmentService.Attachment uploadAttachment(@PathVariable String id,
+                                                         @RequestParam("file") MultipartFile file,
+                                                         @RequestParam(required = false) String objectId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return attachments.upload(id, objectId, file);
+    }
+
+    @GetMapping("/workspaces/{id}/attachments/{attId}")
+    public AttachmentService.Attachment getAttachment(@PathVariable String id, @PathVariable String attId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return attachments.get(id, attId);
+    }
+
+    @GetMapping("/workspaces/{id}/attachments/{attId}/content")
+    public ResponseEntity<Resource> attachmentContent(@PathVariable String id, @PathVariable String attId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        var stored = attachments.content(id, attId);
+        MediaType media = MediaType.APPLICATION_OCTET_STREAM;
+        try {
+            media = MediaType.parseMediaType(stored.contentType());
+        } catch (Exception ignored) {
+            // keep octet-stream
+        }
+        ContentDisposition disposition = ContentDisposition.inline()
+                .filename(stored.originalName(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(media)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(stored.resource());
+    }
+
+    @DeleteMapping("/workspaces/{id}/attachments/{attId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAttachment(@PathVariable String id, @PathVariable String attId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        attachments.delete(id, attId);
+    }
+
+    @PostMapping("/workspaces/{id}/attachments/{attId}/link")
+    public AttachmentService.Attachment linkAttachment(@PathVariable String id, @PathVariable String attId,
+                                                       @RequestBody ApiDtos.LinkAttachmentBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return attachments.linkToObject(id, attId, body.objectId());
     }
 
     @GetMapping("/workspaces/{id}/search")

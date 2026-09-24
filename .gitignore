@@ -41,6 +41,10 @@ secrets.json
 Thumbs.db
 Desktop.ini
 
+# Local attachment store
+data/
+backend/data/
+
 # Logs
 logs/
 *.log

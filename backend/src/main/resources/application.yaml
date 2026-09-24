@@ -7,6 +7,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 64MB
   datasource:
     url: jdbc:postgresql://${DB_HOST:pg18.tailce422e.ts.net}:${DB_PORT:6432}/${DB_NAME:ideate}
     username: ${DB_USERNAME:postgres}
@@ -35,6 +39,9 @@ springdoc:
     path: /swagger-ui.html
 
 ideate:
+  storage:
+    root: ${IDEATE_STORAGE_ROOT:./data/attachments}
+    max-file-bytes: ${IDEATE_STORAGE_MAX_BYTES:15728640}
   auth:
     enabled: ${IDEATE_AUTH_ENABLED:false}
     dev-account-id: ${IDEATE_DEV_ACCOUNT_ID:acct_local_dev}

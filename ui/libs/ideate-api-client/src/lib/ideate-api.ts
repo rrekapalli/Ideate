@@ -13,6 +13,7 @@ import {
   TimelineEvent,
   TranscriptMessage,
   TurnResult,
+  Attachment,
   UsageRollup,
   Workspace,
   WorkspaceBranch,
@@ -109,7 +110,10 @@ export class IdeateApi {
     return this.http.get<TranscriptMessage[]>(this.url(`/workspaces/${workspaceId}/transcript${q}`));
   }
 
-  turn(workspaceId: string, body: { content: string; mode?: string; focusObjectIds?: string[] }): Observable<TurnResult> {
+  turn(
+    workspaceId: string,
+    body: { content: string; mode?: string; focusObjectIds?: string[]; attachmentIds?: string[] },
+  ): Observable<TurnResult> {
     return this.http.post<TurnResult>(this.url(`/workspaces/${workspaceId}/turns`), body);
   }
 
@@ -156,6 +160,40 @@ export class IdeateApi {
       this.url(`/workspaces/${workspaceId}/documents/${itemId}/attach`),
       { objectId },
     );
+  }
+
+  listAttachments(workspaceId: string) {
+    return this.http.get<Attachment[]>(this.url(`/workspaces/${workspaceId}/attachments`));
+  }
+
+  uploadAttachment(workspaceId: string, file: File, objectId?: string) {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    if (objectId) {
+      form.append('objectId', objectId);
+    }
+    return this.http.post<Attachment>(this.url(`/workspaces/${workspaceId}/attachments`), form);
+  }
+
+  deleteAttachment(workspaceId: string, attachmentId: string) {
+    return this.http.delete(this.url(`/workspaces/${workspaceId}/attachments/${attachmentId}`));
+  }
+
+  linkAttachment(workspaceId: string, attachmentId: string, objectId: string) {
+    return this.http.post<Attachment>(
+      this.url(`/workspaces/${workspaceId}/attachments/${attachmentId}/link`),
+      { objectId },
+    );
+  }
+
+  attachmentContentUrl(workspaceId: string, attachmentId: string): string {
+    return this.url(`/workspaces/${workspaceId}/attachments/${attachmentId}/content`);
+  }
+
+  attachmentContent(workspaceId: string, attachmentId: string) {
+    return this.http.get(this.url(`/workspaces/${workspaceId}/attachments/${attachmentId}/content`), {
+      responseType: 'blob',
+    });
   }
 
   search(workspaceId: string, q: string) {

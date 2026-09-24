@@ -13,7 +13,25 @@ public interface ChatClient {
         }
     }
 
-    record Message(String role, String content) {}
+    record ContentPart(String type, String text, String mimeType, String dataBase64) {
+        public static ContentPart text(String text) {
+            return new ContentPart("text", text, null, null);
+        }
+
+        public static ContentPart image(String mimeType, String dataBase64) {
+            return new ContentPart("image", null, mimeType, dataBase64);
+        }
+    }
+
+    record Message(String role, String content, List<ContentPart> parts) {
+        public Message(String role, String content) {
+            this(role, content, null);
+        }
+
+        public boolean multimodal() {
+            return parts != null && !parts.isEmpty();
+        }
+    }
 
     record ChatResult(String text, List<ToolCall> toolCalls, int inputTokens, int outputTokens, String model, String error) {
         public static ChatResult error(String message) {

@@ -1,9 +1,13 @@
 import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subscription } from 'rxjs';
+import { Subscription, forkJoin, of } from 'rxjs';
 import { MtButtonComponent, MtConfirm, MtIconComponent } from '@ideate/ui';
 import {
+  ATTACHMENT_ACCEPT,
+  ATTACHMENT_MAX_BYTES,
+  ATTACHMENT_MAX_FILES,
+  Attachment,
   DocumentFolder,
   DocumentItem,
   GraphProblem,
@@ -28,9 +32,11 @@ import { DocsTreeComponent } from './docs-tree.component';
 import { ObjectsTreeComponent } from './objects-tree.component';
 import { BranchesTreeComponent } from './branches-tree.component';
 import { MdViewComponent } from '../shared/md-view.component';
+import { AttachmentListComponent } from '../shared/attachment-list.component';
 import { ancestorPath } from './chat-context';
 import { SettingsPageComponent } from './settings-page.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
+import { AttachmentStore } from './attachment.store';
 
 type EditorTab =
   | { kind: 'graph' }
@@ -44,7 +50,7 @@ type BottomTab = 'timeline' | 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -54,6 +60,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly confirm = inject(MtConfirm);
   readonly shell = inject(ShellContextService);
+  readonly attachments = inject(AttachmentStore);
   private readonly subs = new Subscription();
 
   @ViewChild('canvas') canvas?: GraphCanvasComponent;
@@ -91,7 +98,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   modes = MODES;
   types = OBJECT_TYPES;
   readonly lookupLabel = lookupLabel;
+  readonly acceptFiles = ATTACHMENT_ACCEPT;
   sending = signal(false);
+  pendingFiles = signal<File[]>([]);
   workspaceId = '';
   private objectRowTapAt = 0;
   private objectRowTapId = '';
@@ -137,6 +146,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.subs.unsubscribe();
     this.shell.settingsOpen.set(false);
     this.shell.clearWorkspace();
+    this.attachments.clear();
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -163,6 +173,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       this.folders.set(d.folders ?? []);
       this.documents.set(d.items ?? []);
     });
+    this.attachments.load(this.workspaceId);
     this.api.jobs(this.workspaceId).subscribe((j) => this.jobs.set(j));
     this.api.timeline(this.workspaceId).subscribe((t) => this.timeline.set(t));
     this.api.problems(this.workspaceId).subscribe((p) => this.problems.set(p.map((x) => ({ ...x, objectIds: x.objectIds ?? [] }))));
@@ -432,7 +443,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
 
   send() {
     const content = this.draft.trim();
-    if (!content || this.sending()) {
+    const files = this.pendingFiles();
+    if ((!content && files.length === 0) || this.sending()) {
       return;
     }
     const path = this.chatFrom() ? this.chatPath() : [];
@@ -454,35 +466,102 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.transcript.set([...this.transcript(), localUser]);
     this.awaitingJobId = 'pending';
     this.draft = '';
+    this.pendingFiles.set([]);
     this.sending.set(true);
     this.scrollChat();
-    this.api.turn(this.workspaceId, {
-      content,
-      mode: this.mode,
-      focusObjectIds: focus.map((n) => n.id),
-    }).subscribe({
-      next: (res) => {
-        this.sending.set(false);
-        if (res.userMessageId) {
-          this.transcript.set(this.transcript().map((m) => (
-            m.id === localUser.id ? { ...m, id: res.userMessageId! } : m
-          )));
-        }
-        if (res.jobId) {
-          this.awaitingJobId = res.jobId;
-          this.pollJob(res.jobId);
-        } else {
-          this.awaitingJobId = null;
-          this.refreshChat();
-        }
+    const uploads$ = files.length
+      ? forkJoin(files.map((file) => this.attachments.upload(file)))
+      : of([] as Attachment[]);
+    uploads$.subscribe({
+      next: (uploaded) => {
+        this.api.turn(this.workspaceId, {
+          content,
+          mode: this.mode,
+          focusObjectIds: focus.map((n) => n.id),
+          attachmentIds: uploaded.map((a) => a.id),
+        }).subscribe({
+          next: (res) => {
+            this.sending.set(false);
+            if (res.userMessageId) {
+              this.transcript.set(this.transcript().map((m) => (
+                m.id === localUser.id ? { ...m, id: res.userMessageId! } : m
+              )));
+            }
+            this.attachments.load(this.workspaceId);
+            if (res.jobId) {
+              this.awaitingJobId = res.jobId;
+              this.pollJob(res.jobId);
+            } else {
+              this.awaitingJobId = null;
+              this.refreshChat();
+            }
+          },
+          error: () => {
+            this.sending.set(false);
+            this.awaitingJobId = null;
+            this.transcript.set(this.transcript().filter((m) => m.id !== localUser.id));
+            this.draft = content;
+            this.pendingFiles.set(files);
+            uploaded.forEach((a) => this.attachments.remove(a.id).subscribe());
+          },
+        });
       },
       error: () => {
         this.sending.set(false);
         this.awaitingJobId = null;
         this.transcript.set(this.transcript().filter((m) => m.id !== localUser.id));
         this.draft = content;
+        this.pendingFiles.set(files);
       },
     });
+  }
+
+  pickChatFiles(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const picked = Array.from(input.files ?? []);
+    input.value = '';
+    const next = [...this.pendingFiles()];
+    for (const file of picked) {
+      if (file.size > ATTACHMENT_MAX_BYTES) {
+        continue;
+      }
+      if (next.length >= ATTACHMENT_MAX_FILES) {
+        break;
+      }
+      next.push(file);
+    }
+    this.pendingFiles.set(next);
+  }
+
+  removePending(index: number) {
+    this.pendingFiles.set(this.pendingFiles().filter((_, i) => i !== index));
+  }
+
+  messageAttachments(messageId: string): Attachment[] {
+    return this.attachments.forMessage(messageId);
+  }
+
+  inspectorAttachments(): Attachment[] {
+    const obj = this.inspected();
+    return obj ? this.attachments.forObject(obj.id) : [];
+  }
+
+  addInspectorFiles(files: File[]) {
+    const obj = this.inspected();
+    if (!obj) {
+      return;
+    }
+    for (const file of files) {
+      this.attachments.upload(file, obj.id).subscribe();
+    }
+  }
+
+  removeInspectorFile(item: Attachment) {
+    this.attachments.remove(item.id).subscribe();
+  }
+
+  canSend(): boolean {
+    return !this.sending() && !!(this.draft.trim() || this.pendingFiles().length);
   }
 
   private pollJob(jobId: string) {

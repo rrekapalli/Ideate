@@ -1,5 +1,6 @@
 package com.ideate.context;
 
+import com.ideate.attachments.AttachmentService;
 import com.ideate.graph.GraphService;
 import com.ideate.orchestrator.ChatReplyCleaner;
 import com.ideate.graph.IdeaObject;
@@ -15,15 +16,23 @@ public class ProjectStateAssembler {
 
     private final GraphService graphService;
     private final TranscriptService transcriptService;
+    private final AttachmentService attachments;
     private final JdbcTemplate jdbc;
 
-    public ProjectStateAssembler(GraphService graphService, TranscriptService transcriptService, JdbcTemplate jdbc) {
+    public ProjectStateAssembler(GraphService graphService, TranscriptService transcriptService,
+                                 AttachmentService attachments, JdbcTemplate jdbc) {
         this.graphService = graphService;
         this.transcriptService = transcriptService;
+        this.attachments = attachments;
         this.jdbc = jdbc;
     }
 
     public String assemble(String workspaceId, String branchId, String utterance, List<String> focusIds) {
+        return assemble(workspaceId, branchId, utterance, focusIds, List.of());
+    }
+
+    public String assemble(String workspaceId, String branchId, String utterance, List<String> focusIds,
+                           List<String> turnAttachmentIds) {
         StringBuilder sb = new StringBuilder();
         WorkspaceBits bits = loadWorkspace(workspaceId);
         sb.append("You are helping a ").append(bits.persona)
@@ -91,6 +100,13 @@ public class ProjectStateAssembler {
         if (utterance != null && !utterance.isBlank()) {
             sb.append("\n=== LATEST USER MESSAGE (answer this) ===\n")
                     .append(utterance.trim()).append('\n');
+        } else if (turnAttachmentIds != null && !turnAttachmentIds.isEmpty()) {
+            sb.append("\n=== LATEST USER MESSAGE (answer this) ===\n")
+                    .append("(The user sent files without text. Use the attached extracts.)\n");
+        }
+        String extracts = attachments.extractsForTurn(workspaceId, turnAttachmentIds, focusIds);
+        if (extracts != null && !extracts.isBlank()) {
+            sb.append(extracts);
         }
         String out = sb.toString();
         if (out.length() > HARD_CAP_CHARS) {

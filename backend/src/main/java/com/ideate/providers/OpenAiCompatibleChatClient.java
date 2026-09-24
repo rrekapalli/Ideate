@@ -45,9 +45,9 @@ public class OpenAiCompatibleChatClient implements ChatClient {
             if (request.tokenBudget() > 0) {
                 body.put("max_tokens", Math.min(request.tokenBudget(), 1600));
             }
-            List<Map<String, String>> messages = new ArrayList<>();
+            List<Map<String, Object>> messages = new ArrayList<>();
             for (Message m : request.messages()) {
-                messages.add(Map.of("role", m.role(), "content", m.content()));
+                messages.add(encodeMessage(m));
             }
             body.put("messages", messages);
             if (request.enableTools()) {
@@ -139,6 +139,32 @@ public class OpenAiCompatibleChatClient implements ChatClient {
                         ),
                         "required", List.of("evaluationDisplayId")))
         );
+    }
+
+    private static Map<String, Object> encodeMessage(Message m) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("role", m.role());
+        if (!m.multimodal()) {
+            row.put("content", m.content() == null ? "" : m.content());
+            return row;
+        }
+        List<Map<String, Object>> parts = new ArrayList<>();
+        if (m.content() != null && !m.content().isBlank()) {
+            parts.add(Map.of("type", "text", "text", m.content()));
+        }
+        for (ContentPart part : m.parts()) {
+            if ("image".equals(part.type()) && part.dataBase64() != null) {
+                String mime = part.mimeType() == null || part.mimeType().isBlank() ? "image/png" : part.mimeType();
+                parts.add(Map.of(
+                        "type", "image_url",
+                        "image_url", Map.of("url", "data:" + mime + ";base64," + part.dataBase64())
+                ));
+            } else if (part.text() != null && !part.text().isBlank()) {
+                parts.add(Map.of("type", "text", "text", part.text()));
+            }
+        }
+        row.put("content", parts);
+        return row;
     }
 
     private static Map<String, Object> fn(String name, Map<String, Object> parameters) {

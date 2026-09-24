@@ -36,7 +36,10 @@ public final class ApiDtos {
 
     public record CreateEdgeBody(String type, String fromObjectId, String toObjectId, String why, String branchId) {}
 
-    public record TurnBody(String content, String mode, String branchId, String jobClass, List<String> focusObjectIds) {}
+    public record TurnBody(String content, String mode, String branchId, String jobClass, List<String> focusObjectIds,
+                           List<String> attachmentIds) {}
+
+    public record LinkAttachmentBody(String objectId) {}
 
     public record JobBody(String jobClass, String mode, String agent, List<String> focusObjectIds) {}
 

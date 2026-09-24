@@ -187,7 +187,17 @@
                     }
                     <time class="when" [attr.datetime]="m.createdAt">{{ chatWhen(m.createdAt) }}</time>
                   </div>
-                  <ideate-md [source]="chatText(m)" />
+                  @if (chatText(m)) {
+                    <ideate-md [source]="chatText(m)" />
+                  }
+                  @if (messageAttachments(m.id).length) {
+                    <ideate-attachment-list
+                      [items]="messageAttachments(m.id)"
+                      [compact]="true"
+                      [canAdd]="false"
+                      [canRemove]="false"
+                    />
+                  }
                 </article>
               }
               @if (waitingForReply()) {
@@ -216,6 +226,14 @@
               </p>
               <p class="muted">{{ lookupLabel(obj.type) }} · {{ lookupLabel(obj.objectCategory) }} · v{{ obj.version }}</p>
               <ideate-md [source]="obj.summary || obj.body || 'No body yet.'" />
+              <div class="inspect-files">
+                <ideate-attachment-list
+                  [items]="inspectorAttachments()"
+                  [canAdd]="true"
+                  (addFiles)="addInspectorFiles($event)"
+                  (remove)="removeInspectorFile($event)"
+                />
+              </div>
               <mt-button size="sm" [label]="'Open tab'" (clicked)="openObject(obj)" />
             } @else {
               <p class="muted">Select a card to inspect it.</p>
@@ -244,8 +262,22 @@
               <option [value]="m">{{ lookupLabel(m) }}</option>
             }
           </select>
+          @if (pendingFiles().length) {
+            <ul class="pending-files">
+              @for (file of pendingFiles(); track file.name + $index; let i = $index) {
+                <li>
+                  <span>{{ file.name }}</span>
+                  <button type="button" (click)="removePending(i)" aria-label="Remove file">×</button>
+                </li>
+              }
+            </ul>
+          }
           <textarea [(ngModel)]="draft" rows="2" placeholder="Think out loud…" (keydown.control.enter)="send()"></textarea>
-          <mt-button icon="send" [label]="'Send'" [disabled]="sending()" (clicked)="send()" />
+          <div class="composer-actions">
+            <input #chatFiles type="file" hidden multiple [attr.accept]="acceptFiles" (change)="pickChatFiles($event)" />
+            <mt-button variant="icon" icon="attach_file" ariaLabel="Attach files" (clicked)="chatFiles.click()" />
+            <mt-button icon="send" [label]="'Send'" [disabled]="!canSend()" (clicked)="send()" />
+          </div>
         </div>
       }
       <ideate-drawer-resize

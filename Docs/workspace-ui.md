@@ -143,7 +143,7 @@ Each node is a **card** with three bands. One Angular component per object type.
 | --- | --- |
 | **Header** | Category color/symbol, display id, **type (editable)**, title, version, and a **manual actions** menu. See [Header actions](#header-actions). |
 | **Body** | A **short** summary (a few sentences) — stored `summary`. |
-| **Footer** | Tag chips. **Chat ref** to the user question + AI reply ([object-model.md](./object-model.md#chat-references)). |
+| **Footer** | Tag chips. **Chat ref** to the user question + AI reply ([object-model.md](./object-model.md#chat-references)). **Paperclip** to attach files (images, PDF, DOCX, text) to this card. |
 
 Click on the body (or title) → [full object page](#full-object-page). Header controls use `stopPropagation` so they do not open the page. Click an edge → highlight endpoints; no third card.
 
@@ -169,6 +169,7 @@ A complete reading surface (editor tab or route `/workspaces/:id/objects/:id`):
 - Header: same identity chrome and **[header actions](#header-actions)** (type, new node, new branch, ⋯).
 - **Main:** the **elaborate body** — the full persisted AI idea text (and later user edits). Not a teaser.
 - **References:** the **user message** and the **assistant message** for this version (timestamps, excerpts, jump into the Chat rail). Required for AI-generated versions. See [Chat references](./object-model.md#chat-references).
+- **Attachments:** files hung on this card (preview / download / remove). Not the Documents tree.
 - Provenance: `generated_by`, attachments, edges.
 
 The transcript still holds *what was said*. The object page holds *the idea as materialized*. If the user edited the graph, HEAD may differ from the original model text; show a diff.
@@ -196,9 +197,9 @@ Same drawer primitive as the left: **fixed header**, **scrolling body**, **fixed
 
 | Item | Body (scroll) | Footer (fixed) |
 | --- | --- | --- |
-| **Chat** | Timestamped turns, oldest → newest. Click a message → cards it created. | **Composer** (mode + message + Send). Never scrolls off. |
+| **Chat** | Timestamped turns, oldest → newest. Click a message → cards it created. File chips under messages that have attachments. | **Composer** (mode + paperclip + message + Send). Never scrolls off. |
 | Insights | Graph events only (contradiction, new link, listed object ids). | Dismiss / apply selected event. |
-| Inspector | Fields of the selected card (peek). | Attach / change type shortcuts. Full essay remains the object **tab**. |
+| Inspector | Fields of the selected card (peek), plus attachments on this card. | Attach / change type shortcuts. Full essay remains the object **tab**. |
 | Outline | Mini structure of the graph / current page. | — |
 
 Chat (required):
@@ -211,9 +212,11 @@ Chat (required):
 │ 14:02  Ideate                                 │
 │        Created H-017, C-041…                  │
 ├ footer (fixed) ───────────────────────────────┤
-│ [ Mode ▾ ]  Message…                    Send  │
+│ [ Mode ▾ ]  Message…              📎   Send  │
 └───────────────────────────────────────────────┘
 ```
+
+The composer paperclip uploads files to Ideate’s local workspace store, then the turn sends their ids. Bytes stay on disk; the model receives **capped text extracts** (and images only if the provider is multimodal). Documents in the left tree remain SharePoint-class **URL links**.
 
 Sending a turn materializes cards. Each card stores **this user message + this assistant message**. From a card, **Open in Chat** scrolls the **body** to both sides of that turn; the footer composer stays put.
 

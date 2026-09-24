@@ -77,6 +77,24 @@ export interface TranscriptMessage {
   createdAt: string;
 }
 
+export interface Attachment {
+  id: string;
+  workspaceId: string;
+  objectId?: string | null;
+  messageId?: string | null;
+  originalName: string;
+  contentType: string;
+  byteSize: number;
+  extractStatus: string;
+  createdAt: string;
+}
+
+export const ATTACHMENT_ACCEPT =
+  '.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.txt,.csv,.md,.xlsx,.pptx,image/png,image/jpeg,image/gif,image/webp,application/pdf';
+
+export const ATTACHMENT_MAX_FILES = 8;
+export const ATTACHMENT_MAX_BYTES = 15 * 1024 * 1024;
+
 export interface TurnResult {
   assistantMessageId?: string;
   assistantText: string;

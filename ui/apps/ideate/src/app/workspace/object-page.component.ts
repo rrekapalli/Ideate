@@ -1,6 +1,7 @@
-import { Component, computed, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
+  Attachment,
   IdeaObject,
   JobRecord,
   OBJECT_TYPES,
@@ -13,10 +14,12 @@ import {
 import { MtButtonComponent, MtTabComponent, MtTabsComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
+import { AttachmentListComponent } from '../shared/attachment-list.component';
+import { AttachmentStore } from './attachment.store';
 
 @Component({
   selector: 'ideate-object-page',
-  imports: [FormsModule, MtButtonComponent, MtTabsComponent, MtTabComponent, MdViewComponent, TypeGlyphComponent],
+  imports: [FormsModule, MtButtonComponent, MtTabsComponent, MtTabComponent, MdViewComponent, TypeGlyphComponent, AttachmentListComponent],
   template: `
     <div class="page">
       <nav class="crumb" aria-label="Path from parent">
@@ -82,6 +85,15 @@ import { TypeGlyphComponent } from '../shared/type-glyph.component';
                 }
               </section>
             }
+            <section class="source files">
+              <h2>Attachments</h2>
+              <ideate-attachment-list
+                [items]="attachments()"
+                [canAdd]="true"
+                (addFiles)="addFiles($event)"
+                (remove)="removeFile($event)"
+              />
+            </section>
           </div>
         </mt-tab>
         <mt-tab value="stats" label="Stats">
@@ -253,7 +265,8 @@ import { TypeGlyphComponent } from '../shared/type-glyph.component';
     .essay ::ng-deep .md p { margin: 0 0 0.85em; }
     .source { margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--mt-surface-border, #e5e7eb); }
     .source--solo { margin-top: 0; padding-top: 0; border-top: 0; }
-    .source h2, .stats h2 {
+    .files { margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--mt-surface-border, #e5e7eb); }
+    .source h2, .stats h2, .files h2 {
       margin: 0 0 0.65rem;
       font-size: 0.78rem;
       letter-spacing: 0.04em;
@@ -300,6 +313,7 @@ import { TypeGlyphComponent } from '../shared/type-glyph.component';
   `,
 })
 export class ObjectPageComponent {
+  private readonly attachmentsStore = inject(AttachmentStore);
   readonly object = input.required<IdeaObject>();
   readonly trail = input<IdeaObject[]>([]);
   readonly userMessage = input<TranscriptMessage | null>(null);
@@ -318,6 +332,17 @@ export class ObjectPageComponent {
     const trail = this.trail();
     return trail.length ? trail : [this.object()];
   });
+  readonly attachments = computed(() => this.attachmentsStore.forObject(this.object().id));
+
+  addFiles(files: File[]) {
+    for (const file of files) {
+      this.attachmentsStore.upload(file, this.object().id).subscribe();
+    }
+  }
+
+  removeFile(item: Attachment) {
+    this.attachmentsStore.remove(item.id).subscribe();
+  }
 
   distinctPageCopy(): string | null {
     const raw = ((this.object().body || this.object().summary || '') + '').trim();
