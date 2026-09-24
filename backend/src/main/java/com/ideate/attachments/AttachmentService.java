@@ -398,7 +398,8 @@ public class AttachmentService {
         }
         String type = String.valueOf(found.getFirst().get("type"));
         String displayId = String.valueOf(found.getFirst().get("display_id"));
-        return root + "/" + folderSegment(typeFolder(type)) + "/" + folderSegment(displayId) + "/" + file;
+        String named = storedFileName(originalName, displayId, attachmentId);
+        return root + "/" + folderSegment(typeFolder(type)) + "/" + named;
     }
 
     private String workspaceFolder(String workspaceId) {
@@ -451,6 +452,22 @@ public class AttachmentService {
             return singular.substring(0, singular.length() - 1) + "ies";
         }
         return singular + "s";
+    }
+
+    private String storedFileName(String originalName, String displayId, String attachmentId) {
+        String safe = fileSegment(originalName);
+        int dot = safe.lastIndexOf('.');
+        String base = dot > 0 ? safe.substring(0, dot) : safe;
+        String ext = dot > 0 ? safe.substring(dot) : "";
+        String id = folderSegment(displayId).replace(' ', '_');
+        String named = id + "_" + base + ext;
+        Integer taken = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM attachment WHERE storage_key LIKE ? AND id <> ?",
+                Integer.class, "%/" + named, attachmentId);
+        if (taken != null && taken > 0) {
+            return id + "_" + base + "_" + safeSegment(attachmentId) + ext;
+        }
+        return named;
     }
 
     private static String fileSegment(String name) {

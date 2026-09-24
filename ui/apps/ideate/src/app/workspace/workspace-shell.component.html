@@ -34,6 +34,7 @@
               [persona]="workspace()?.persona ?? ''"
               [workspaceKind]="'workspace'"
               (open)="openDocument($event)"
+              (openFile)="openAttachmentTab($event)"
               (changed)="reloadAll()"
             />
           }
@@ -65,7 +66,7 @@
             <ideate-type-glyph [type]="tab.object.type" [size]="12" />
           } @else if (tab.kind === 'settings') {
             <mt-icon name="settings" [size]="12" />
-          } @else if (tab.kind === 'document') {
+          } @else if (tab.kind === 'document' || tab.kind === 'attachment') {
             <mt-icon name="description" [size]="12" />
           } @else {
             <mt-icon name="sitemap" [size]="12" />
@@ -104,6 +105,18 @@
             (openChat)="jumpChat($event)"
             (open)="openObject($event)"
           />
+        } @else if (tab.kind === 'attachment') {
+          <div class="file-view">
+            @if (filePreview()[tab.attachment.id]; as preview) {
+              @if (preview.text !== null) {
+                <pre>{{ preview.text }}</pre>
+              } @else if (preview.image) {
+                <img [src]="preview.imageSrc" [alt]="tab.attachment.originalName" />
+              } @else {
+                <iframe [src]="preview.src" [title]="tab.attachment.originalName"></iframe>
+              }
+            }
+          </div>
         } @else if (tab.kind === 'settings') {
           <ideate-settings-page
             [name]="workspace()?.name ?? ''"

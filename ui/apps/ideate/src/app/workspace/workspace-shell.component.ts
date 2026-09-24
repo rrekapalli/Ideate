@@ -1,4 +1,5 @@
 import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription, forkJoin, of } from 'rxjs';
@@ -42,6 +43,7 @@ type EditorTab =
   | { kind: 'graph' }
   | { kind: 'object'; object: IdeaObject }
   | { kind: 'document'; item: DocumentItem }
+  | { kind: 'attachment'; attachment: Attachment }
   | { kind: 'settings' };
 
 type LeftTab = 'objects' | 'documents' | 'branches';
@@ -59,6 +61,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly confirm = inject(MtConfirm);
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly fileObjectUrls = new Map<string, string>();
+  readonly filePreview = signal<Record<string, { src: SafeResourceUrl; imageSrc: SafeUrl; image: boolean; text: string | null }>>({});
   readonly shell = inject(ShellContextService);
   readonly newNodeOpen = signal(false);
   readonly newNodeParent = signal<IdeaObject | null>(null);
@@ -151,6 +156,10 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.shell.settingsOpen.set(false);
     this.shell.clearWorkspace();
     this.attachments.clear();
+    for (const url of this.fileObjectUrls.values()) {
+      URL.revokeObjectURL(url);
+    }
+    this.fileObjectUrls.clear();
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -207,6 +216,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     if (tab.kind === 'graph') return 'graph';
     if (tab.kind === 'settings') return 'settings';
     if (tab.kind === 'object') return 'obj-' + tab.object.id;
+    if (tab.kind === 'attachment') return 'att-' + tab.attachment.id;
     return 'doc-' + tab.item.id;
   }
 
@@ -214,6 +224,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     if (tab.kind === 'graph') return 'Graph';
     if (tab.kind === 'settings') return 'Settings';
     if (tab.kind === 'object') return tab.object.displayId;
+    if (tab.kind === 'attachment') return tab.attachment.originalName;
     return tab.item.name;
   }
 
@@ -239,6 +250,45 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.syncSettingsNav();
   }
 
+  private loadAttachmentPreview(item: Attachment) {
+    this.attachments.content(item.id).subscribe((blob) => {
+      const image = (item.contentType || blob.type || '').startsWith('image/');
+      const textType = (item.contentType || blob.type || '').startsWith('text/')
+        || /\.(txt|md|csv)$/i.test(item.originalName);
+      const url = URL.createObjectURL(blob);
+      const previous = this.fileObjectUrls.get(item.id);
+      if (previous) URL.revokeObjectURL(previous);
+      this.fileObjectUrls.set(item.id, url);
+      const finish = (text: string | null) => {
+        this.filePreview.update((map) => ({
+          ...map,
+          [item.id]: {
+            src: this.sanitizer.bypassSecurityTrustResourceUrl(url),
+            imageSrc: this.sanitizer.bypassSecurityTrustUrl(url),
+            image,
+            text,
+          },
+        }));
+      };
+      if (textType) {
+        blob.text().then(finish);
+      } else {
+        finish(null);
+      }
+    });
+  }
+
+  private dropAttachmentPreview(id: string) {
+    const url = this.fileObjectUrls.get(id);
+    if (url) URL.revokeObjectURL(url);
+    this.fileObjectUrls.delete(id);
+    this.filePreview.update((map) => {
+      const next = { ...map };
+      delete next[id];
+      return next;
+    });
+  }
+
   private syncSettingsNav() {
     this.shell.settingsOpen.set(this.currentTab()?.kind === 'settings');
   }
@@ -256,6 +306,20 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.syncSettingsNav();
   }
 
+  openAttachmentTab(item: Attachment) {
+    const tabs = this.tabs();
+    const idx = tabs.findIndex((t) => t.kind === 'attachment' && t.attachment.id === item.id);
+    if (idx >= 0) {
+      this.activeTab.set(idx);
+      this.syncSettingsNav();
+      return;
+    }
+    this.tabs.set([...tabs, { kind: 'attachment', attachment: item }]);
+    this.activeTab.set(this.tabs().length - 1);
+    this.syncSettingsNav();
+    this.loadAttachmentPreview(item);
+  }
+
   openDocument(item: DocumentItem) {
     const tabs = this.tabs();
     const idx = tabs.findIndex((t) => t.kind === 'document' && t.item.id === item.id);
@@ -270,6 +334,10 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   }
 
   closeTab(i: number) {
+    const closing = this.tabs()[i];
+    if (closing?.kind === 'attachment') {
+      this.dropAttachmentPreview(closing.attachment.id);
+    }
     const next = this.tabs().filter((_, idx) => idx !== i);
     this.tabs.set(next);
     this.activeTab.set(Math.min(this.activeTab(), Math.max(0, next.length - 1)));

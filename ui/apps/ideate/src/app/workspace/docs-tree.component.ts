@@ -61,21 +61,25 @@ type VisibleRow = { node: DocTreeNode; depth: number };
             } @else {
               <mt-icon name="folder" [size]="14" />
             }
-            <button type="button" class="name" (click)="row.node.kind === 'folder' ? focusFolder(row.node.id) : toggleExpand(row.node.id)">
+            <button
+              type="button"
+              class="name"
+              [title]="row.node.kind === 'node' ? row.node.object.title : row.node.name"
+              (click)="row.node.kind === 'folder' ? focusFolder(row.node.id) : toggleExpand(row.node.id)"
+            >
               @if (row.node.kind === 'root') {
                 <span class="strong">{{ row.node.name }}</span>
                 <span class="sub">{{ lookupLabel(row.node.workspaceKind) }} · {{ lookupLabel(row.node.persona) }}</span>
+              } @else if (row.node.kind === 'node') {
+                <span class="id">{{ row.node.displayId }}</span>
               } @else {
-                @if (row.node.kind === 'node') {
-                  <span class="id">{{ row.node.displayId }}</span>
-                }
                 {{ row.node.name }}
               }
             </button>
           } @else if (row.node.kind === 'attachment') {
             <span class="twist"></span>
             <mt-icon name="description" [size]="14" />
-            <button type="button" class="name" (dblclick)="openAttachment(row.node.attachment)">{{ row.node.name }}</button>
+            <button type="button" class="name" (dblclick)="openFile.emit(row.node.attachment)">{{ row.node.name }}</button>
           } @else if (row.node.kind === 'file') {
             <span class="twist"></span>
             <mt-icon name="description" [size]="14" />
@@ -119,6 +123,7 @@ export class DocsTreeComponent {
   readonly lookupLabel = lookupLabel;
   readonly personaIcon = personaIcon;
   readonly open = output<DocumentItem>();
+  readonly openFile = output<Attachment>();
   readonly changed = output<void>();
 
   readonly selectedIds = signal<Set<string>>(new Set());
@@ -180,14 +185,6 @@ export class DocsTreeComponent {
       return !this.collapsed().has(node.id);
     }
     return this.expanded().has(node.id);
-  }
-
-  openAttachment(item: Attachment): void {
-    this.api.attachmentContent(this.workspaceId(), item.id).subscribe((blob) => {
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    });
   }
 
   toggleExpand(id: string): void {
@@ -346,34 +343,42 @@ function buildAttachmentTree(nodes: IdeaObject[], attachments: Attachment[]): Do
     list.push(object);
     byType.set(object.type, list);
   }
-  const groups: DocTreeNode[] = [...byType.entries()].map(([type, objects]) => ({
-    kind: 'group' as const,
-    id: 'type:' + type,
-    name: lookupPluralLabel(type) + ' - (' + objects.length + ')',
-    type,
-    children: objects.map((object) => ({
-      kind: 'node' as const,
-      id: object.id,
-      name: object.title || 'Untitled',
-      displayId: object.displayId,
-      object,
-      children: (byObject.get(object.id) ?? []).map(attachmentNode),
-    })),
-  }));
+  const groups: DocTreeNode[] = [...byType.entries()].map(([type, objects]) => {
+    const files = objects.flatMap((object) =>
+      (byObject.get(object.id) ?? []).map((file) => attachmentNode(file, object.displayId)),
+    );
+    return {
+      kind: 'group' as const,
+      id: 'type:' + type,
+      name: lookupPluralLabel(type) + ' - (' + files.length + ')',
+      type,
+      children: files,
+    };
+  });
   if (misc.length) {
     groups.push({
       kind: 'group',
       id: 'type:misc',
       name: 'Misc - (' + misc.length + ')',
       type: null,
-      children: misc.map(attachmentNode),
+      children: misc.map((file) => attachmentNode(file)),
     });
   }
   return groups;
 }
 
-function attachmentNode(file: Attachment): DocTreeNode {
-  return { kind: 'attachment', id: file.id, name: file.originalName, attachment: file };
+function attachmentNode(file: Attachment, displayId?: string): DocTreeNode {
+  return { kind: 'attachment', id: file.id, name: labeledFileName(file.originalName, displayId), attachment: file };
+}
+
+function labeledFileName(originalName: string, displayId?: string): string {
+  if (!displayId) {
+    return originalName;
+  }
+  const dot = originalName.lastIndexOf('.');
+  const base = dot > 0 ? originalName.slice(0, dot) : originalName;
+  const ext = dot > 0 ? originalName.slice(dot) : '';
+  return displayId + '_' + base + ext;
 }
 
 function buildDocTree(folders: DocumentFolder[], items: DocumentItem[]): DocTreeNode[] {
