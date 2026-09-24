@@ -42,6 +42,7 @@ import { ancestorPath } from './chat-context';
 import { SettingsPageComponent } from './settings-page.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { AttachmentStore } from './attachment.store';
+import { reportFileName as formatReportFileName, resolveReportTitle } from './report-display';
 
 type EditorTab =
   | { kind: 'graph' }
@@ -230,7 +231,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     if (tab.kind === 'settings') return 'settings';
     if (tab.kind === 'object') return 'obj-' + tab.object.id;
     if (tab.kind === 'attachment') return 'att-' + tab.attachment.id;
-    if (tab.kind === 'report') return 'rpt-' + tab.reportId;
+    if (tab.kind === 'report') {
+      return tab.version?.id ? 'rpt-' + tab.version.id : 'rpt-pending-' + tab.reportId;
+    }
     return 'doc-' + tab.item.id;
   }
 
@@ -244,8 +247,27 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   }
 
   reportFileName(version: WorkspaceReportVersion | null): string {
-    const title = version?.title || this.report()?.title || 'Workspace report';
-    return title.toLowerCase().endsWith('.md') ? title : `${title}.md`;
+    const base = formatReportFileName(this.reportHeading(version)).replace(/\.md$/i, '');
+    if (version?.version) {
+      return `${base}-v${version.version}.md`;
+    }
+    return `${base}.md`;
+  }
+
+  reportHeading(version: WorkspaceReportVersion | null): string {
+    return resolveReportTitle({
+      versionTitle: version?.title || this.report()?.title,
+      body: version?.body,
+      workspaceName: this.workspace()?.name,
+      questionTitle: this.primaryQuestionTitle(),
+    });
+  }
+
+  primaryQuestionTitle(): string {
+    const questions = this.graph().nodes
+      .filter((n) => n.type === 'question' && !!n.title?.trim())
+      .sort((a, b) => (a.displayId || '').localeCompare(b.displayId || '', undefined, { numeric: true }));
+    return questions[0]?.title?.trim() || '';
   }
 
   reportGenerating(): boolean {
@@ -391,8 +413,14 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       const tabs = this.tabs().map((tab) => {
         if (tab.kind !== 'report' || !report) return tab;
         if (tab.reportId !== report.id && tab.reportId !== 'pending') return tab;
-        const keep = tab.version ? versions.find((v) => v.id === tab.version?.id) : null;
-        return { kind: 'report' as const, reportId: report.id, version: keep ?? latest };
+        if (tab.version) {
+          const keep = versions.find((v) => v.id === tab.version?.id);
+          return keep ? { kind: 'report' as const, reportId: report.id, version: keep } : tab;
+        }
+        if (latest && report.status === 'ready') {
+          return { kind: 'report' as const, reportId: report.id, version: latest };
+        }
+        return { kind: 'report' as const, reportId: report.id, version: null };
       });
       this.tabs.set(tabs);
       if (latest && !this.activeReportVersionId()) {
@@ -400,6 +428,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       }
       if (opts?.open && report) {
         this.openReportTab(report.id, latest);
+      }
+      if (report?.status === 'ready') {
+        this.attachments.load(this.workspaceId);
       }
     });
   }
@@ -431,12 +462,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   private markReportBusy(status: 'preparing' | 'updating') {
     this.reportJobStatus.set('queued');
     const current = this.report();
-    const latest = this.reportVersions().length
-      ? this.reportVersions()[this.reportVersions().length - 1]
-      : null;
     if (current) {
       this.report.set({ ...current, status, error: null });
-      this.openReportTab(current.id, latest);
+      this.openReportTab(current.id, null);
       return;
     }
     this.report.set({
@@ -465,9 +493,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   openReportTab(reportId: string, version: WorkspaceReportVersion | null) {
     this.activeReportVersionId.set(version?.id ?? null);
     const tabs = this.tabs();
-    const idx = tabs.findIndex(
-      (t) => t.kind === 'report' && (t.reportId === reportId || t.reportId === 'pending' || reportId === 'pending'),
-    );
+    const key = version?.id ? 'rpt-' + version.id : 'rpt-pending-' + reportId;
+    const idx = tabs.findIndex((t) => this.tabKey(t) === key);
     const next: EditorTab = { kind: 'report', reportId, version };
     if (idx >= 0) {
       const copy = [...tabs];
@@ -497,6 +524,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
             this.awaitingReportJobId = null;
             this.clearReportPoll();
             this.loadReport({ open: true });
+            this.attachments.load(this.workspaceId);
             this.api.jobs(this.workspaceId).subscribe((j) => this.jobs.set(j));
             if (job.status === 'applied') {
               this.reportJobStatus.set(null);

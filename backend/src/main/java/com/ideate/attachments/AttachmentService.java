@@ -178,6 +178,16 @@ public class AttachmentService {
         return get(workspaceId, id);
     }
 
+    public boolean hasGenerated(String workspaceId, String folder, String originalName) {
+        String original = sanitizeName(originalName);
+        String dir = folderSegment(folder == null || folder.isBlank() ? "Reports" : folder);
+        String storageKey = workspaceFolder(workspaceId) + "/" + dir + "/" + fileSegment(original);
+        Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM attachment WHERE workspace_id = ? AND storage_key = ?",
+                Integer.class, workspaceId, storageKey);
+        return n != null && n > 0;
+    }
+
     public Attachment get(String workspaceId, String attachmentId) {
         List<Attachment> found = jdbc.query("""
                 SELECT id, workspace_id, object_id, message_id, original_name, content_type,

@@ -1,6 +1,38 @@
 let mermaidMod: typeof import('mermaid') | null = null;
 let seq = 0;
 
+const DIAGRAM_HEADER = /^(sequenceDiagram|stateDiagram(?:-v2)?|flowchart(?:\s+\w+)?|graph(?:\s+\w+)?)\s*$/i;
+
+export function normalizeMermaidSource(source: string): string {
+  let s = (source ?? '').replace(/\r\n/g, '\n').trim();
+  s = s.replace(/^```(?:mermaid)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  if (!s) {
+    return s;
+  }
+  const lines = s.split('\n');
+  const dropHeader = DIAGRAM_HEADER.test(lines[0].trim());
+  const body = (dropHeader ? lines.slice(1) : lines).join('\n');
+  const mixed = dropHeader ? s : `x\n${s}`;
+  const usesParticipants = /\bparticipant\b/i.test(mixed) || /\bnote\s+(left|right|over|above|below)\b/i.test(mixed);
+  if (usesParticipants) {
+    return (
+      'sequenceDiagram\n' +
+      body
+        .replace(/\bnote\s+left\s+of\s+(?:participant\s+)?(\w+)\s*:/gi, 'Note left of $1:')
+        .replace(/\bnote\s+right\s+of\s+(?:participant\s+)?(\w+)\s*:/gi, 'Note right of $1:')
+        .replace(/\bnote\s+(?:above|below|over)\s+(?:participant\s+)?(\w+)\s*:/gi, 'Note over $1:')
+        .replace(/(Note (?:left of|right of|over) \w+:)\s*"?([^"\n]*?)"?\s*$/gim, '$1 "$2"')
+    ).trim();
+  }
+  if (/\[\*\]/.test(s) || /\bstate\s+\w+/i.test(s)) {
+    return (dropHeader && /^stateDiagram/i.test(lines[0].trim()) ? s : `stateDiagram-v2\n${body}`).trim();
+  }
+  if (/\bflowchart\b|\bgraph\s+(TD|LR|TB|RL)\b/i.test(s) || /-->/.test(s)) {
+    return (dropHeader ? s : `flowchart TD\n${body}`).trim();
+  }
+  return s;
+}
+
 export async function renderMermaidSvg(source: string, dark: boolean): Promise<string> {
   if (!mermaidMod) {
     mermaidMod = await import('mermaid');

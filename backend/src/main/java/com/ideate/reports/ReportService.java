@@ -36,13 +36,16 @@ public class ReportService {
             Keep abandoned hypotheses and misconceptions as history. Keep unknowns, questions, targets, and estimates labeled.
             If the graph is thin, say the exploration has not reached a conclusion.
             Do not mention cards, nodes, edges, tools, JSON, or that you are an AI.
-            You may include at most one ```mermaid fence (flowchart, sequenceDiagram, or stateDiagram-v2) when a figure carries the argument.
+            You may include at most one mermaid fence when a figure carries the argument. Use one diagram type and matching syntax only:
+            flowchart TD  OR  sequenceDiagram (participant / Note left of Name:)  OR  stateDiagram-v2 (state and [*] transitions).
+            Never mix those. Never put participant lines in a stateDiagram.
             Reply in this exact shape:
 
-            TITLE: <short title>
+            TITLE: <the workspace's central question, or the workspace name — never the words Title, Question, or Report>
             SUMMARY: <2–4 sentences>
             BODY:
             Markdown report with sections for the question, established facts (cite display ids), reasoning, conclusions, dropped lines, and still open.
+            Do not repeat TITLE, SUMMARY, or BODY labels inside the markdown.
             """;
 
     private final JdbcTemplate jdbc;
@@ -82,7 +85,13 @@ public class ReportService {
         if (report == null) {
             return new ReportBundle(null, List.of());
         }
-        return new ReportBundle(report, versions(report.id()));
+        List<ReportVersion> vers = versions(report.id());
+        if ("ready".equals(report.status())) {
+            for (ReportVersion ver : vers) {
+                storeMarkdownInDocsIfMissing(workspaceId, ver);
+            }
+        }
+        return new ReportBundle(report, vers);
     }
 
     public JobService.JobRecord prepare(String accountId, String workspaceId, String branchId) {
@@ -183,7 +192,8 @@ public class ReportService {
                 fail(reportId, jobId, completion.error(), update);
                 return;
             }
-            ReportDraftParser.Draft draft = ReportDraftParser.parse(completion.text());
+            ReportDraftParser.Draft draft = ReportDraftParser.parse(
+                    completion.text(), workspaceName, primaryQuestionTitle(snapshot));
             if (draft.body() == null || draft.body().isBlank()) {
                 fail(reportId, jobId, "The model returned an empty report.", update);
                 return;
@@ -203,6 +213,7 @@ public class ReportService {
                     SET status = 'ready', current_version = ?, title = ?, error = NULL, updated_at = now()
                     WHERE id = ?
                     """, version, draft.title(), reportId);
+            storeMarkdownInDocs(workspaceId, draft.title(), draft.summary(), draft.body(), version);
             jobs.markApplied(jobId, List.of(reportId));
             credits.debit(accountId, workspaceId, jobId, "DEEP");
         } catch (Exception ex) {
@@ -344,8 +355,42 @@ public class ReportService {
                 String.class, workspaceId);
     }
 
+    private void storeMarkdownInDocsIfMissing(String workspaceId, ReportVersion ver) {
+        String filename = export.filename(ver.title(), ver.version(), "md");
+        try {
+            if (attachments.hasGenerated(workspaceId, "Reports", filename)) {
+                return;
+            }
+        } catch (Exception ex) {
+            log.warn("Could not check Docs for generated report markdown: {}", ex.getMessage());
+        }
+        storeMarkdownInDocs(workspaceId, ver.title(), ver.summary(), ver.body(), ver.version());
+    }
+
+    private void storeMarkdownInDocs(String workspaceId, String title, String summary, String body, int version) {
+        try {
+            byte[] bytes = export.render(title, summary, body, "md", List.of());
+            String filename = export.filename(title, version, "md");
+            attachments.storeGenerated(workspaceId, "Reports", filename, export.contentType("md"), bytes);
+        } catch (Exception ex) {
+            log.warn("Could not keep generated report markdown in Docs: {}", ex.getMessage());
+        }
+    }
+
     private static boolean busy(String status) {
         return "preparing".equals(status) || "updating".equals(status);
+    }
+
+    private static String primaryQuestionTitle(GraphService.GraphSnapshot snapshot) {
+        if (snapshot == null || snapshot.nodes() == null) {
+            return null;
+        }
+        return snapshot.nodes().stream()
+                .filter(n -> "question".equals(n.type()) && hasText(n.title()))
+                .sorted((a, b) -> String.valueOf(a.displayId()).compareToIgnoreCase(String.valueOf(b.displayId())))
+                .map(n -> n.title().trim())
+                .findFirst()
+                .orElse(null);
     }
 
     private static boolean hasText(String value) {

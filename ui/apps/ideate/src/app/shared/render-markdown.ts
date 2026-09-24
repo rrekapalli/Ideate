@@ -5,7 +5,7 @@ export type MarkdownDocument = {
   diagrams: string[];
 };
 
-const FENCE_RE = /```([a-zA-Z0-9_-]*)[ \t]*\n([\s\S]*?)```/g;
+const FENCE_RE = /`{3,}([a-zA-Z0-9_-]*)[ \t]*\r?\n?([\s\S]*?)`{3,}/g;
 
 export function hasMermaidFence(source: string | null | undefined): boolean {
   return /```mermaid\b/i.test(source ?? '');
@@ -60,9 +60,10 @@ function renderBlock(block: string): string {
     return '';
   }
   const heading = lines[0].match(/^(#{1,3})\s+(.+)$/);
-  if (heading && lines.length === 1) {
+  if (heading) {
     const n = heading[1].length;
-    return `<h${n}>${heading[2]}</h${n}>`;
+    const rest = lines.slice(1);
+    return `<h${n}>${heading[2]}</h${n}>` + (rest.length ? renderBlock(rest.join('\n')) : '');
   }
   if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
     return `<ul>${lines.map((l) => `<li>${l.replace(/^\s*[-*]\s+/, '')}</li>`).join('')}</ul>`;

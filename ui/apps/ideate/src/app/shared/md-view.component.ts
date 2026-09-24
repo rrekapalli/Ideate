@@ -2,7 +2,7 @@ import { Component, ElementRef, SecurityContext, afterEveryRender, computed, inj
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ThemeService } from '../core/theme/theme.service';
 import { renderMarkdown } from './render-markdown';
-import { renderMermaidSvg } from './render-mermaid';
+import { renderMermaidSvg, normalizeMermaidSource } from './render-mermaid';
 
 @Component({
   selector: 'ideate-md',
@@ -105,22 +105,39 @@ export class MdViewComponent {
       if (!source) {
         continue;
       }
+      const toRender =
+        /stateDiagram/i.test(source) && /\bparticipant\b/i.test(source)
+          ? normalizeMermaidSource(source)
+          : source;
       try {
-        const svg = await renderMermaidSvg(source, dark);
+        const svg = await renderMermaidSvg(toRender, dark);
         if (gen !== this.paintGen) {
           return;
         }
         slot.innerHTML = svg;
       } catch {
-        if (gen !== this.paintGen) {
-          return;
+        try {
+          const svg = await renderMermaidSvg(normalizeMermaidSource(source), dark);
+          if (gen !== this.paintGen) {
+            return;
+          }
+          slot.innerHTML = svg;
+        } catch {
+          if (gen !== this.paintGen) {
+            return;
+          }
+          slot.innerHTML = '';
+          const fallback = document.createElement('pre');
+          fallback.className = 'mermaid-fallback';
+          fallback.textContent = '```mermaid\n' + source + '\n```';
+          slot.appendChild(fallback);
         }
-        slot.innerHTML = '';
-        const fallback = document.createElement('pre');
-        fallback.className = 'mermaid-fallback';
-        fallback.textContent = '```mermaid\n' + source + '\n```';
-        slot.appendChild(fallback);
       }
+      document.querySelectorAll('body > svg, body > div').forEach((el) => {
+        if (/syntax error in text mermaid/i.test(el.textContent || '')) {
+          el.remove();
+        }
+      });
     }
   }
 }

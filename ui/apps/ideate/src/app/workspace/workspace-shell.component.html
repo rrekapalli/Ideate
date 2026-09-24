@@ -150,10 +150,11 @@
         } @else if (tab.kind === 'report') {
           <ideate-report-page
             [version]="tab.version"
-            [generating]="reportGenerating()"
+            [generating]="reportGenerating() && !tab.version"
             [jobStatus]="reportJobStatus()"
             [error]="report()?.error ?? null"
-            [fileName]="reportFileName(tab.version)"
+            [workspaceName]="workspace()?.name ?? ''"
+            [questionTitle]="primaryQuestionTitle()"
           />
         } @else {
           <div class="doc">

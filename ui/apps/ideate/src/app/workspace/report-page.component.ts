@@ -2,6 +2,7 @@ import { Component, computed, input } from '@angular/core';
 import { WorkspaceReportVersion } from '@ideate/api-client';
 import { MdViewComponent } from '../shared/md-view.component';
 import { MtProgressComponent } from '@ideate/ui';
+import { cleanReportBody, reportFileName, resolveReportTitle } from './report-display';
 
 @Component({
   selector: 'ideate-report-page',
@@ -27,13 +28,13 @@ import { MtProgressComponent } from '@ideate/ui';
           </div>
         }
         <header>
-          <p class="kicker">{{ fileName() }} · v{{ ver.version }}</p>
-          <h1>{{ ver.title || 'Workspace report' }}</h1>
-          @if (ver.summary) {
-            <p class="lede">{{ ver.summary }}</p>
+          <p class="kicker">{{ fileLabel() }} · v{{ ver.version }}</p>
+          <h1>{{ heading() }}</h1>
+          @if (lede()) {
+            <p class="lede">{{ lede() }}</p>
           }
         </header>
-        <ideate-md [source]="ver.body" [diagrams]="true" />
+        <ideate-md [source]="body()" [diagrams]="true" />
       } @else {
         <div class="empty">
           <p class="hint">Double-click the report to open it, or Prepare to generate one from the graph.</p>
@@ -95,7 +96,31 @@ export class ReportPageComponent {
   readonly generating = input(false);
   readonly jobStatus = input<string | null>(null);
   readonly error = input<string | null>(null);
-  readonly fileName = input('Workspace report.md');
+  readonly workspaceName = input('');
+  readonly questionTitle = input('');
+
+  readonly heading = computed(() =>
+    resolveReportTitle({
+      versionTitle: this.version()?.title,
+      body: this.version()?.body,
+      workspaceName: this.workspaceName(),
+      questionTitle: this.questionTitle(),
+    }),
+  );
+
+  readonly lede = computed(() => {
+    const summary = cleanReportBody(this.version()?.summary, this.heading());
+    const title = this.heading().toLowerCase().replace(/[^\w\s]/g, '').trim();
+    const text = summary.toLowerCase().replace(/[^\w\s]/g, '').trim();
+    if (!summary || !text || text === title) {
+      return '';
+    }
+    return summary;
+  });
+
+  readonly body = computed(() => cleanReportBody(this.version()?.body, this.heading()));
+
+  readonly fileLabel = computed(() => reportFileName(this.heading()));
 
   readonly generatingHint = computed(() => {
     if (this.jobStatus() === 'queued') {

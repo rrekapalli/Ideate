@@ -34,4 +34,12 @@ describe('renderMarkdown', () => {
     expect(html).toContain('See the flow');
     expect(hasMermaidFence('```mermaid\nflowchart TD\n  A --> B\n```')).toBe(true);
   });
+
+  it('treats a heading as the first line even without a blank line after it', () => {
+    const { html } = renderMarkdown('### Question\nHow does a compass find north?\n\n## Established Facts\nA fact.');
+    expect(html).toContain('<h3>Question</h3>');
+    expect(html).toContain('How does a compass find north?');
+    expect(html).toContain('<h2>Established Facts</h2>');
+    expect(html).not.toContain('### Question');
+  });
 });
