@@ -108,10 +108,14 @@
         } @else if (tab.kind === 'attachment') {
           <div class="file-view">
             @if (filePreview()[tab.attachment.id]; as preview) {
-              @if (preview.text !== null) {
+              @if (preview.kind === 'text') {
                 <pre>{{ preview.text }}</pre>
-              } @else if (preview.image) {
+              } @else if (preview.kind === 'image') {
                 <img [src]="preview.imageSrc" [alt]="tab.attachment.originalName" />
+              } @else if (preview.kind === 'pdf') {
+                <object [data]="preview.src" type="application/pdf" [attr.title]="tab.attachment.originalName">
+                  <embed [src]="preview.src" type="application/pdf" />
+                </object>
               } @else {
                 <iframe [src]="preview.src" [title]="tab.attachment.originalName"></iframe>
               }

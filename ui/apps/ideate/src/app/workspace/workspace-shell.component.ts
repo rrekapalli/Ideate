@@ -63,7 +63,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   private readonly confirm = inject(MtConfirm);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly fileObjectUrls = new Map<string, string>();
-  readonly filePreview = signal<Record<string, { src: SafeResourceUrl; imageSrc: SafeUrl; image: boolean; text: string | null }>>({});
+  readonly filePreview = signal<Record<string, { src: SafeResourceUrl; imageSrc: SafeUrl; kind: 'image' | 'text' | 'pdf' | 'embed'; text: string | null }>>({});
   readonly shell = inject(ShellContextService);
   readonly newNodeOpen = signal(false);
   readonly newNodeParent = signal<IdeaObject | null>(null);
@@ -252,10 +252,10 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
 
   private loadAttachmentPreview(item: Attachment) {
     this.attachments.content(item.id).subscribe((blob) => {
-      const image = (item.contentType || blob.type || '').startsWith('image/');
-      const textType = (item.contentType || blob.type || '').startsWith('text/')
-        || /\.(txt|md|csv)$/i.test(item.originalName);
-      const url = URL.createObjectURL(blob);
+      const mime = this.mimeFor(item, blob);
+      const typed = blob.type === mime ? blob : new Blob([blob], { type: mime });
+      const kind = this.previewKind(item, mime);
+      const url = URL.createObjectURL(typed);
       const previous = this.fileObjectUrls.get(item.id);
       if (previous) URL.revokeObjectURL(previous);
       this.fileObjectUrls.set(item.id, url);
@@ -265,17 +265,40 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
           [item.id]: {
             src: this.sanitizer.bypassSecurityTrustResourceUrl(url),
             imageSrc: this.sanitizer.bypassSecurityTrustUrl(url),
-            image,
+            kind,
             text,
           },
         }));
       };
-      if (textType) {
-        blob.text().then(finish);
+      if (kind === 'text') {
+        typed.text().then(finish);
       } else {
         finish(null);
       }
     });
+  }
+
+  private previewKind(item: Attachment, mime: string): 'image' | 'text' | 'pdf' | 'embed' {
+    if (mime.startsWith('image/')) return 'image';
+    if (mime === 'application/pdf' || item.originalName.toLowerCase().endsWith('.pdf')) return 'pdf';
+    if (mime.startsWith('text/') || /\.(txt|md|csv)$/i.test(item.originalName)) return 'text';
+    return 'embed';
+  }
+
+  private mimeFor(item: Attachment, blob: Blob): string {
+    const name = item.originalName.toLowerCase();
+    if (name.endsWith('.pdf')) return 'application/pdf';
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+    if (name.endsWith('.gif')) return 'image/gif';
+    if (name.endsWith('.webp')) return 'image/webp';
+    if (name.endsWith('.txt')) return 'text/plain';
+    if (name.endsWith('.md')) return 'text/markdown';
+    if (name.endsWith('.csv')) return 'text/csv';
+    if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (name.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (name.endsWith('.pptx')) return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    return item.contentType || blob.type || 'application/octet-stream';
   }
 
   private dropAttachmentPreview(id: string) {
