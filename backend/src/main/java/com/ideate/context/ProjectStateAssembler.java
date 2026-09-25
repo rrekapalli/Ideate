@@ -80,6 +80,8 @@ public class ProjectStateAssembler {
         }
         if ("student".equalsIgnoreCase(bits.persona())) {
             sb.append(StudentPosture.appendix(mode, focusIds, graph));
+        } else if ("inventor".equalsIgnoreCase(bits.persona())) {
+            sb.append(InventorPosture.appendix(mode, focusIds, graph));
         }
 
         String cache = currentCache(workspaceId, branchId);

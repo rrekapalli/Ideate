@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -48,7 +49,7 @@ class StudentPostureTest {
         IdeaObject open = obj("u1", "U-001", "unknown", "unknown", "Why night?", List.of());
         IdeaObject closed = obj("u2", "U-002", "unknown", "unknown", "Why seasons?", List.of());
         IdeaObject example = obj("e1", "E-001", "evidence", "speculative", "Worked example", List.of("example"));
-        IdeaEdge link = new IdeaEdge("ed1", "ws", "br", "R-1", "derived-from", "e1", "u2", "example", Instant.now());
+        IdeaEdge link = new IdeaEdge("ed1", "ws", "br", "R-1", "derived-from", "e1", "u2", "example", Instant.now(), null, null);
         List<IdeaObject> found = StudentPosture.openUnknowns(List.of(open, closed, example), List.of(link));
         assertTrue(found.stream().anyMatch(n -> "u1".equals(n.id())));
         assertFalse(found.stream().anyMatch(n -> "u2".equals(n.id())));
@@ -62,6 +63,6 @@ class StudentPostureTest {
                                   List<String> tags) {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
         return new IdeaObject(id, "ws", "br", displayId, type, "original", null, category, title, title,
-                "", 1, null, null, null, null, null, now, now, tags, List.of());
+                "", 1, null, null, null, null, null, now, now, tags, List.of(), Map.of());
     }
 }

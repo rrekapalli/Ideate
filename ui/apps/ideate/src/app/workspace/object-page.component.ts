@@ -2,9 +2,11 @@ import { Component, computed, inject, input, output, signal } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import {
   Attachment,
+  GraphSnapshot,
   IdeaObject,
   JobRecord,
   lookupLabel,
+  SimilarObject,
   TimelineEvent,
   TranscriptMessage,
   UsageEvent,
@@ -18,11 +20,19 @@ import { AttachmentListComponent } from '../shared/attachment-list.component';
 import { AttachmentStore } from './attachment.store';
 import { ShellContextService } from '../core/shell/shell-context.service';
 import { DiagramCanvasBridge } from '../cards/diagram-canvas-bridge';
-import { hasTag, isStudentPersona, orderedObjectTypes, typeDisplayLabel } from '../persona/persona-lens';
+import {
+  InventorCardAction,
+  hasTag,
+  isInventorPersona,
+  isStudentPersona,
+  orderedObjectTypes,
+  typeDisplayLabel,
+} from '../persona/persona-lens';
+import { InventorObjectPanelComponent } from './inventor-object-panel.component';
 
 @Component({
   selector: 'ideate-object-page',
-  imports: [FormsModule, MtButtonComponent, MtTabsComponent, MtTabComponent, MdViewComponent, TypeGlyphComponent, AttachmentListComponent],
+  imports: [FormsModule, MtButtonComponent, MtTabsComponent, MtTabComponent, MdViewComponent, TypeGlyphComponent, AttachmentListComponent, InventorObjectPanelComponent],
   template: `
     <div class="page">
       <nav class="crumb" aria-label="Path from parent">
@@ -60,6 +70,9 @@ import { hasTag, isStudentPersona, orderedObjectTypes, typeDisplayLabel } from '
             @for (act of studentActions(); track act.action) {
               <mt-button size="sm" variant="outlined" [label]="act.label" (clicked)="emitStudent(act.action)" />
             }
+            @for (act of inventorActions(); track act.action) {
+              <mt-button size="sm" variant="outlined" [label]="act.label" (clicked)="emitInventor(act.action)" />
+            }
             <mt-button size="sm" variant="outlined" label="Open in Chat" (clicked)="openChat.emit(object())" />
             <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="menu.emit(object())" />
           </div>
@@ -90,6 +103,17 @@ import { hasTag, isStudentPersona, orderedObjectTypes, typeDisplayLabel } from '
                   </article>
                 }
               </section>
+            }
+            @if (showDesign()) {
+              <ideate-inventor-object-panel
+                [workspaceId]="workspaceId()"
+                [object]="object()"
+                [snapshot]="snapshot()"
+                (changed)="changed.emit()"
+                (focus)="open.emit($event)"
+                (recompute)="emitInventor('recompute')"
+                (reuse)="reuse.emit($event)"
+              />
             }
             <section class="source files">
               <h2>Attachments</h2>
@@ -330,10 +354,14 @@ export class ObjectPageComponent {
   readonly jobs = input<JobRecord[]>([]);
   readonly timeline = input<TimelineEvent[]>([]);
   readonly usage = input<UsageRollup | null>(null);
+  readonly workspaceId = input('');
+  readonly snapshot = input<GraphSnapshot>({ nodes: [], edges: [] });
   readonly typeChange = output<string>();
   readonly menu = output<IdeaObject>();
   readonly openChat = output<IdeaObject>();
   readonly open = output<IdeaObject>();
+  readonly changed = output<void>();
+  readonly reuse = output<SimilarObject>();
   readonly types = computed(() => orderedObjectTypes(this.shell.workspacePersona()));
   readonly lookupLabel = lookupLabel;
   readonly pane = signal<string>('page');
@@ -361,6 +389,51 @@ export class ObjectPageComponent {
     }
     return acts;
   });
+  readonly inventorActions = computed(() => {
+    if (!isInventorPersona(this.shell.workspacePersona())) {
+      return [] as { action: InventorCardAction; label: string }[];
+    }
+    const obj = this.object();
+    const acts: { action: InventorCardAction; label: string }[] = [];
+    if (obj.type === 'constraint') {
+      acts.push({ action: 'relax', label: 'Relax' }, { action: 'tighten', label: 'Tighten' }, { action: 'show-binds', label: 'What it binds' });
+    }
+    if (obj.type === 'target') {
+      acts.push({ action: 'convert-observation', label: 'Convert to observation' });
+    }
+    if (obj.type === 'calculation') {
+      acts.push({ action: 'recompute', label: 'Recompute' }, { action: 'show-chain', label: 'Show chain' }, { action: 'mark-estimate', label: 'Mark estimate' });
+    }
+    if (obj.type === 'architecture') {
+      acts.push({ action: 'diff-bom', label: 'Diff BOM' }, { action: 'add-component', label: 'Add component' });
+    }
+    if (obj.type === 'hypothesis') {
+      acts.push({ action: 'start-evaluation', label: 'Start evaluation' });
+    }
+    if (obj.type === 'evaluation') {
+      acts.push({ action: 'accept-evaluation', label: 'Accept' }, { action: 'reject-evaluation', label: 'Reject' });
+    }
+    if (obj.type === 'decision') {
+      acts.push({ action: 'why-choice', label: 'Why this choice' });
+    }
+    if (obj.type === 'observation') {
+      acts.push({ action: 'record-bench', label: 'Record bench note' });
+    }
+    if (obj.type === 'design_artifact') {
+      acts.push({ action: 'extract-claims', label: 'Extract claims' });
+    }
+    acts.push({ action: 'reuse', label: 'Reuse from another project' });
+    if (obj.objectCategory === 'abandoned') {
+      acts.push({ action: 'resurrect', label: 'Resurrect' });
+    } else {
+      acts.push({ action: 'abandon', label: 'Abandon' });
+    }
+    return acts;
+  });
+  readonly showDesign = computed(() =>
+    isInventorPersona(this.shell.workspacePersona()) ||
+    ['constraint', 'calculation', 'target', 'architecture', 'component', 'decision', 'observation', 'design_artifact'].includes(this.object().type),
+  );
 
   typeLabel(type: string): string {
     return typeDisplayLabel(this.shell.workspacePersona(), type, type === this.object().type ? this.object().tags : []);
@@ -368,6 +441,10 @@ export class ObjectPageComponent {
 
   emitStudent(action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller') {
     this.bridge?.studentAction$.next({ object: this.object(), action });
+  }
+
+  emitInventor(action: InventorCardAction) {
+    this.bridge?.inventorAction$.next({ object: this.object(), action });
   }
 
   addFiles(files: File[]) {

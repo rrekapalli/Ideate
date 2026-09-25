@@ -73,12 +73,13 @@ public class DocumentService {
                 null, "original", null, "active",
                 "user", null, null, null, null,
                 List.of("attachment"),
-                objectId == null ? List.of() : List.of(objectId)
+                objectId == null ? List.of() : List.of(objectId),
+                null
         ));
         if (objectId != null) {
             graphService.createEdge(workspaceId, new GraphService.CreateEdgeRequest(
                     "represented-by", objectId, evidence.id(), "document attachment",
-                    null, null, null
+                    null, null, null, null, null
             ));
         }
         return evidence.id();

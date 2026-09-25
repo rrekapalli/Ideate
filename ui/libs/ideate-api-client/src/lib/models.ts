@@ -48,6 +48,7 @@ export interface IdeaObject {
   updatedAt: string;
   tags: string[];
   derivedFrom: string[];
+  details?: Record<string, unknown> | null;
 }
 
 export interface IdeaEdge {
@@ -60,6 +61,36 @@ export interface IdeaEdge {
   toObjectId: string;
   why?: string;
   createdAt: string;
+  sourceWorkspaceId?: string | null;
+  sourceObjectId?: string | null;
+}
+
+export interface ObjectVersion {
+  id: string;
+  objectId: string;
+  version: number;
+  title: string;
+  summary: string;
+  body: string;
+  type: string;
+  objectCategory: string;
+  details?: Record<string, unknown> | null;
+  generatedBy?: string | null;
+  sourceUserMessageId?: string | null;
+  sourceAssistantMessageId?: string | null;
+  createdAt: string;
+}
+
+export interface SimilarObject {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  displayId: string;
+  type: string;
+  title: string;
+  summary: string;
+  objectCategory: string;
+  tags: string[];
 }
 
 export interface GraphSnapshot {

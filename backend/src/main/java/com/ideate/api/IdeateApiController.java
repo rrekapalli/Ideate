@@ -153,7 +153,7 @@ public class IdeateApiController {
         return graph.createObject(id, currentUser.get().accountId(), new GraphService.CreateObjectRequest(
                 body.type(), body.title(), body.summary(), body.body(), body.branchId(), body.origin(),
                 body.derivedVia(), body.objectCategory(), null, null, null,
-                body.canvasX(), body.canvasY(), body.tags(), body.derivedFrom()
+                body.canvasX(), body.canvasY(), body.tags(), body.derivedFrom(), body.details()
         ));
     }
 
@@ -169,7 +169,7 @@ public class IdeateApiController {
         workspaces.get(currentUser.get().accountId(), id);
         return graph.updateObject(id, objectId, new GraphService.UpdateObjectRequest(
                 body.type(), body.title(), body.summary(), body.body(), body.objectCategory(),
-                body.newVersion(), null, null, null, body.canvasX(), body.canvasY(), body.tags()
+                body.newVersion(), null, null, null, body.canvasX(), body.canvasY(), body.tags(), body.details()
         ));
     }
 
@@ -190,7 +190,7 @@ public class IdeateApiController {
         workspaces.get(currentUser.get().accountId(), id);
         return graph.createLinkedNode(id, objectId, new GraphService.CreateObjectRequest(
                 body.type(), body.title(), body.summary(), body.body(), null, "original", null, body.objectCategory(),
-                "user", null, null, null, null, body.tags(), List.of(objectId)
+                "user", null, null, null, null, body.tags(), List.of(objectId), body.details()
         ));
     }
 
@@ -200,6 +200,84 @@ public class IdeateApiController {
         workspaces.get(currentUser.get().accountId(), id);
         String branchId = graph.createOverlayBranch(id, objectId, body.name());
         return Map.of("branchId", branchId);
+    }
+
+    @GetMapping("/workspaces/{id}/objects/{objectId}/versions")
+    public List<GraphService.ObjectVersion> objectVersions(@PathVariable String id, @PathVariable String objectId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.listVersions(id, objectId);
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/recompute")
+    public Object recompute(@PathVariable String id, @PathVariable String objectId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.recompute(id, objectId);
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/convert-to-observation")
+    public Object convertTarget(@PathVariable String id, @PathVariable String objectId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.convertTargetToObservation(id, objectId);
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/abandon")
+    public Object abandon(@PathVariable String id, @PathVariable String objectId,
+                          @RequestBody(required = false) ApiDtos.AbandonBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        String why = body == null ? null : body.why();
+        String because = body == null ? null : body.becauseObjectId();
+        return graph.abandon(id, objectId, why, because);
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/resurrect")
+    public Object resurrect(@PathVariable String id, @PathVariable String objectId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.resurrect(id, objectId);
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/posture")
+    public Object posture(@PathVariable String id, @PathVariable String objectId, @RequestBody ApiDtos.PostureBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.setConstraintPosture(id, objectId, body.posture());
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/start-evaluation")
+    public Object startEvaluation(@PathVariable String id, @PathVariable String objectId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.startEvaluation(id, objectId);
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/accept-evaluation")
+    public Object acceptEvaluation(@PathVariable String id, @PathVariable String objectId,
+                                   @RequestBody(required = false) ApiDtos.AcceptEvaluationBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.acceptEvaluation(id, objectId, body == null ? null : body.title());
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/reject-evaluation")
+    public Object rejectEvaluation(@PathVariable String id, @PathVariable String objectId) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.rejectEvaluation(id, objectId);
+    }
+
+    @PostMapping("/workspaces/{id}/objects/{objectId}/components")
+    public Object addComponent(@PathVariable String id, @PathVariable String objectId,
+                               @RequestBody(required = false) ApiDtos.AddComponentBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.addComponent(id, objectId, body == null ? null : body.title());
+    }
+
+    @GetMapping("/me/workspaces/{id}/similar")
+    public List<GraphService.SimilarObject> similar(@PathVariable String id, @RequestParam(required = false) String q) {
+        workspaces.get(currentUser.get().accountId(), id);
+        return graph.similarAcrossAccount(currentUser.get().accountId(), id, q);
+    }
+
+    @PostMapping("/workspaces/{id}/reuse")
+    public Object reuse(@PathVariable String id, @RequestBody ApiDtos.ReuseBody body) {
+        workspaces.get(currentUser.get().accountId(), id);
+        workspaces.get(currentUser.get().accountId(), body.sourceWorkspaceId());
+        return graph.reuseIn(id, body.localObjectId(), body.sourceWorkspaceId(), body.sourceObjectId());
     }
 
     @PostMapping("/workspaces/{id}/batch-delete")
@@ -212,7 +290,8 @@ public class IdeateApiController {
     public Object createEdge(@PathVariable String id, @RequestBody ApiDtos.CreateEdgeBody body) {
         workspaces.get(currentUser.get().accountId(), id);
         return graph.createEdge(id, new GraphService.CreateEdgeRequest(
-                body.type(), body.fromObjectId(), body.toObjectId(), body.why(), body.branchId(), null, null
+                body.type(), body.fromObjectId(), body.toObjectId(), body.why(), body.branchId(), null, null,
+                body.sourceWorkspaceId(), body.sourceObjectId()
         ));
     }
 

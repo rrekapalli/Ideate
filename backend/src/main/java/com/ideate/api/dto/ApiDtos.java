@@ -1,6 +1,7 @@
 package com.ideate.api.dto;
 
 import java.util.List;
+import java.util.Map;
 
 public final class ApiDtos {
     private ApiDtos() {}
@@ -19,7 +20,8 @@ public final class ApiDtos {
             Double canvasX,
             Double canvasY,
             List<String> tags,
-            List<String> derivedFrom
+            List<String> derivedFrom,
+            Map<String, Object> details
     ) {}
 
     public record UpdateObjectBody(
@@ -31,10 +33,12 @@ public final class ApiDtos {
             Boolean newVersion,
             Double canvasX,
             Double canvasY,
-            List<String> tags
+            List<String> tags,
+            Map<String, Object> details
     ) {}
 
-    public record CreateEdgeBody(String type, String fromObjectId, String toObjectId, String why, String branchId) {}
+    public record CreateEdgeBody(String type, String fromObjectId, String toObjectId, String why, String branchId,
+                                 String sourceWorkspaceId, String sourceObjectId) {}
 
     public record TurnBody(String content, String mode, String branchId, String jobClass, List<String> focusObjectIds,
                            List<String> attachmentIds) {}
@@ -59,8 +63,19 @@ public final class ApiDtos {
             String summary,
             String body,
             String objectCategory,
-            List<String> tags
+            List<String> tags,
+            Map<String, Object> details
     ) {}
+
+    public record AbandonBody(String why, String becauseObjectId) {}
+
+    public record PostureBody(String posture) {}
+
+    public record AcceptEvaluationBody(String title) {}
+
+    public record AddComponentBody(String title) {}
+
+    public record ReuseBody(String localObjectId, String sourceWorkspaceId, String sourceObjectId) {}
 
     public record ReportBranchBody(String branchId) {}
 

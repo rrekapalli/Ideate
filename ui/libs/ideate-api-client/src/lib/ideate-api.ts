@@ -10,6 +10,8 @@ import {
   GraphSnapshot,
   IdeaObject,
   JobRecord,
+  ObjectVersion,
+  SimilarObject,
   TimelineEvent,
   TranscriptMessage,
   TurnResult,
@@ -102,8 +104,64 @@ export class IdeateApi {
     );
   }
 
-  createEdge(workspaceId: string, body: { type: string; fromObjectId: string; toObjectId: string; why?: string }) {
+  createEdge(workspaceId: string, body: {
+    type: string;
+    fromObjectId: string;
+    toObjectId: string;
+    why?: string;
+    sourceWorkspaceId?: string;
+    sourceObjectId?: string;
+  }) {
     return this.http.post(this.url(`/workspaces/${workspaceId}/edges`), body);
+  }
+
+  objectVersions(workspaceId: string, objectId: string) {
+    return this.http.get<ObjectVersion[]>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/versions`));
+  }
+
+  recompute(workspaceId: string, objectId: string) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/recompute`), {});
+  }
+
+  convertToObservation(workspaceId: string, objectId: string) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/convert-to-observation`), {});
+  }
+
+  abandon(workspaceId: string, objectId: string, body?: { why?: string; becauseObjectId?: string }) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/abandon`), body ?? {});
+  }
+
+  resurrect(workspaceId: string, objectId: string) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/resurrect`), {});
+  }
+
+  setPosture(workspaceId: string, objectId: string, posture: string) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/posture`), { posture });
+  }
+
+  startEvaluation(workspaceId: string, objectId: string) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/start-evaluation`), {});
+  }
+
+  acceptEvaluation(workspaceId: string, objectId: string, title?: string) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/accept-evaluation`), { title });
+  }
+
+  rejectEvaluation(workspaceId: string, objectId: string) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/reject-evaluation`), {});
+  }
+
+  addComponent(workspaceId: string, objectId: string, title?: string) {
+    return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/components`), { title });
+  }
+
+  similar(workspaceId: string, q?: string) {
+    const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+    return this.http.get<SimilarObject[]>(this.url(`/me/workspaces/${workspaceId}/similar${qs}`));
+  }
+
+  reuse(workspaceId: string, body: { localObjectId: string; sourceWorkspaceId: string; sourceObjectId: string }) {
+    return this.http.post(this.url(`/workspaces/${workspaceId}/reuse`), body);
   }
 
   transcript(workspaceId: string, branchId?: string): Observable<TranscriptMessage[]> {

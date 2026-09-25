@@ -299,7 +299,7 @@ public class TurnOrchestrator {
                 graph.updateObject(workspaceId, patch.objectId(), new GraphService.UpdateObjectRequest(
                         patch.type(), patch.title(), patch.summary(), patch.body(),
                         null, true, generatedBy, userMsgId, assistantMsgId,
-                        null, null, null));
+                        null, null, null, null));
                 ids.add(patch.objectId());
             } catch (Exception ex) {
                 log.warn("Hydrate node {} failed: {}", patch.objectId(), ex.getMessage());
@@ -313,7 +313,7 @@ public class TurnOrchestrator {
                         null, "original", null,
                         "misconception".equals(extra.type()) ? "misconception" : null,
                         generatedBy, userMsgId, assistantMsgId,
-                        null, null, List.of(), List.of()));
+                        null, null, List.of(), List.of(), null));
                 ids.add(createdExtra.id());
                 created.add(createdExtra);
                 minted.add(createdExtra);
@@ -341,7 +341,7 @@ public class TurnOrchestrator {
                 }
                 graph.createEdge(workspaceId, new GraphService.CreateEdgeRequest(
                         edge.type(), from.id(), to.id(), edge.why(),
-                        null, userMsgId, assistantMsgId));
+                        null, userMsgId, assistantMsgId, null, null));
             } catch (Exception ex) {
                 log.warn("Hydrate edge {} failed: {}", edge.type(), ex.getMessage());
             }
@@ -398,7 +398,8 @@ public class TurnOrchestrator {
                                 args.path("canvasX").isMissingNode() ? null : args.path("canvasX").asDouble(),
                                 args.path("canvasY").isMissingNode() ? null : args.path("canvasY").asDouble(),
                                 readTags(args),
-                                List.of()
+                                List.of(),
+                                null
                         ));
                         embedService.embedLater(created.id(), created.summary() + " " + created.body());
                         ids.add(created.id());
@@ -416,7 +417,7 @@ public class TurnOrchestrator {
                                 textOrNull(args, "objectCategory"),
                                 true,
                                 generatedBy, userMsgId, assistantMsgId,
-                                null, null, readTags(args)
+                                null, null, readTags(args), null
                         ));
                         ids.add(updated.id());
                     }
@@ -434,7 +435,7 @@ public class TurnOrchestrator {
                         }
                         graph.createEdge(workspaceId, new GraphService.CreateEdgeRequest(
                                 type, from.id(), to.id(), args.path("why").asText(""),
-                                null, userMsgId, assistantMsgId
+                                null, userMsgId, assistantMsgId, null, null
                         ));
                     }
                     case "attach_file" -> {
@@ -459,11 +460,11 @@ public class TurnOrchestrator {
                                 null, "original", null, "active",
                                 generatedBy, userMsgId, assistantMsgId,
                                 nearby(hyp.canvasX()), nearby(hyp.canvasY()),
-                                List.of(), List.of(hyp.id())
+                                List.of(), List.of(hyp.id()), null
                         ));
                         graph.createEdge(workspaceId, new GraphService.CreateEdgeRequest(
                                 "evaluated-by", hyp.id(), ev.id(), "AI evaluation",
-                                null, userMsgId, assistantMsgId
+                                null, userMsgId, assistantMsgId, null, null
                         ));
                         ids.add(ev.id());
                     }

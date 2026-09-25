@@ -107,6 +107,12 @@
                 (practice)="onPracticeGap($event)"
               />
             }
+            @if (isInventor()) {
+              <ideate-inventor-home
+                [home]="inventorHome()"
+                (focus)="focusObject($event)"
+              />
+            }
             <ideate-graph-canvas
               #canvas
               [snapshot]="graph()"
@@ -127,10 +133,14 @@
             [jobs]="jobs()"
             [timeline]="timeline()"
             [usage]="usage()"
+            [workspaceId]="workspaceId"
+            [snapshot]="graph()"
             (typeChange)="changeType(tab.object, $event)"
             (menu)="promptMenu($event)"
             (openChat)="jumpChat($event)"
             (open)="openObject($event)"
+            (changed)="reloadAll()"
+            (reuse)="reuseFrom($event, tab.object)"
           />
         } @else if (tab.kind === 'attachment') {
           <div class="file-view">
@@ -389,6 +399,13 @@
           <div class="search-chips">
             <button type="button" [class.active]="searchType === ''" (click)="setSearchType('')">All</button>
             <button type="button" [class.active]="searchType === 'misconception'" (click)="setSearchType('misconception')">Misconceptions</button>
+          </div>
+        }
+        @if (isInventor()) {
+          <div class="search-chips">
+            <button type="button" [class.active]="searchType === ''" (click)="setSearchType('')">All</button>
+            <button type="button" [class.active]="searchType === 'constraint'" (click)="setSearchType('constraint')">Constraints</button>
+            <button type="button" [class.active]="searchType === 'target'" (click)="setSearchType('target')">Targets</button>
           </div>
         }
         @for (o of searchObjects(); track o.id) {

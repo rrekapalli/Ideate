@@ -14,6 +14,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -74,19 +75,25 @@ public class GraphService {
         String id = Ids.id("obj_");
         String displayId = nextDisplayId(workspaceId, req.type());
         Instant now = Instant.now();
+        Map<String, Object> details = req.details() == null ? Map.of() : req.details();
+        if ("architecture".equals(req.type()) && !details.containsKey("components")) {
+            details = new LinkedHashMap<>(details);
+            details.put("components", List.of());
+        }
+        String detailsJson = ObjectDetails.stringify(details);
         jdbc.update("""
                 INSERT INTO idea_object (
                     id, workspace_id, branch_id, display_id, type, origin, derived_via, object_category,
-                    title, summary, body, version, generated_by, source_user_message_id, source_assistant_message_id,
+                    title, summary, body, details, version, generated_by, source_user_message_id, source_assistant_message_id,
                     canvas_x, canvas_y, created_at, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?::jsonb,1,?,?,?,?,?,?,?)
                 """,
                 id, workspaceId, branch, displayId, req.type(), origin, req.derivedVia(), category,
-                req.title(), nullToEmpty(req.summary()), nullToEmpty(req.body()),
+                req.title(), nullToEmpty(req.summary()), nullToEmpty(req.body()), detailsJson,
                 req.generatedBy(), req.sourceUserMessageId(), req.sourceAssistantMessageId(),
                 req.canvasX(), req.canvasY(), Timestamp.from(now), Timestamp.from(now));
         snapshotVersion(id, 1, req.title(), nullToEmpty(req.summary()), nullToEmpty(req.body()),
-                req.type(), category, req.generatedBy(), req.sourceUserMessageId(), req.sourceAssistantMessageId());
+                req.type(), category, detailsJson, req.generatedBy(), req.sourceUserMessageId(), req.sourceAssistantMessageId());
         replaceTags(id, req.tags());
         replaceParents(id, req.derivedFrom());
         if (req.derivedFrom() != null) {
@@ -117,10 +124,18 @@ public class GraphService {
         String title = req.title() != null ? req.title() : current.title();
         String summary = req.summary() != null ? req.summary() : current.summary();
         String body = req.body() != null ? req.body() : current.body();
+        Map<String, Object> details = req.details() != null
+                ? ObjectDetails.merge(current.details(), req.details())
+                : (current.details() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(current.details()));
+        if ("architecture".equals(type)) {
+            details.put("components", currentBom(objectId));
+        }
+        boolean detailsChanged = req.details() != null && !details.equals(current.details() == null ? Map.of() : current.details());
         boolean newVersion = Boolean.TRUE.equals(req.newVersion())
                 || (req.title() != null && !req.title().equals(current.title()))
                 || (req.body() != null && !req.body().equals(current.body()))
-                || !type.equals(current.type());
+                || !type.equals(current.type())
+                || detailsChanged;
         int version = newVersion ? current.version() + 1 : current.version();
         String displayId = current.displayId();
         if (!type.equals(current.type())) {
@@ -132,9 +147,10 @@ public class GraphService {
             jdbc.update("INSERT INTO idea_object_alias (object_id, alias) VALUES (?, ?) ON CONFLICT DO NOTHING",
                     objectId, current.title());
         }
+        String detailsJson = ObjectDetails.stringify(details);
         jdbc.update("""
                 UPDATE idea_object SET
-                    type = ?, object_category = ?, title = ?, summary = ?, body = ?, version = ?,
+                    type = ?, object_category = ?, title = ?, summary = ?, body = ?, details = ?::jsonb, version = ?,
                     display_id = ?, generated_by = COALESCE(?, generated_by),
                     source_user_message_id = COALESCE(?, source_user_message_id),
                     source_assistant_message_id = COALESCE(?, source_assistant_message_id),
@@ -142,14 +158,16 @@ public class GraphService {
                     updated_at = now()
                 WHERE id = ?
                 """,
-                type, category, title, summary, body, version, displayId,
+                type, category, title, summary, body, detailsJson, version, displayId,
                 req.generatedBy(), req.sourceUserMessageId(), req.sourceAssistantMessageId(),
                 req.canvasX(), req.canvasY(), objectId);
         if (newVersion) {
-            snapshotVersion(objectId, version, title, summary, body, type, category,
+            snapshotVersion(objectId, version, title, summary, body, type, category, detailsJson,
                     req.generatedBy(), req.sourceUserMessageId(), req.sourceAssistantMessageId());
             createEdgeInternal(workspaceId, current.branchId(), "version-of", objectId, objectId,
                     "v" + current.version() + " -> v" + version, req.sourceUserMessageId(), req.sourceAssistantMessageId());
+            markCalculationsStale(workspaceId, objectId);
+            syncCalculatedFrom(workspaceId, current.branchId(), objectId, type, details);
         }
         if (req.tags() != null) {
             replaceTags(objectId, req.tags());
@@ -208,7 +226,8 @@ public class GraphService {
         }
         String branch = resolveBranch(workspaceId, req.branchId());
         return createEdgeInternal(workspaceId, branch, req.type(), req.fromObjectId(), req.toObjectId(),
-                req.why(), req.sourceUserMessageId(), req.sourceAssistantMessageId());
+                req.why(), req.sourceUserMessageId(), req.sourceAssistantMessageId(),
+                req.sourceWorkspaceId(), req.sourceObjectId());
     }
 
     public void deleteEdge(String workspaceId, String edgeId) {
@@ -234,7 +253,8 @@ public class GraphService {
                 nearby(source.canvasX()),
                 nearby(source.canvasY()),
                 req.tags(),
-                req.derivedFrom() == null ? List.of(source.id()) : req.derivedFrom()
+                req.derivedFrom() == null ? List.of(source.id()) : req.derivedFrom(),
+                req.details()
         );
         IdeaObject created = createObject(workspaceId, null, minted);
         createEdgeInternal(workspaceId, source.branchId(), "derived-from", created.id(), source.id(),
@@ -264,7 +284,7 @@ public class GraphService {
                 generatedBy, userMsgId, assistantMsgId, nearby(evaluation.canvasX()), nearby(evaluation.canvasY()),
                 Timestamp.from(now), Timestamp.from(now));
         snapshotVersion(id, 1, title, nullToEmpty(summary), nullToEmpty(body), "theory", "supported",
-                generatedBy, userMsgId, assistantMsgId);
+                null, generatedBy, userMsgId, assistantMsgId);
         createEdgeInternal(workspaceId, branch, "promoted-to", evaluation.id(), id, "AI proposed theory",
                 userMsgId, assistantMsgId);
         recordEvent(workspaceId, id, "object.created", Map.of("displayId", displayId, "type", "theory"));
@@ -286,9 +306,9 @@ public class GraphService {
         jdbc.update("""
                 INSERT INTO idea_object (
                     id, workspace_id, branch_id, display_id, type, origin, derived_via, object_category,
-                    title, summary, body, version, canvas_x, canvas_y)
+                    title, summary, body, details, version, canvas_x, canvas_y)
                 SELECT ?, workspace_id, ?, display_id, type, origin, derived_via, object_category,
-                    title, summary, body, version, canvas_x, canvas_y
+                    title, summary, body, details, version, canvas_x, canvas_y
                 FROM idea_object WHERE id = ?
                 """, Ids.id("obj_"), branchId, fromObjectId);
         return branchId;
@@ -308,15 +328,24 @@ public class GraphService {
     private IdeaEdge createEdgeInternal(String workspaceId, String branchId, String type,
                                         String fromId, String toId, String why,
                                         String userMsg, String assistantMsg) {
+        return createEdgeInternal(workspaceId, branchId, type, fromId, toId, why, userMsg, assistantMsg, null, null);
+    }
+
+    private IdeaEdge createEdgeInternal(String workspaceId, String branchId, String type,
+                                        String fromId, String toId, String why,
+                                        String userMsg, String assistantMsg,
+                                        String sourceWorkspaceId, String sourceObjectId) {
         String id = Ids.id("edge_");
         String displayId = nextDisplayId(workspaceId, "R");
         jdbc.update("""
-                INSERT INTO idea_edge (id, workspace_id, branch_id, display_id, type, from_object_id, to_object_id, why)
-                VALUES (?,?,?,?,?,?,?,?)
-                """, id, workspaceId, branchId, displayId, type, fromId, toId, why);
+                INSERT INTO idea_edge (id, workspace_id, branch_id, display_id, type, from_object_id, to_object_id, why,
+                    source_workspace_id, source_object_id)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                """, id, workspaceId, branchId, displayId, type, fromId, toId, why, sourceWorkspaceId, sourceObjectId);
         recordEvent(workspaceId, fromId, "edge.created", Map.of("edgeId", id, "type", type, "to", toId));
         age.upsertEdge(id, type, fromId, toId, workspaceId);
-        return new IdeaEdge(id, workspaceId, branchId, displayId, type, fromId, toId, why, Instant.now());
+        return new IdeaEdge(id, workspaceId, branchId, displayId, type, fromId, toId, why, Instant.now(),
+                sourceWorkspaceId, sourceObjectId);
     }
 
     private String nextDisplayId(String workspaceId, String typeOrPrefix) {
@@ -344,13 +373,14 @@ public class GraphService {
     }
 
     private void snapshotVersion(String objectId, int version, String title, String summary, String body,
-                                 String type, String category, String generatedBy, String userMsg, String assistantMsg) {
+                                 String type, String category, String detailsJson, String generatedBy,
+                                 String userMsg, String assistantMsg) {
         jdbc.update("""
                 INSERT INTO idea_object_version (
-                    id, object_id, version, title, summary, body, type, object_category,
+                    id, object_id, version, title, summary, body, details, type, object_category,
                     generated_by, source_user_message_id, source_assistant_message_id)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                """, Ids.id("ver_"), objectId, version, title, summary, body, type, category,
+                VALUES (?,?,?,?,?,?,?::jsonb,?,?,?,?,?)
+                """, Ids.id("ver_"), objectId, version, title, summary, body, detailsJson, type, category,
                 generatedBy, userMsg, assistantMsg);
     }
 
@@ -385,7 +415,7 @@ public class GraphService {
                 object.origin(), object.derivedVia(), object.objectCategory(), object.title(), object.summary(),
                 object.body(), object.version(), object.generatedBy(), object.sourceUserMessageId(),
                 object.sourceAssistantMessageId(), object.canvasX(), object.canvasY(), object.createdAt(),
-                object.updatedAt(), tags, parents);
+                object.updatedAt(), tags, parents, object.details());
     }
 
     private void recordEvent(String workspaceId, String objectId, String type, Map<String, Object> payload) {
@@ -442,7 +472,9 @@ public class GraphService {
                 rs.getString("from_object_id"),
                 rs.getString("to_object_id"),
                 rs.getString("why"),
-                ts(rs, "created_at")
+                ts(rs, "created_at"),
+                columnOrNull(rs, "source_workspace_id"),
+                columnOrNull(rs, "source_object_id")
         );
     }
 
@@ -468,13 +500,411 @@ public class GraphService {
                 ts(rs, "created_at"),
                 ts(rs, "updated_at"),
                 List.of(),
-                List.of()
+                List.of(),
+                ObjectDetails.parse(columnOrNull(rs, "details"))
         );
+    }
+
+    private static String columnOrNull(ResultSet rs, String col) {
+        try {
+            return rs.getString(col);
+        } catch (SQLException ignored) {
+            return null;
+        }
     }
 
     private static Instant ts(ResultSet rs, String col) throws SQLException {
         Timestamp t = rs.getTimestamp(col);
         return t == null ? null : t.toInstant();
+    }
+
+    public List<ObjectVersion> listVersions(String workspaceId, String objectId) {
+        getObject(workspaceId, objectId);
+        return jdbc.query("""
+                SELECT id, object_id, version, title, summary, body, details::text AS details, type, object_category,
+                       generated_by, source_user_message_id, source_assistant_message_id, created_at
+                FROM idea_object_version
+                WHERE object_id = ?
+                ORDER BY version
+                """, (rs, i) -> new ObjectVersion(
+                rs.getString("id"),
+                rs.getString("object_id"),
+                rs.getInt("version"),
+                rs.getString("title"),
+                rs.getString("summary"),
+                rs.getString("body"),
+                rs.getString("type"),
+                rs.getString("object_category"),
+                ObjectDetails.parse(rs.getString("details")),
+                rs.getString("generated_by"),
+                rs.getString("source_user_message_id"),
+                rs.getString("source_assistant_message_id"),
+                ts(rs, "created_at")
+        ), objectId);
+    }
+
+    public IdeaObject recompute(String workspaceId, String objectId) {
+        IdeaObject current = getObject(workspaceId, objectId);
+        if (!"calculation".equals(current.type())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Recompute requires a Calculation");
+        }
+        Map<String, Object> details = current.details() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(current.details());
+        Map<String, Double> inputs = calculationInputs(details);
+        refreshInputsFromSources(workspaceId, details, inputs);
+        String method = ObjectDetails.text(details, "method");
+        Double value = CalculationExpr.evaluate(method, inputs);
+        if (value == null) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Method is not a simple arithmetic expression over named inputs");
+        }
+        Map<String, Object> output = new LinkedHashMap<>();
+        Object existingOut = details.get("output");
+        if (existingOut instanceof Map<?, ?> map && map.get("unit") != null) {
+            output.put("unit", map.get("unit"));
+        }
+        output.put("value", value);
+        details.put("output", output);
+        details.put("stale", false);
+        details.put("inputs", details.get("inputs"));
+        return updateObject(workspaceId, objectId, new UpdateObjectRequest(
+                null, null, null, null, null, true, "system", null, null, null, null, null, details));
+    }
+
+    public IdeaObject convertTargetToObservation(String workspaceId, String targetId) {
+        IdeaObject target = getObject(workspaceId, targetId);
+        if (!"target".equals(target.type())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Convert requires a Target");
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("observedAt", Instant.now().toString());
+        details.put("setup", "Converted from target " + target.displayId());
+        details.put("result", target.title());
+        details.put("bearsOn", "supports");
+        IdeaObject observation = createObject(workspaceId, null, new CreateObjectRequest(
+                "observation",
+                target.title(),
+                target.summary(),
+                target.body(),
+                target.branchId(),
+                "derived",
+                "promoted",
+                "active",
+                "user",
+                null,
+                null,
+                nearby(target.canvasX()),
+                nearby(target.canvasY()),
+                List.of(),
+                List.of(target.id()),
+                details
+        ));
+        createEdgeInternal(workspaceId, target.branchId(), "promoted-to", target.id(), observation.id(),
+                "target measured", null, null);
+        return observation;
+    }
+
+    public IdeaObject abandon(String workspaceId, String objectId, String why, String becauseObjectId) {
+        IdeaObject current = getObject(workspaceId, objectId);
+        IdeaObject updated = updateObject(workspaceId, objectId, new UpdateObjectRequest(
+                null, null, null, null, "abandoned", true, "user", null, null, null, null, null, null));
+        if (becauseObjectId != null && !becauseObjectId.isBlank()) {
+            createEdgeInternal(workspaceId, current.branchId(), "abandoned-because", objectId, becauseObjectId,
+                    why == null ? "abandoned" : why, null, null);
+        }
+        return updated;
+    }
+
+    public IdeaObject resurrect(String workspaceId, String objectId) {
+        IdeaObject current = getObject(workspaceId, objectId);
+        IdeaObject updated = updateObject(workspaceId, objectId, new UpdateObjectRequest(
+                null, null, null, null, "active", true, "user", null, null, null, null, null, null));
+        createEdgeInternal(workspaceId, current.branchId(), "resurrected-as", objectId, objectId,
+                "resurrected", null, null);
+        return updated;
+    }
+
+    public IdeaObject setConstraintPosture(String workspaceId, String objectId, String posture) {
+        IdeaObject current = getObject(workspaceId, objectId);
+        if (!"constraint".equals(current.type())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Posture requires a Constraint");
+        }
+        if (!List.of("binding", "relaxed", "tightened").contains(posture)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid posture");
+        }
+        return updateObject(workspaceId, objectId, new UpdateObjectRequest(
+                null, null, null, null, null, true, "user", null, null, null, null, null,
+                Map.of("posture", posture)));
+    }
+
+    public IdeaObject startEvaluation(String workspaceId, String hypothesisId) {
+        IdeaObject hyp = getObject(workspaceId, hypothesisId);
+        if (!"hypothesis".equals(hyp.type())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Evaluation starts from a Hypothesis");
+        }
+        List<String> existing = jdbc.queryForList("""
+                SELECT e.to_object_id FROM idea_edge e
+                JOIN idea_object o ON o.id = e.to_object_id
+                WHERE e.from_object_id = ? AND e.type = 'evaluated-by' AND e.deleted_at IS NULL
+                  AND o.deleted_at IS NULL AND o.type = 'evaluation'
+                """, String.class, hypothesisId);
+        if (!existing.isEmpty()) {
+            return getObject(workspaceId, existing.getFirst());
+        }
+        IdeaObject evaluation = createObject(workspaceId, null, new CreateObjectRequest(
+                "evaluation",
+                "Evaluation of " + hyp.displayId(),
+                "Feasibility review of " + hyp.title(),
+                "",
+                hyp.branchId(),
+                "original",
+                null,
+                "active",
+                "user",
+                null,
+                null,
+                nearby(hyp.canvasX()),
+                nearby(hyp.canvasY()),
+                List.of(),
+                List.of(hyp.id()),
+                Map.of()
+        ));
+        createEdgeInternal(workspaceId, hyp.branchId(), "evaluated-by", hyp.id(), evaluation.id(),
+                "start evaluation", null, null);
+        return evaluation;
+    }
+
+    public IdeaObject acceptEvaluation(String workspaceId, String evaluationId, String title) {
+        IdeaObject evaluation = getObject(workspaceId, evaluationId);
+        if (!"evaluation".equals(evaluation.type())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Accept requires an Evaluation");
+        }
+        updateObject(workspaceId, evaluationId, new UpdateObjectRequest(
+                null, null, null, null, "supported", true, "user", null, null, null, null, null,
+                Map.of("outcome", "supported")));
+        String theoryTitle = title == null || title.isBlank() ? "This works: " + evaluation.title() : title;
+        return createTheoryFromEvaluation(workspaceId, evaluationId, theoryTitle,
+                evaluation.summary(), evaluation.body(), "user", null, null);
+    }
+
+    public IdeaObject rejectEvaluation(String workspaceId, String evaluationId) {
+        IdeaObject evaluation = getObject(workspaceId, evaluationId);
+        if (!"evaluation".equals(evaluation.type())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Reject requires an Evaluation");
+        }
+        updateObject(workspaceId, evaluationId, new UpdateObjectRequest(
+                null, null, null, null, "abandoned", true, "user", null, null, null, null, null,
+                Map.of("outcome", "rejected")));
+        List<String> hyps = jdbc.queryForList("""
+                SELECT from_object_id FROM idea_edge
+                WHERE to_object_id = ? AND type = 'evaluated-by' AND deleted_at IS NULL
+                """, String.class, evaluationId);
+        IdeaObject last = evaluation;
+        for (String hypId : hyps) {
+            last = abandon(workspaceId, hypId, "Evaluation rejected", evaluationId);
+        }
+        return last;
+    }
+
+    public IdeaObject addComponent(String workspaceId, String architectureId, String title) {
+        IdeaObject architecture = getObject(workspaceId, architectureId);
+        if (!"architecture".equals(architecture.type())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Add component requires an Architecture");
+        }
+        IdeaObject component = createObject(workspaceId, null, new CreateObjectRequest(
+                "component",
+                title == null || title.isBlank() ? "Part" : title,
+                "",
+                "",
+                architecture.branchId(),
+                "original",
+                null,
+                "active",
+                "user",
+                null,
+                null,
+                nearby(architecture.canvasX()),
+                nearby(architecture.canvasY()),
+                List.of(),
+                List.of(architecture.id()),
+                Map.of()
+        ));
+        createEdgeInternal(workspaceId, architecture.branchId(), "parent-of", architecture.id(), component.id(),
+                "BOM", null, null);
+        updateObject(workspaceId, architectureId, new UpdateObjectRequest(
+                null, null, null, null, null, true, "user", null, null, null, null, null,
+                Map.of("components", currentBom(architectureId))));
+        return component;
+    }
+
+    public IdeaEdge reuseIn(String workspaceId, String localObjectId, String sourceWorkspaceId, String sourceObjectId) {
+        IdeaObject local = getObject(workspaceId, localObjectId);
+        IdeaObject source = getObject(sourceWorkspaceId, sourceObjectId);
+        return createEdgeInternal(workspaceId, local.branchId(), "reused-in", local.id(), source.id(),
+                "reused from " + source.displayId(), null, null, sourceWorkspaceId, sourceObjectId);
+    }
+
+    public List<SimilarObject> similarAcrossAccount(String accountId, String workspaceId, String query) {
+        String q = query == null ? "" : query.trim().toLowerCase();
+        String like = "%" + q + "%";
+        return jdbc.query("""
+                SELECT o.id, o.workspace_id, w.name AS workspace_name, o.display_id, o.type, o.title, o.summary,
+                       o.object_category
+                FROM idea_object o
+                JOIN workspace w ON w.id = o.workspace_id
+                WHERE w.account_id = ?
+                  AND o.workspace_id <> ?
+                  AND o.deleted_at IS NULL
+                  AND (? = '' OR lower(o.title) LIKE ? OR lower(o.summary) LIKE ? OR lower(o.display_id) LIKE ?
+                       OR EXISTS (SELECT 1 FROM idea_tag t WHERE t.object_id = o.id AND lower(t.tag) LIKE ?))
+                ORDER BY o.updated_at DESC
+                LIMIT 20
+                """, (rs, i) -> {
+            String id = rs.getString("id");
+            List<String> tags = jdbc.queryForList("SELECT tag FROM idea_tag WHERE object_id = ?", String.class, id);
+            return new SimilarObject(
+                    id,
+                    rs.getString("workspace_id"),
+                    rs.getString("workspace_name"),
+                    rs.getString("display_id"),
+                    rs.getString("type"),
+                    rs.getString("title"),
+                    rs.getString("summary"),
+                    rs.getString("object_category"),
+                    tags
+            );
+        }, accountId, workspaceId, q, like, like, like, like);
+    }
+
+    private void markCalculationsStale(String workspaceId, String changedObjectId) {
+        List<String> calcIds = jdbc.queryForList("""
+                SELECT e.from_object_id FROM idea_edge e
+                JOIN idea_object o ON o.id = e.from_object_id
+                WHERE e.to_object_id = ? AND e.type = 'calculated-from' AND e.deleted_at IS NULL
+                  AND o.deleted_at IS NULL AND o.type = 'calculation' AND o.workspace_id = ?
+                """, String.class, changedObjectId, workspaceId);
+        for (String calcId : calcIds) {
+            IdeaObject calc = getObject(workspaceId, calcId);
+            Map<String, Object> details = calc.details() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(calc.details());
+            if (ObjectDetails.isTrue(details, "stale")) {
+                continue;
+            }
+            details.put("stale", true);
+            jdbc.update("UPDATE idea_object SET details = ?::jsonb, updated_at = now() WHERE id = ?",
+                    ObjectDetails.stringify(details), calcId);
+        }
+    }
+
+    private void syncCalculatedFrom(String workspaceId, String branchId, String objectId, String type,
+                                    Map<String, Object> details) {
+        if (!"calculation".equals(type) || details == null) {
+            return;
+        }
+        Object raw = details.get("inputs");
+        if (!(raw instanceof List<?> list)) {
+            return;
+        }
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Object source = map.get("sourceObjectId");
+            if (source == null || String.valueOf(source).isBlank()) {
+                continue;
+            }
+            String sourceId = String.valueOf(source);
+            Integer exists = jdbc.queryForObject("""
+                    SELECT count(*) FROM idea_edge
+                    WHERE workspace_id = ? AND from_object_id = ? AND to_object_id = ?
+                      AND type = 'calculated-from' AND deleted_at IS NULL
+                    """, Integer.class, workspaceId, objectId, sourceId);
+            if (exists != null && exists > 0) {
+                continue;
+            }
+            try {
+                getObject(workspaceId, sourceId);
+                createEdgeInternal(workspaceId, branchId, "calculated-from", objectId, sourceId,
+                        "input", null, null);
+            } catch (Exception ignored) {
+                // source may live elsewhere; skip
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Double> calculationInputs(Map<String, Object> details) {
+        Map<String, Double> out = new LinkedHashMap<>();
+        Object raw = details.get("inputs");
+        if (!(raw instanceof List<?> list)) {
+            return out;
+        }
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Object name = map.get("name");
+            if (name == null || String.valueOf(name).isBlank()) {
+                continue;
+            }
+            Double value = CalculationExpr.asNumber(map.get("value"));
+            if (value != null) {
+                out.put(String.valueOf(name), value);
+            }
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void refreshInputsFromSources(String workspaceId, Map<String, Object> details, Map<String, Double> inputs) {
+        Object raw = details.get("inputs");
+        if (!(raw instanceof List<?> list)) {
+            return;
+        }
+        List<Map<String, Object>> next = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            map.forEach((k, v) -> row.put(String.valueOf(k), v));
+            Object source = row.get("sourceObjectId");
+            if (source != null && !String.valueOf(source).isBlank()) {
+                try {
+                    IdeaObject src = getObject(workspaceId, String.valueOf(source));
+                    Object out = src.details() == null ? null : src.details().get("output");
+                    if (out instanceof Map<?, ?> om) {
+                        Double value = CalculationExpr.asNumber(om.get("value"));
+                        if (value != null) {
+                            row.put("value", value);
+                            Object name = row.get("name");
+                            if (name != null) {
+                                inputs.put(String.valueOf(name), value);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // keep stored value
+                }
+            }
+            next.add(row);
+        }
+        details.put("inputs", next);
+    }
+
+    private List<Map<String, Object>> currentBom(String architectureId) {
+        return jdbc.query("""
+                SELECT o.id, o.display_id, o.title
+                FROM idea_edge e
+                JOIN idea_object o ON o.id = e.to_object_id
+                WHERE e.from_object_id = ? AND e.type = 'parent-of' AND e.deleted_at IS NULL
+                  AND o.deleted_at IS NULL
+                ORDER BY o.display_id
+                """, (rs, i) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", rs.getString("id"));
+            row.put("displayId", rs.getString("display_id"));
+            row.put("title", rs.getString("title"));
+            return row;
+        }, architectureId);
     }
 
     public record GraphSnapshot(List<IdeaObject> nodes, List<IdeaEdge> edges) {}
@@ -494,7 +924,8 @@ public class GraphService {
             Double canvasX,
             Double canvasY,
             List<String> tags,
-            List<String> derivedFrom
+            List<String> derivedFrom,
+            Map<String, Object> details
     ) {}
 
     public record UpdateObjectRequest(
@@ -509,7 +940,8 @@ public class GraphService {
             String sourceAssistantMessageId,
             Double canvasX,
             Double canvasY,
-            List<String> tags
+            List<String> tags,
+            Map<String, Object> details
     ) {}
 
     public record CreateEdgeRequest(
@@ -519,6 +951,36 @@ public class GraphService {
             String why,
             String branchId,
             String sourceUserMessageId,
-            String sourceAssistantMessageId
+            String sourceAssistantMessageId,
+            String sourceWorkspaceId,
+            String sourceObjectId
+    ) {}
+
+    public record ObjectVersion(
+            String id,
+            String objectId,
+            int version,
+            String title,
+            String summary,
+            String body,
+            String type,
+            String objectCategory,
+            Map<String, Object> details,
+            String generatedBy,
+            String sourceUserMessageId,
+            String sourceAssistantMessageId,
+            Instant createdAt
+    ) {}
+
+    public record SimilarObject(
+            String id,
+            String workspaceId,
+            String workspaceName,
+            String displayId,
+            String type,
+            String title,
+            String summary,
+            String objectCategory,
+            List<String> tags
     ) {}
 }

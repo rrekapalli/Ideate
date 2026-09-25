@@ -6,7 +6,14 @@ import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { AttachmentStore } from '../workspace/attachment.store';
 import { ShellContextService } from '../core/shell/shell-context.service';
-import { hasTag, isStudentPersona, orderedObjectTypes, typeDisplayLabel } from '../persona/persona-lens';
+import {
+  InventorCardAction,
+  hasTag,
+  isInventorPersona,
+  isStudentPersona,
+  orderedObjectTypes,
+  typeDisplayLabel,
+} from '../persona/persona-lens';
 import { cardBox } from './card-layout';
 import { DiagramCanvasBridge } from './diagram-canvas-bridge';
 
@@ -45,6 +52,13 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
         <div class="student-acts" (click)="$event.stopPropagation()">
           @for (act of studentActions(); track act.action) {
             <button type="button" (click)="emitStudent(act.action)">{{ act.label }}</button>
+          }
+        </div>
+      }
+      @if (inventorActions().length) {
+        <div class="student-acts" (click)="$event.stopPropagation()">
+          @for (act of inventorActions(); track act.action) {
+            <button type="button" (click)="emitInventor(act.action)">{{ act.label }}</button>
           }
         </div>
       }
@@ -285,11 +299,52 @@ export class ObjectCardChromeComponent {
     }
     return acts;
   });
+  readonly inventorActions = computed(() => {
+    if (!isInventorPersona(this.shell.workspacePersona())) {
+      return [] as { action: InventorCardAction; label: string }[];
+    }
+    const obj = this.object();
+    const acts: { action: InventorCardAction; label: string }[] = [];
+    if (obj.type === 'constraint') {
+      acts.push({ action: 'relax', label: 'Relax' }, { action: 'tighten', label: 'Tighten' });
+    }
+    if (obj.type === 'target') {
+      acts.push({ action: 'convert-observation', label: 'Convert to observation' });
+    }
+    if (obj.type === 'calculation') {
+      acts.push({ action: 'recompute', label: 'Recompute' }, { action: 'mark-estimate', label: 'Mark estimate' });
+    }
+    if (obj.type === 'architecture') {
+      acts.push({ action: 'diff-bom', label: 'Diff BOM' });
+    }
+    if (obj.type === 'hypothesis') {
+      acts.push({ action: 'start-evaluation', label: 'Start evaluation' });
+    }
+    if (obj.type === 'evaluation') {
+      acts.push({ action: 'accept-evaluation', label: 'Accept' }, { action: 'reject-evaluation', label: 'Reject' });
+    }
+    if (obj.type === 'decision') {
+      acts.push({ action: 'why-choice', label: 'Why this choice' });
+    }
+    if (obj.type === 'observation') {
+      acts.push({ action: 'record-bench', label: 'Record bench note' });
+    }
+    if (obj.type === 'design_artifact') {
+      acts.push({ action: 'extract-claims', label: 'Extract claims' });
+    }
+    if (obj.objectCategory === 'abandoned') {
+      acts.push({ action: 'resurrect', label: 'Resurrect' });
+    } else if (['hypothesis', 'architecture', 'decision', 'constraint'].includes(obj.type)) {
+      acts.push({ action: 'abandon', label: 'Abandon' });
+    }
+    return acts;
+  });
 
   box() {
     const b = cardBox(this.object(), this.expanded());
-    if (this.studentActions().length) {
-      return { width: b.width, height: b.height + 22 };
+    const extra = (this.studentActions().length ? 22 : 0) + (this.inventorActions().length ? 22 : 0);
+    if (extra) {
+      return { width: b.width, height: b.height + extra };
     }
     return b;
   }
@@ -361,6 +416,10 @@ export class ObjectCardChromeComponent {
 
   emitStudent(action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller') {
     this.bridge?.studentAction$.next({ object: this.object(), action });
+  }
+
+  emitInventor(action: InventorCardAction) {
+    this.bridge?.inventorAction$.next({ object: this.object(), action });
   }
 
   onPick(ev: Event) {

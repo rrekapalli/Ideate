@@ -3,7 +3,13 @@ import { IdeaObject, lookupLabel, personaIcon } from '@ideate/api-client';
 import { MtIconComponent, MtTooltipDirective } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
-import { STUDENT_PROMOTED_TYPES, isStudentPersona, typePluralDisplayLabel } from '../persona/persona-lens';
+import {
+  INVENTOR_PROMOTED_TYPES,
+  STUDENT_PROMOTED_TYPES,
+  isInventorPersona,
+  isStudentPersona,
+  typePluralDisplayLabel,
+} from '../persona/persona-lens';
 
 type TreeRow =
   | { kind: 'root'; id: 'workspace'; depth: 0 }
@@ -317,10 +323,15 @@ export class ObjectsTreeComponent {
       label: typePluralDisplayLabel(persona, type),
       items,
     }));
-    if (!isStudentPersona(persona)) {
+    const promoted = isStudentPersona(persona)
+      ? STUDENT_PROMOTED_TYPES
+      : isInventorPersona(persona)
+        ? INVENTOR_PROMOTED_TYPES
+        : null;
+    if (!promoted) {
       return entries;
     }
-    const rank = new Map<string, number>(STUDENT_PROMOTED_TYPES.map((t, i) => [t, i]));
+    const rank = new Map<string, number>(promoted.map((t, i) => [t, i]));
     return entries.sort((a, b) => {
       const ra = rank.has(a.type) ? rank.get(a.type)! : 100;
       const rb = rank.has(b.type) ? rank.get(b.type)! : 100;

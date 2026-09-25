@@ -11,5 +11,7 @@ public record IdeaEdge(
         String fromObjectId,
         String toObjectId,
         String why,
-        Instant createdAt
+        Instant createdAt,
+        String sourceWorkspaceId,
+        String sourceObjectId
 ) {}

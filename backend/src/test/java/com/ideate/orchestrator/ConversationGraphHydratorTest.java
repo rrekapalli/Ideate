@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -192,18 +193,18 @@ class ConversationGraphHydratorTest {
                                      String summary, String body) {
         return new IdeaObject(id, "ws", "br", displayId, type, "original", null, "speculative",
                 title, summary, body, 1, "ollama", "u", "a", null, null, Instant.now(), Instant.now(),
-                List.of(), List.of());
+                List.of(), List.of(), Map.of());
     }
 
     private static IdeaObject titled(String id, String displayId, String type, String title) {
         return new IdeaObject(id, "ws", "br", displayId, type, "original", null, "speculative",
                 title, title, title, 1, "ollama", "u", "a", null, null, Instant.now(), Instant.now(),
-                List.of(), List.of());
+                List.of(), List.of(), Map.of());
     }
 
     private static IdeaObject obj(String id, String displayId, String type) {
         return new IdeaObject(id, "ws", "br", displayId, type, "original", null, "speculative",
                 "Untitled", "", "", 1, "ollama", "u", "a", null, null, Instant.now(), Instant.now(),
-                List.of(), List.of());
+                List.of(), List.of(), Map.of());
     }
 }

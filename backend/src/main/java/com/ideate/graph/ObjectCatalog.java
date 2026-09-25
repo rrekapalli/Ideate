@@ -85,6 +85,9 @@ public final class ObjectCatalog {
         if ("theory".equals(toType) && !"evaluation".equals(fromType) && !"theory".equals(fromType)) {
             return false;
         }
+        if ("target".equals(fromType) && "observation".equals(toType)) {
+            return false;
+        }
         return NODE_TYPES.contains(toType);
     }
 }

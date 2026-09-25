@@ -15,7 +15,9 @@ class ObjectCatalogTest {
         assertEquals("DA", ObjectCatalog.prefix("design_artifact"));
         assertFalse(ObjectCatalog.isLegalPromotion("hypothesis", "theory"));
         assertTrue(ObjectCatalog.isLegalPromotion("evaluation", "theory"));
+        assertFalse(ObjectCatalog.isLegalPromotion("target", "observation"));
         assertThrows(IllegalArgumentException.class, () -> ObjectCatalog.requirePersona(""));
         ObjectCatalog.requirePersona("inventor");
+        assertTrue(ObjectCatalog.isLegalPromotion("target", "target"));
     }
 }

@@ -2,6 +2,7 @@ package com.ideate.graph;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public record IdeaObject(
         String id,
@@ -24,5 +25,6 @@ public record IdeaObject(
         Instant createdAt,
         Instant updatedAt,
         List<String> tags,
-        List<String> derivedFrom
+        List<String> derivedFrom,
+        Map<String, Object> details
 ) {}

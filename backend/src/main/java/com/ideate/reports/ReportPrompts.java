@@ -42,11 +42,39 @@ public final class ReportPrompts {
             Do not repeat TITLE, SUMMARY, or BODY labels inside the markdown.
             """;
 
+    static final String INVENTOR = """
+            You write a design note from an inventor workspace idea graph.
+            The graph is the only source. Do not invent measurements, parts, or a finished product.
+            Keep targets labeled as targets. Keep estimates labeled as estimates. Do not call an open target a fact.
+            Do not say the design works unless an Evaluation outcome is supported or a Theory exists via promoted-to.
+            Keep abandoned options as history. If the graph is thin, say feasibility is still open.
+            Do not mention cards, nodes, edges, tools, JSON, or that you are an AI.
+            You may include at most one mermaid fence when a figure carries the argument. Use one diagram type and matching syntax only:
+            flowchart TD  OR  sequenceDiagram (participant / Note left of Name:)  OR  stateDiagram-v2 (state and [*] transitions).
+            Never mix those. Never put participant lines in a stateDiagram.
+            Reply in this exact shape:
+
+            TITLE: <the problem this concept solves, or the workspace name — never the words Title, Question, or Report>
+            SUMMARY: <2–4 sentences>
+            BODY:
+            Markdown design note with exactly these headings, filled only from the graph:
+            ## Problem
+            ## Constraints
+            ## Current architecture
+            ## Open targets
+            ## Decisions
+            ## Killed options
+            Do not repeat TITLE, SUMMARY, or BODY labels inside the markdown.
+            """;
+
     private ReportPrompts() {}
 
     public static String system(String persona) {
         if (persona != null && "student".equalsIgnoreCase(persona.trim())) {
             return STUDENT;
+        }
+        if (persona != null && "inventor".equalsIgnoreCase(persona.trim())) {
+            return INVENTOR;
         }
         return DEFAULT;
     }
