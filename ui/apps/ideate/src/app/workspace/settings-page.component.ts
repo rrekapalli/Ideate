@@ -1,12 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { UsageEvent, UsageRollup, lookupLabel } from '@ideate/api-client';
-import { MtTabComponent, MtTabsComponent, type MtAppearancePreference } from '@ideate/ui';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { UsageEvent, UsageRollup, PERSONAS, lookupLabel } from '@ideate/api-client';
+import { MtButtonComponent, MtTabComponent, MtTabsComponent, type MtAppearancePreference } from '@ideate/ui';
 import { AppearanceThemeControlsComponent } from '../core/theme/appearance-theme-controls.component';
 import { ThemeService } from '../core/theme/theme.service';
 
 @Component({
   selector: 'ideate-settings-page',
-  imports: [AppearanceThemeControlsComponent, MtTabsComponent, MtTabComponent],
+  imports: [AppearanceThemeControlsComponent, MtTabsComponent, MtTabComponent, MtButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -37,7 +37,21 @@ import { ThemeService } from '../core/theme/theme.service';
                 </div>
                 <div>
                   <dt>Persona</dt>
-                  <dd>{{ lookupLabel(persona()) || '—' }}</dd>
+                  <dd>
+                    <select [value]="persona()" (change)="onPersona($event)" [attr.aria-label]="'Persona'">
+                      @for (p of personas; track p) {
+                        <option [value]="p">{{ lookupLabel(p) }}</option>
+                      }
+                    </select>
+                    <p class="lead">Evidence stays evidence. This does not write a paper.</p>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Handoff</dt>
+                  <dd class="handoff">
+                    <mt-button size="sm" variant="outlined" label="Clone to Researcher" (clicked)="clonePersona.emit('researcher')" />
+                    <mt-button size="sm" variant="outlined" label="Clone to Inventor" (clicked)="clonePersona.emit('inventor')" />
+                  </dd>
                 </div>
                 <div>
                   <dt>Active branch</dt>
@@ -183,6 +197,8 @@ import { ThemeService } from '../core/theme/theme.service';
     dl > div { display: grid; grid-template-columns: 9.5rem 1fr; gap: 0.6rem; font-size: 0.88rem; align-items: baseline; }
     dt { color: var(--mt-text-muted); }
     dd { margin: 0; font-weight: 650; }
+    dd select { font: inherit; font-weight: 650; }
+    .handoff { display: flex; flex-wrap: wrap; gap: 0.35rem; font-weight: 500; }
     .metrics { display: flex; flex-wrap: wrap; gap: 0.7rem; }
     .metric {
       min-width: 6.5rem;
@@ -212,8 +228,11 @@ export class SettingsPageComponent {
   readonly credits = input(0);
   readonly usageMinor = input(0);
   readonly usage = input<UsageRollup | null>(null);
+  readonly personaChange = output<string>();
+  readonly clonePersona = output<string>();
   readonly pane = signal('workspace');
   readonly lookupLabel = lookupLabel;
+  readonly personas = PERSONAS;
   pref: MtAppearancePreference = this.theme.getLastApplied();
 
   readonly events = computed<UsageEvent[]>(() => this.usage()?.recent ?? []);
@@ -237,6 +256,13 @@ export class SettingsPageComponent {
 
   onPreferenceChange(next: MtAppearancePreference): void {
     this.pref = this.theme.setAppearance(next);
+  }
+
+  onPersona(ev: Event): void {
+    const next = (ev.target as HTMLSelectElement).value;
+    if (next && next !== this.persona()) {
+      this.personaChange.emit(next);
+    }
   }
 
   rupees(minor: number): string {

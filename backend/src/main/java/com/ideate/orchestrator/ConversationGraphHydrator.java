@@ -24,7 +24,8 @@ public final class ConversationGraphHydrator {
             "(?i)\\b([A-Z]{1,4}-\\d+)\\s*->\\s*([A-Z]{1,4}-\\d+)(?:\\s+type\\s+([a-z-]+))?");
     private static final List<String> TYPE_HINTS = List.of(
             "question", "hypothesis", "assumption", "constraint", "experiment",
-            "evidence", "concept", "thought", "decision", "claim", "citation");
+            "evidence", "concept", "thought", "decision", "claim", "citation",
+            "unknown", "critique");
 
     public record NodePatch(String objectId, String type, String title, String summary, String body) {}
 
@@ -35,11 +36,16 @@ public final class ConversationGraphHydrator {
     public record Plan(List<NodePatch> nodes, List<EdgeSpec> edges, List<ExtraCard> extras) {}
 
     public Plan plan(String userText, String assistantText, List<IdeaObject> created) {
-        return plan(userText, assistantText, created, List.of(), List.of());
+        return plan(userText, assistantText, created, List.of(), List.of(), null);
     }
 
     public Plan plan(String userText, String assistantText, List<IdeaObject> created,
                      List<IdeaObject> existing, List<String> focusKeys) {
+        return plan(userText, assistantText, created, existing, focusKeys, null);
+    }
+
+    public Plan plan(String userText, String assistantText, List<IdeaObject> created,
+                     List<IdeaObject> existing, List<String> focusKeys, String persona) {
         String user = userText == null ? "" : userText;
         String assistant = assistantText == null ? "" : assistantText.trim();
         Map<String, Explicit> explicit = parseExplicit(user);
@@ -87,7 +93,7 @@ public final class ConversationGraphHydrator {
             edges.add(new EdgeSpec(edgeType, em.group(1).toUpperCase(Locale.ROOT),
                     em.group(2).toUpperCase(Locale.ROOT), "From conversation"));
         }
-        List<ExtraCard> extraCards = extras(user, assistant, created, patches, existing, focusKeys);
+        List<ExtraCard> extraCards = extras(user, assistant, created, patches, existing, focusKeys, persona);
         edges.addAll(suggestedEdges(created, patches));
         return new Plan(patches, dedupe(edges), extraCards);
     }
@@ -106,7 +112,7 @@ public final class ConversationGraphHydrator {
 
     private static List<ExtraCard> extras(String user, String assistant, List<IdeaObject> created,
                                          List<NodePatch> patches, List<IdeaObject> existing,
-                                         List<String> focusKeys) {
+                                         List<String> focusKeys, String persona) {
         Map<String, Boolean> have = new LinkedHashMap<>();
         created.forEach(o -> have.put(o.type(), true));
         patches.forEach(p -> have.put(p.type(), true));
@@ -128,6 +134,7 @@ public final class ConversationGraphHydrator {
         }
         String cleanAsst = ChatReplyCleaner.visible(assistant);
         boolean firstCapture = firstCapture(existing);
+        boolean explorer = persona != null && "explorer".equalsIgnoreCase(persona.trim());
 
         if (primary != null && !covered(titles, primary)) {
             extras.add(card("question", primary,
@@ -139,6 +146,33 @@ public final class ConversationGraphHydrator {
                             user, null)));
             have.put("question", true);
             titles.add(norm(primary));
+        }
+
+        if (explorer) {
+            if (looksLikeGap(user) && !have.containsKey("unknown")) {
+                String gapTitle = gapTitle(user, primary);
+                if (!covered(titles, gapTitle)) {
+                    extras.add(card("unknown", gapTitle,
+                            "I don't know yet — inventory, not a failure.",
+                            typedBody("unknown", gapTitle, "I don't know yet.", user, null)));
+                    have.put("unknown", true);
+                    titles.add(norm(gapTitle));
+                }
+            }
+            if (ChatReplyCleaner.isUsable(cleanAsst) && !covered(titles, firstSentence(cleanAsst))) {
+                extras.add(card("thought", trim(firstSentence(cleanAsst), 120),
+                        firstCapture ? "A speculation from this turn. Stay a Thought until they promote it."
+                                : "An answer that grows from a card already on the graph.",
+                        cleanAsst));
+                have.put("thought", true);
+            }
+            for (ExtraCard cit : parseCitations(cleanAsst)) {
+                if (!covered(titles, cit.title())) {
+                    extras.add(cit);
+                    titles.add(norm(cit.title()));
+                }
+            }
+            return extras;
         }
 
         String myth = misconceptionFrom(user);
@@ -447,6 +481,25 @@ public final class ConversationGraphHydrator {
         String lower = user == null ? "" : user.toLowerCase(Locale.ROOT);
         return lower.contains("same as") || lower.contains("what is density")
                 || lower.contains("difference between") || lower.contains("density the same");
+    }
+
+    static boolean looksLikeGap(String user) {
+        String lower = user == null ? "" : user.toLowerCase(Locale.ROOT);
+        return lower.contains("i don't know") || lower.contains("i do not know")
+                || lower.contains("not sure") || lower.contains("unclear")
+                || lower.contains("don't know yet") || lower.contains("unknown whether");
+    }
+
+    static String gapTitle(String user, String primary) {
+        String stripped = user == null ? "" : user;
+        if (primary != null && !primary.isBlank()) {
+            stripped = stripped.replace(primary, " ").trim();
+        }
+        String sentence = firstSentence(stripped);
+        if (sentence == null || sentence.isBlank() || sentence.equalsIgnoreCase(primary)) {
+            return "I don't know yet";
+        }
+        return trim(sentence, 120);
     }
 
     private static String followUp(String user, String assistant, String primary) {

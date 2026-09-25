@@ -21,8 +21,11 @@ import { AttachmentStore } from './attachment.store';
 import { ShellContextService } from '../core/shell/shell-context.service';
 import { DiagramCanvasBridge } from '../cards/diagram-canvas-bridge';
 import {
+  ExplorerCardAction,
   InventorCardAction,
+  epistemicFooter,
   hasTag,
+  isExplorerPersona,
   isInventorPersona,
   isStudentPersona,
   orderedObjectTypes,
@@ -63,6 +66,9 @@ import { InventorObjectPanelComponent } from './inventor-object-panel.component'
           </select>
           <span class="pill">v{{ object().version }}</span>
           <span class="pill">{{ lookupLabel(object().objectCategory) }}</span>
+          @if (epistemic(); as chip) {
+            <span class="pill">{{ chip.label }}{{ chip.why ? ' · ' + chip.why : '' }}</span>
+          }
         </div>
         <div class="hero-row">
           <h1>{{ object().title }}</h1>
@@ -72,6 +78,9 @@ import { InventorObjectPanelComponent } from './inventor-object-panel.component'
             }
             @for (act of inventorActions(); track act.action) {
               <mt-button size="sm" variant="outlined" [label]="act.label" (clicked)="emitInventor(act.action)" />
+            }
+            @for (act of explorerActions(); track act.action) {
+              <mt-button size="sm" variant="outlined" [label]="act.label" (clicked)="emitExplorer(act.action)" />
             }
             <mt-button size="sm" variant="outlined" label="Open in Chat" (clicked)="openChat.emit(object())" />
             <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="menu.emit(object())" />
@@ -430,6 +439,29 @@ export class ObjectPageComponent {
     }
     return acts;
   });
+  readonly explorerActions = computed(() => {
+    if (!isExplorerPersona(this.shell.workspacePersona())) {
+      return [] as { action: ExplorerCardAction; label: string }[];
+    }
+    const obj = this.object();
+    const acts: { action: ExplorerCardAction; label: string }[] = [];
+    if (obj.type === 'thought' && obj.objectCategory !== 'abandoned') {
+      acts.push({ action: 'promote-concept', label: 'Promote to concept' });
+      acts.push({ action: 'promote-hypothesis', label: 'Promote to hypothesis' });
+    }
+    if ((obj.type === 'thought' || obj.type === 'concept') && obj.objectCategory !== 'abandoned') {
+      acts.push({ action: 'walk-implications', label: 'Walk implications' });
+    }
+    acts.push({ action: 'link-analogy', label: 'Link analogy' });
+    acts.push({ action: 'reuse', label: 'Reuse from another project' });
+    if (obj.objectCategory === 'abandoned') {
+      acts.push({ action: 'resurrect', label: 'Resurrect' });
+    } else if (['thought', 'concept', 'hypothesis', 'assumption', 'unknown'].includes(obj.type)) {
+      acts.push({ action: 'abandon', label: 'Abandon' });
+    }
+    return acts;
+  });
+  readonly epistemic = computed(() => epistemicFooter(this.object(), this.snapshot().edges ?? []));
   readonly showDesign = computed(() =>
     isInventorPersona(this.shell.workspacePersona()) ||
     ['constraint', 'calculation', 'target', 'architecture', 'component', 'decision', 'observation', 'design_artifact'].includes(this.object().type),
@@ -445,6 +477,10 @@ export class ObjectPageComponent {
 
   emitInventor(action: InventorCardAction) {
     this.bridge?.inventorAction$.next({ object: this.object(), action });
+  }
+
+  emitExplorer(action: ExplorerCardAction) {
+    this.bridge?.explorerAction$.next({ object: this.object(), action });
   }
 
   addFiles(files: File[]) {

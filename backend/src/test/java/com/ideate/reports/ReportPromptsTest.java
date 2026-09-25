@@ -26,5 +26,13 @@ class ReportPromptsTest {
         assertTrue(inventor.contains("## Decisions"));
         assertTrue(inventor.contains("## Killed options"));
         assertFalse(other.contains("## Killed options"));
+        String explorer = ReportPrompts.system("explorer");
+        assertTrue(explorer.contains("## The thought"));
+        assertTrue(explorer.contains("## Concepts"));
+        assertTrue(explorer.contains("## Unknowns"));
+        assertTrue(explorer.contains("## Assumptions"));
+        assertTrue(explorer.contains("## What was dropped"));
+        assertFalse(explorer.contains("established facts"));
+        assertFalse(other.contains("## The thought"));
     }
 }

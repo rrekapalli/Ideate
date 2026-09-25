@@ -113,6 +113,14 @@
                 (focus)="focusObject($event)"
               />
             }
+            @if (isExplorer()) {
+              <ideate-explorer-home
+                [home]="explorerHome()"
+                (focus)="focusObject($event)"
+                (cloneResearcher)="cloneWorkspace('researcher')"
+                (cloneInventor)="cloneWorkspace('inventor')"
+              />
+            }
             <ideate-graph-canvas
               #canvas
               [snapshot]="graph()"
@@ -166,6 +174,8 @@
             [credits]="credits()"
             [usageMinor]="usageMinor()"
             [usage]="usage()"
+            (personaChange)="changePersona($event)"
+            (clonePersona)="cloneWorkspace($event)"
           />
         } @else if (tab.kind === 'report') {
           <ideate-report-page
@@ -318,7 +328,7 @@
               }
             </ul>
           }
-          <textarea [(ngModel)]="draft" rows="2" placeholder="Think out loud…" (keydown.control.enter)="send()"></textarea>
+          <textarea [(ngModel)]="draft" rows="2" [placeholder]="composerPlaceholder(workspace()?.persona)" (keydown.control.enter)="send()"></textarea>
           <div class="composer-actions">
             <input #chatFiles type="file" hidden multiple [attr.accept]="acceptFiles" (change)="pickChatFiles($event)" />
             <mt-button variant="icon" icon="attach_file" ariaLabel="Attach files" (clicked)="chatFiles.click()" />
@@ -391,6 +401,81 @@
     </div>
   </mt-dialog>
 
+  <mt-dialog
+    [visible]="analogyOpen()"
+    (visibleChange)="!$event && closeAnalogy()"
+    header="Link analogy"
+    [closable]="true"
+    [dismissableMask]="true"
+    width="24rem"
+  >
+    @if (analogyFrom(); as from) {
+      <p class="new-node-lead">Link {{ from.displayId }} to another card in this workspace, including dropped ones.</p>
+    }
+    <label class="new-node-form">
+      Card
+      <select [(ngModel)]="analogyTargetId">
+        <option value="">Select card</option>
+        @for (n of analogyCandidates(); track n.id) {
+          <option [value]="n.id">{{ n.displayId }} {{ n.title }}{{ n.objectCategory === 'abandoned' ? ' (dropped)' : '' }}</option>
+        }
+      </select>
+    </label>
+    <div class="dlg-actions" mtDialogFooter>
+      <mt-button variant="text" label="Cancel" (clicked)="closeAnalogy()" />
+      <mt-button variant="filled" label="Link" [disabled]="!analogyTargetId" (clicked)="submitAnalogy()" />
+    </div>
+  </mt-dialog>
+
+  <mt-dialog
+    [visible]="reuseOpen()"
+    (visibleChange)="!$event && closeReuse()"
+    header="Reuse from another project"
+    [closable]="true"
+    [dismissableMask]="true"
+    width="26rem"
+  >
+    <p class="new-node-lead">Search this account for a similar card, including abandoned ones. Writes a reused-in edge.</p>
+    <form class="new-node-form" (ngSubmit)="searchReuse()">
+      <label>
+        Search
+        <input [(ngModel)]="reuseQuery" name="reuseQuery" placeholder="Title or idea" />
+      </label>
+    </form>
+    <div class="dlg-actions">
+      <mt-button size="sm" variant="outlined" label="Search" (clicked)="searchReuse()" />
+    </div>
+    @for (hit of reuseHits(); track hit.id) {
+      <button type="button" class="row" (click)="pickReuse(hit)">
+        {{ hit.workspaceName }} · {{ hit.displayId }} {{ hit.title }}
+      </button>
+    }
+    <div class="dlg-actions" mtDialogFooter>
+      <mt-button variant="text" label="Close" (clicked)="closeReuse()" />
+    </div>
+  </mt-dialog>
+
+  <mt-dialog
+    [visible]="abandonOpen()"
+    (visibleChange)="!$event && closeAbandon()"
+    header="Abandon this card?"
+    [closable]="true"
+    [dismissableMask]="true"
+    width="24rem"
+  >
+    @if (abandonFrom(); as obj) {
+      <p class="new-node-lead">Drop {{ obj.displayId }} “{{ obj.title }}”. It stays on the graph with why it stopped.</p>
+    }
+    <label class="new-node-form">
+      Why it stopped
+      <input [(ngModel)]="abandonWhy" name="abandonWhy" placeholder="Could not stay dormant" />
+    </label>
+    <div class="dlg-actions" mtDialogFooter>
+      <mt-button variant="text" label="Cancel" (clicked)="closeAbandon()" />
+      <mt-button variant="filled" label="Abandon" [disabled]="!abandonWhy.trim()" (clicked)="submitAbandon()" />
+    </div>
+  </mt-dialog>
+
   @if (searchOpen()) {
     <div class="overlay" (click)="searchOpen.set(false)">
       <div class="palette" (click)="$event.stopPropagation()">
@@ -406,6 +491,13 @@
             <button type="button" [class.active]="searchType === ''" (click)="setSearchType('')">All</button>
             <button type="button" [class.active]="searchType === 'constraint'" (click)="setSearchType('constraint')">Constraints</button>
             <button type="button" [class.active]="searchType === 'target'" (click)="setSearchType('target')">Targets</button>
+          </div>
+        }
+        @if (isExplorer()) {
+          <div class="search-chips">
+            <button type="button" [class.active]="searchType === '' && searchCategory === ''" (click)="setSearchFilter('', '')">All</button>
+            <button type="button" [class.active]="searchType === 'unknown'" (click)="setSearchFilter('unknown', '')">Unknowns</button>
+            <button type="button" [class.active]="searchCategory === 'abandoned'" (click)="setSearchFilter('', 'abandoned')">Dropped</button>
           </div>
         }
         @for (o of searchObjects(); track o.id) {

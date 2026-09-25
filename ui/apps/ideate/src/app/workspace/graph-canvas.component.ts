@@ -244,6 +244,7 @@ export class GraphCanvasComponent implements OnDestroy {
     this.bridge.openChat$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.openChat.emit(o));
     effect(() => {
       const snap = this.snapshot();
+      this.bridge.snapshot.set(snap);
       if (this.ready) {
         void this.sync(snap);
       }

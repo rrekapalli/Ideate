@@ -292,8 +292,9 @@ public class TurnOrchestrator {
                 created.add(existing);
             }
         }
+        String persona = workspacePersona(workspaceId);
         var plan = hydrator.plan(userText, assistantText, created, snapshot.nodes(),
-                focusKeys == null ? List.of() : focusKeys);
+                focusKeys == null ? List.of() : focusKeys, persona);
         for (var patch : plan.nodes()) {
             try {
                 graph.updateObject(workspaceId, patch.objectId(), new GraphService.UpdateObjectRequest(
@@ -311,9 +312,9 @@ public class TurnOrchestrator {
                 var createdExtra = graph.createObject(workspaceId, null, new GraphService.CreateObjectRequest(
                         extra.type(), extra.title(), extra.summary(), extra.body(),
                         null, "original", null,
-                        "misconception".equals(extra.type()) ? "misconception" : null,
+                        extraCategory(extra.type()),
                         generatedBy, userMsgId, assistantMsgId,
-                        null, null, List.of(), List.of(), null));
+                        null, null, extraTags(extra.type(), persona), List.of(), null));
                 ids.add(createdExtra.id());
                 created.add(createdExtra);
                 minted.add(createdExtra);
@@ -347,6 +348,34 @@ public class TurnOrchestrator {
             }
         }
         return ids;
+    }
+
+    private String workspacePersona(String workspaceId) {
+        try {
+            return jdbc.queryForObject("SELECT persona FROM workspace WHERE id = ?", String.class, workspaceId);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String extraCategory(String type) {
+        if ("misconception".equals(type)) {
+            return "misconception";
+        }
+        if ("unknown".equals(type)) {
+            return "unknown";
+        }
+        if ("thought".equals(type)) {
+            return "speculative";
+        }
+        return null;
+    }
+
+    private static List<String> extraTags(String type, String persona) {
+        if ("thought".equals(type) && persona != null && "explorer".equalsIgnoreCase(persona.trim())) {
+            return List.of("speculation");
+        }
+        return List.of();
     }
 
     private IdeaObject resolveKey(String workspaceId, String key) {

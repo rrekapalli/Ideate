@@ -7,8 +7,11 @@ import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { AttachmentStore } from '../workspace/attachment.store';
 import { ShellContextService } from '../core/shell/shell-context.service';
 import {
+  ExplorerCardAction,
   InventorCardAction,
+  epistemicFooter,
   hasTag,
+  isExplorerPersona,
   isInventorPersona,
   isStudentPersona,
   orderedObjectTypes,
@@ -55,10 +58,10 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
           }
         </div>
       }
-      @if (inventorActions().length) {
+      @if (explorerActions().length) {
         <div class="student-acts" (click)="$event.stopPropagation()">
-          @for (act of inventorActions(); track act.action) {
-            <button type="button" (click)="emitInventor(act.action)">{{ act.label }}</button>
+          @for (act of explorerActions(); track act.action) {
+            <button type="button" (click)="emitExplorer(act.action)">{{ act.label }}</button>
           }
         </div>
       }
@@ -93,6 +96,14 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
             <mt-tag [value]="tag" />
           }
         </span>
+        @if (epistemic(); as chip) {
+          <span class="epistemic" [attr.data-kind]="chip.kind" [title]="chip.why || chip.label">
+            {{ chip.label }}
+            @if (chip.why) {
+              <span class="why">{{ chip.why }}</span>
+            }
+          </span>
+        }
         @if (hasBody()) {
           <button type="button" class="acc" (click)="$event.stopPropagation(); toggle()">
             {{ expanded() ? 'Hide reply' : 'Show reply' }}
@@ -245,6 +256,28 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     }
     .attach .n { font-size: 0.68rem; font-weight: 700; }
     .tags { display: flex; gap: 0.25rem; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; }
+    .epistemic {
+      flex: 0 1 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      max-width: 9rem;
+      padding: 0.05rem 0.35rem;
+      border: 1px solid var(--mt-surface-border, var(--surface-border));
+      font-size: 0.62rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--mt-text-muted);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .epistemic[data-kind='thought-experiment'] { color: var(--ideate-type-thought, var(--mt-primary)); }
+    .epistemic[data-kind='speculation'] { color: var(--ideate-type-assumption, var(--mt-primary)); }
+    .epistemic[data-kind='evidence-backed'] { color: var(--ideate-type-evidence, var(--mt-primary)); }
+    .epistemic[data-kind='unknown'] { color: var(--ideate-type-unknown, var(--mt-primary)); }
+    .epistemic[data-kind='dropped'] { color: var(--surface-400, #9ca3af); }
+    .epistemic .why { text-transform: none; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
     .ver { font-size: 0.7rem; color: var(--mt-text-muted); }
     .student-acts {
       display: flex;
@@ -339,10 +372,36 @@ export class ObjectCardChromeComponent {
     }
     return acts;
   });
+  readonly explorerActions = computed(() => {
+    if (!isExplorerPersona(this.shell.workspacePersona())) {
+      return [] as { action: ExplorerCardAction; label: string }[];
+    }
+    const obj = this.object();
+    const acts: { action: ExplorerCardAction; label: string }[] = [];
+    if (obj.type === 'thought' && obj.objectCategory !== 'abandoned') {
+      acts.push({ action: 'promote-concept', label: 'Promote to concept' });
+      acts.push({ action: 'promote-hypothesis', label: 'Promote to hypothesis' });
+    }
+    if ((obj.type === 'thought' || obj.type === 'concept') && obj.objectCategory !== 'abandoned') {
+      acts.push({ action: 'walk-implications', label: 'Walk implications' });
+    }
+    acts.push({ action: 'link-analogy', label: 'Link analogy' });
+    acts.push({ action: 'reuse', label: 'Reuse from another project' });
+    if (obj.objectCategory === 'abandoned') {
+      acts.push({ action: 'resurrect', label: 'Resurrect' });
+    } else if (['thought', 'concept', 'hypothesis', 'assumption', 'unknown'].includes(obj.type)) {
+      acts.push({ action: 'abandon', label: 'Abandon' });
+    }
+    return acts;
+  });
+  readonly epistemic = computed(() => epistemicFooter(this.object(), this.bridge?.snapshot()?.edges ?? []));
 
   box() {
     const b = cardBox(this.object(), this.expanded());
-    const extra = (this.studentActions().length ? 22 : 0) + (this.inventorActions().length ? 22 : 0);
+    const extra =
+      (this.studentActions().length ? 22 : 0) +
+      (this.inventorActions().length ? 22 : 0) +
+      (this.explorerActions().length ? 22 : 0);
     if (extra) {
       return { width: b.width, height: b.height + extra };
     }
@@ -420,6 +479,10 @@ export class ObjectCardChromeComponent {
 
   emitInventor(action: InventorCardAction) {
     this.bridge?.inventorAction$.next({ object: this.object(), action });
+  }
+
+  emitExplorer(action: ExplorerCardAction) {
+    this.bridge?.explorerAction$.next({ object: this.object(), action });
   }
 
   onPick(ev: Event) {

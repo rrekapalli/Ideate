@@ -116,6 +116,17 @@ public class IdeateApiController {
         return workspaces.create(currentUser.get().accountId(), body.name(), body.persona());
     }
 
+    @PatchMapping("/workspaces/{id}")
+    public WorkspaceService.WorkspaceRecord updateWorkspace(@PathVariable String id, @RequestBody ApiDtos.UpdateWorkspaceBody body) {
+        return workspaces.updatePersona(currentUser.get().accountId(), id, body.persona());
+    }
+
+    @PostMapping("/workspaces/{id}/clone")
+    @ResponseStatus(HttpStatus.CREATED)
+    public WorkspaceService.WorkspaceRecord cloneWorkspace(@PathVariable String id, @RequestBody ApiDtos.CloneWorkspaceBody body) {
+        return workspaces.cloneWorkspace(currentUser.get().accountId(), id, body.name(), body.persona());
+    }
+
     @GetMapping("/workspaces/{id}")
     public Map<String, Object> getWorkspace(@PathVariable String id) {
         var ws = workspaces.get(currentUser.get().accountId(), id);

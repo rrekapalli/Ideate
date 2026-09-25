@@ -54,6 +54,14 @@ export class IdeateApi {
     return this.http.post<Workspace>(this.url('/workspaces'), { name, persona });
   }
 
+  updateWorkspace(id: string, body: { persona: string }): Observable<Workspace> {
+    return this.http.patch<Workspace>(this.url(`/workspaces/${id}`), body);
+  }
+
+  cloneWorkspace(id: string, body: { name?: string; persona: string }): Observable<Workspace> {
+    return this.http.post<Workspace>(this.url(`/workspaces/${id}/clone`), body);
+  }
+
   deleteWorkspace(id: string) {
     return this.http.delete(this.url(`/workspaces/${id}`));
   }

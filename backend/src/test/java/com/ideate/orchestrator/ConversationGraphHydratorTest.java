@@ -189,6 +189,19 @@ class ConversationGraphHydratorTest {
         assertTrue(assistant.length() > 400);
     }
 
+    @Test
+    void explorerFirstTurnStaysAThoughtAndDoesNotMintHypothesis() {
+        String user = "Could a satellite relay last 1,000 years? I don't know yet whether electronics can sleep that long.";
+        var plan = hydrator.plan(user, "A modular dormant architecture might wait between rare visitors.",
+                List.of(), List.of(), List.of(), "explorer");
+        assertTrue(plan.extras().stream().anyMatch(e -> "thought".equals(e.type())));
+        assertTrue(plan.extras().stream().anyMatch(e -> "unknown".equals(e.type())));
+        assertTrue(plan.extras().stream().anyMatch(e -> "question".equals(e.type())));
+        assertTrue(plan.extras().stream().noneMatch(e -> "hypothesis".equals(e.type())));
+        assertTrue(plan.extras().stream().noneMatch(e -> "experiment".equals(e.type())));
+        assertTrue(plan.extras().stream().noneMatch(e -> "theory".equals(e.type())));
+    }
+
     private static IdeaObject bodyObj(String id, String displayId, String type, String title,
                                      String summary, String body) {
         return new IdeaObject(id, "ws", "br", displayId, type, "original", null, "speculative",

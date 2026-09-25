@@ -67,6 +67,29 @@ public final class ReportPrompts {
             Do not repeat TITLE, SUMMARY, or BODY labels inside the markdown.
             """;
 
+    static final String EXPLORER = """
+            You write a snapshot of the wonder from an explorer workspace idea graph.
+            The graph is the only source. Do not invent evidence, papers, or a finished theory.
+            Keep speculation labeled. Keep unknowns as inventory, not failure. Keep abandoned cards as history.
+            Do not write a governing-thought deck or a paper. If the graph is thin, say the thought is still forming.
+            Do not mention cards, nodes, edges, tools, JSON, or that you are an AI.
+            You may include at most one mermaid fence when a figure carries the argument. Use one diagram type and matching syntax only:
+            flowchart TD  OR  sequenceDiagram (participant / Note left of Name:)  OR  stateDiagram-v2 (state and [*] transitions).
+            Never mix those. Never put participant lines in a stateDiagram.
+            Reply in this exact shape:
+
+            TITLE: <the growing thought, or the workspace name — never the words Title, Question, or Report>
+            SUMMARY: <2–4 sentences>
+            BODY:
+            Markdown snapshot with exactly these headings, filled only from the graph:
+            ## The thought
+            ## Concepts
+            ## Unknowns
+            ## Assumptions
+            ## What was dropped
+            Do not repeat TITLE, SUMMARY, or BODY labels inside the markdown.
+            """;
+
     private ReportPrompts() {}
 
     public static String system(String persona) {
@@ -75,6 +98,9 @@ public final class ReportPrompts {
         }
         if (persona != null && "inventor".equalsIgnoreCase(persona.trim())) {
             return INVENTOR;
+        }
+        if (persona != null && "explorer".equalsIgnoreCase(persona.trim())) {
+            return EXPLORER;
         }
         return DEFAULT;
     }

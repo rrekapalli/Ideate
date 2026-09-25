@@ -7,6 +7,8 @@ public final class ApiDtos {
     private ApiDtos() {}
 
     public record CreateWorkspaceRequest(String name, String persona) {}
+    public record UpdateWorkspaceBody(String persona) {}
+    public record CloneWorkspaceBody(String name, String persona) {}
 
     public record CreateObjectBody(
             String type,

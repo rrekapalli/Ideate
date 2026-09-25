@@ -4,8 +4,10 @@ import { MtIconComponent, MtTooltipDirective } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import {
+  EXPLORER_PROMOTED_TYPES,
   INVENTOR_PROMOTED_TYPES,
   STUDENT_PROMOTED_TYPES,
+  isExplorerPersona,
   isInventorPersona,
   isStudentPersona,
   typePluralDisplayLabel,
@@ -327,7 +329,9 @@ export class ObjectsTreeComponent {
       ? STUDENT_PROMOTED_TYPES
       : isInventorPersona(persona)
         ? INVENTOR_PROMOTED_TYPES
-        : null;
+        : isExplorerPersona(persona)
+          ? EXPLORER_PROMOTED_TYPES
+          : null;
     if (!promoted) {
       return entries;
     }
