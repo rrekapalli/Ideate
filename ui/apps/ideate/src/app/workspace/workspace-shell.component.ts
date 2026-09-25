@@ -64,7 +64,7 @@ type EditorTab =
   | { kind: 'settings' };
 
 type LeftTab = 'objects' | 'documents' | 'branches' | 'reports';
-type RightTab = 'chat' | 'timeline' | 'inspector' | 'outline';
+type RightTab = 'chat' | 'inspector' | 'outline';
 type BottomTab = 'review' | 'jobs' | 'problems';
 
 @Component({
@@ -1050,14 +1050,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     }
   }
 
-  timelineNodes(): IdeaObject[] {
-    return [...this.graph().nodes].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.displayId.localeCompare(b.displayId));
-  }
-
   rightTitle(): string {
     switch (this.rightTab()) {
-      case 'timeline':
-        return 'Timeline';
       case 'inspector':
         return 'Inspector';
       case 'outline':
@@ -1224,8 +1218,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       } else if (v.leftOpen === true && (v.leftTab === 'objects' || v.leftTab === 'documents' || v.leftTab === 'branches' || v.leftTab === 'reports')) {
         this.shell.leftDrawer.set(v.leftTab);
       }
-      const rightTab = v.rightTab === 'insights' ? 'timeline' : v.rightTab;
-      if (rightTab === 'chat' || rightTab === 'timeline' || rightTab === 'inspector' || rightTab === 'outline') {
+      const rightTab = v.rightTab === 'insights' || v.rightTab === 'timeline' ? 'chat' : v.rightTab;
+      if (rightTab === 'chat' || rightTab === 'inspector' || rightTab === 'outline') {
         this.rightTab.set(rightTab);
       }
     } catch {

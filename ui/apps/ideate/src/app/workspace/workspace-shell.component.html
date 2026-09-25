@@ -262,39 +262,6 @@
               }
             </div>
           }
-          @case ('timeline') {
-            @if (timelineNodes().length === 0) {
-              <p class="muted">Objects appear here as they are created.</p>
-            } @else {
-              <ol class="node-timeline">
-                @for (n of timelineNodes(); track n.id) {
-                  <li>
-                    <button
-                      type="button"
-                      class="node-card"
-                      [class.active]="inspected()?.id === n.id"
-                      [attr.data-type]="n.type"
-                      [attr.data-category]="n.objectCategory"
-                      (click)="focusObject(n)"
-                      (dblclick)="openObject(n)"
-                    >
-                      <time [attr.datetime]="n.createdAt">{{ chatWhen(n.createdAt) }}</time>
-                      <span class="node-card-head">
-                        <ideate-type-glyph [type]="n.type" [size]="12" />
-                        <span class="id">{{ n.displayId }}</span>
-                        <span class="kind">{{ lookupLabel(n.type) }}</span>
-                        <span class="ver">v{{ n.version }}</span>
-                      </span>
-                      <span class="node-card-title">{{ n.title }}</span>
-                      <span class="node-card-summary">
-                        <ideate-md [source]="n.summary || 'No summary yet.'" />
-                      </span>
-                    </button>
-                  </li>
-                }
-              </ol>
-            }
-          }
           @case ('inspector') {
             @if (inspected(); as obj) {
               <p class="inspect-title">
@@ -372,12 +339,6 @@
         <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'chat'" title="Chat" (click)="selectRight('chat')">
           <mt-icon name="chat" [size]="14" />
           <span class="btn-label">Chat</span>
-        </button>
-      </li>
-      <li>
-        <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'timeline'" title="Timeline" (click)="selectRight('timeline')">
-          <mt-icon name="history" [size]="14" />
-          <span class="btn-label btn-label--long">Timeline</span>
         </button>
       </li>
       <li>
