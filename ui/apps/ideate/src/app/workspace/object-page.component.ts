@@ -12,7 +12,7 @@ import {
   UsageEvent,
   UsageRollup,
 } from '@ideate/api-client';
-import { MtButtonComponent, MtTabComponent, MtTabsComponent } from '@ideate/ui';
+import { MtButtonComponent, MtMenuComponent, MtTabComponent, MtTabsComponent, type MtMenuItem } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { hasMermaidFence } from '../shared/render-markdown';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
@@ -34,10 +34,11 @@ import {
   typeDisplayLabel,
 } from '../persona/persona-lens';
 import { InventorObjectPanelComponent } from './inventor-object-panel.component';
+import { cardUserNote, includeCardNoteInAi } from '../cards/card-note';
 
 @Component({
   selector: 'ideate-object-page',
-  imports: [FormsModule, MtButtonComponent, MtTabsComponent, MtTabComponent, MdViewComponent, TypeGlyphComponent, AttachmentListComponent, InventorObjectPanelComponent],
+  imports: [FormsModule, MtButtonComponent, MtMenuComponent, MtTabsComponent, MtTabComponent, MdViewComponent, TypeGlyphComponent, AttachmentListComponent, InventorObjectPanelComponent],
   template: `
     <div class="page">
       <nav class="crumb" aria-label="Path from parent">
@@ -87,6 +88,9 @@ import { InventorObjectPanelComponent } from './inventor-object-panel.component'
             @for (act of productActions(); track act.action) {
               <mt-button size="sm" variant="outlined" [label]="act.label" (clicked)="emitProduct(act.action)" />
             }
+            <mt-menu #plusMenu [model]="plusItems()">
+              <mt-button size="sm" variant="icon" icon="add" ariaLabel="Card actions" (clicked)="plusMenu.toggle($event)" />
+            </mt-menu>
             <mt-button size="sm" variant="outlined" label="Open in Chat" (clicked)="openChat.emit(object())" />
             <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="menu.emit(object())" />
           </div>
@@ -116,6 +120,12 @@ import { InventorObjectPanelComponent } from './inventor-object-panel.component'
                     <ideate-md [source]="a.content" [diagrams]="true" />
                   </article>
                 }
+              </section>
+            }
+            @if (noteText()) {
+              <section class="source card-note">
+                <h2>Note{{ noteInAi() ? ' · included in AI' : '' }}</h2>
+                <ideate-md [source]="noteText()" />
               </section>
             }
             @if (showDesign()) {
@@ -355,6 +365,7 @@ import { InventorObjectPanelComponent } from './inventor-object-panel.component'
     .mono { font-family: var(--font-family-mono, ui-monospace, monospace); font-size: 0.78rem; word-break: break-all; }
     .muted { color: var(--mt-text-muted); font-size: 0.85rem; }
     .err { color: #b45309; }
+    .card-note { margin-top: 0.4rem; }
   `,
 })
 export class ObjectPageComponent {
@@ -372,6 +383,8 @@ export class ObjectPageComponent {
   readonly snapshot = input<GraphSnapshot>({ nodes: [], edges: [] });
   readonly typeChange = output<string>();
   readonly menu = output<IdeaObject>();
+  readonly newNode = output<IdeaObject>();
+  readonly note = output<IdeaObject>();
   readonly openChat = output<IdeaObject>();
   readonly open = output<IdeaObject>();
   readonly changed = output<void>();
@@ -500,6 +513,12 @@ export class ObjectPageComponent {
     return acts;
   });
   readonly epistemic = computed(() => epistemicChips(this.object(), this.snapshot().edges ?? []));
+  readonly noteText = computed(() => cardUserNote(this.object()));
+  readonly noteInAi = computed(() => includeCardNoteInAi(this.object()));
+  readonly plusItems = computed((): MtMenuItem[] => [
+    { label: 'Add related', icon: 'add', command: () => this.newNode.emit(this.object()) },
+    { label: this.noteText() ? 'Edit note' : 'Add note', icon: 'sticky_note', command: () => this.note.emit(this.object()) },
+  ]);
   readonly showDesign = computed(() =>
     isInventorPersona(this.shell.workspacePersona()) ||
     isProductResearchPersona(this.shell.workspacePersona()) ||

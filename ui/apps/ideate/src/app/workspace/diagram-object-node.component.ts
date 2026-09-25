@@ -27,7 +27,7 @@ export type DiagramObjectData = { label: string; object: IdeaObject };
     </div>
   `,
   styles: `
-    :host, .node { display: block; position: relative; }
+    :host, .node { display: block; position: relative; overflow: visible; }
     .port { position: absolute; }
     .port-left { left: 0; top: 50%; transform: translate(-50%, -50%); }
     .port-right { right: 0; top: 50%; transform: translate(50%, -50%); }

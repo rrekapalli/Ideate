@@ -134,6 +134,7 @@
               (open)="openObject($event)"
               (typeChange)="changeType($event.object, $event.type)"
               (newNode)="promptNewNode($event)"
+              (note)="promptNote($event)"
               (menu)="promptMenu($event)"
               (openChat)="jumpChat($event)"
               (inspect)="$event && setChatContext($event)"
@@ -152,6 +153,8 @@
             [snapshot]="graph()"
             (typeChange)="changeType(tab.object, $event)"
             (menu)="promptMenu($event)"
+            (newNode)="promptNewNode($event)"
+            (note)="promptNote($event)"
             (openChat)="jumpChat($event)"
             (open)="openObject($event)"
             (changed)="reloadAll()"
@@ -406,6 +409,36 @@
     <div class="dlg-actions" mtDialogFooter>
       <mt-button variant="text" label="Cancel" (clicked)="closeNewNode()" />
       <mt-button variant="filled" label="Create" [disabled]="!newNodeTitle().trim()" (clicked)="submitNewNode()" />
+    </div>
+  </mt-dialog>
+
+  <mt-dialog
+    [visible]="noteOpen()"
+    (visibleChange)="!$event && closeNote()"
+    [header]="cardUserNote(noteTarget()) ? 'Edit note' : 'Add note'"
+    [closable]="true"
+    [dismissableMask]="true"
+    width="26rem"
+  >
+    @if (noteTarget(); as target) {
+      <p class="new-node-lead">Private note on {{ target.displayId }} “{{ (target.title || 'Untitled').trim() }}”.</p>
+    }
+    <form class="new-node-form" (ngSubmit)="submitNote()">
+      <label>
+        Note
+        <textarea
+          [ngModel]="noteText()"
+          (ngModelChange)="noteText.set($event)"
+          name="cardNote"
+          rows="5"
+          placeholder="A reminder, constraint, or aside for this card"
+        ></textarea>
+      </label>
+      <mt-checkbox label="Include this note in AI calls" [(checked)]="noteIncludeInAi" />
+    </form>
+    <div class="dlg-actions" mtDialogFooter>
+      <mt-button variant="text" label="Cancel" (clicked)="closeNote()" />
+      <mt-button variant="filled" label="Save" (clicked)="submitNote()" />
     </div>
   </mt-dialog>
 

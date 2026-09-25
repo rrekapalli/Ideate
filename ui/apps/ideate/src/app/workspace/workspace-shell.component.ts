@@ -3,7 +3,7 @@ import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browse
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription, forkJoin, of } from 'rxjs';
-import { MtButtonComponent, MtConfirm, MtDialogComponent, MtIconComponent } from '@ideate/ui';
+import { MtButtonComponent, MtCheckboxComponent, MtConfirm, MtDialogComponent, MtIconComponent } from '@ideate/ui';
 import {
   ATTACHMENT_ACCEPT,
   ATTACHMENT_MAX_BYTES,
@@ -72,6 +72,7 @@ import { ExplorerHomeComponent } from '../persona/explorer-home.component';
 import { assumptionBreaks, deriveProductHome } from '../persona/product-home';
 import { ProductHomeComponent } from '../persona/product-home.component';
 import { readResume, writeResume } from '../persona/workspace-resume';
+import { INCLUDE_USER_NOTE_IN_AI_KEY, USER_NOTE_KEY, cardUserNote, includeCardNoteInAi } from '../cards/card-note';
 
 type EditorTab =
   | { kind: 'graph' }
@@ -87,7 +88,7 @@ type BottomTab = 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, ReportsTreeComponent, ReportPageComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent, StudentHomeComponent, InventorHomeComponent, ExplorerHomeComponent, ProductHomeComponent],
+  imports: [FormsModule, MtButtonComponent, MtCheckboxComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, ReportsTreeComponent, ReportPageComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent, StudentHomeComponent, InventorHomeComponent, ExplorerHomeComponent, ProductHomeComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -104,6 +105,11 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   readonly newNodeParent = signal<IdeaObject | null>(null);
   readonly newNodeType = signal('thought');
   readonly newNodeTitle = signal('');
+  readonly noteOpen = signal(false);
+  readonly noteTarget = signal<IdeaObject | null>(null);
+  readonly noteText = signal('');
+  readonly noteIncludeInAi = signal(false);
+  readonly cardUserNote = cardUserNote;
   readonly analogyOpen = signal(false);
   readonly analogyFrom = signal<IdeaObject | null>(null);
   analogyTargetId = '';
@@ -706,6 +712,33 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     }
     this.closeNewNode();
     this.api.newNode(this.workspaceId, parent.id, { type, title }).subscribe(() => this.reloadAll());
+  }
+
+  promptNote(object: IdeaObject) {
+    this.noteTarget.set(object);
+    this.noteText.set(cardUserNote(object));
+    this.noteIncludeInAi.set(includeCardNoteInAi(object));
+    this.noteOpen.set(true);
+  }
+
+  closeNote() {
+    this.noteOpen.set(false);
+    this.noteTarget.set(null);
+  }
+
+  submitNote() {
+    const target = this.noteTarget();
+    if (!target) {
+      return;
+    }
+    const text = this.noteText().trim();
+    const include = this.noteIncludeInAi();
+    this.closeNote();
+    this.api
+      .updateObject(this.workspaceId, target.id, {
+        details: { [USER_NOTE_KEY]: text, [INCLUDE_USER_NOTE_IN_AI_KEY]: include && !!text },
+      })
+      .subscribe(() => this.reloadAll());
   }
 
   promptMenu(object: IdeaObject) {

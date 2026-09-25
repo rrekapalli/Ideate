@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ATTACHMENT_ACCEPT, IdeaObject, lookupLabel } from '@ideate/api-client';
-import { MtButtonComponent, MtIconComponent, MtTagComponent } from '@ideate/ui';
+import { MtButtonComponent, MtIconComponent, MtMenuComponent, MtTagComponent, type MtMenuItem } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { AttachmentStore } from '../workspace/attachment.store';
@@ -21,10 +21,11 @@ import {
 } from '../persona/persona-lens';
 import { cardBox } from './card-layout';
 import { DiagramCanvasBridge } from './diagram-canvas-bridge';
+import { cardUserNote, includeCardNoteInAi } from './card-note';
 
 @Component({
   selector: 'ideate-object-card-chrome',
-  imports: [FormsModule, MtButtonComponent, MtIconComponent, MtTagComponent, MdViewComponent, TypeGlyphComponent],
+  imports: [FormsModule, MtButtonComponent, MtIconComponent, MtMenuComponent, MtTagComponent, MdViewComponent, TypeGlyphComponent],
   template: `
     <article
       class="card"
@@ -49,7 +50,9 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
         </div>
         <div class="hdr-actions">
           <span class="ver">v{{ object().version }}</span>
-          <mt-button size="sm" variant="icon" icon="add" ariaLabel="Add related" (clicked)="emitNew()" />
+          <mt-menu #plusMenu [model]="plusItems()">
+            <mt-button size="sm" variant="icon" icon="add" ariaLabel="Card actions" (clicked)="plusMenu.toggle($event)" />
+          </mt-menu>
           <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="emitMenu()" />
         </div>
       </header>
@@ -76,10 +79,25 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       }
       <h3>{{ object().title }}</h3>
       <div class="summary"><ideate-md [source]="object().summary || 'No summary yet.'" /></div>
+      @if (noteText()) {
+        <p class="user-note" [class.in-ai]="noteInAi()" title="{{ noteInAi() ? 'Included in AI calls' : 'Not sent to AI' }}">
+          {{ noteText() }}
+        </p>
+      }
       <footer>
         <button type="button" class="chatref" (click)="$event.stopPropagation(); emitChat()" aria-label="Chat">
           <mt-icon name="chat" [size]="14" />
         </button>
+        @if (noteText()) {
+          <button
+            type="button"
+            class="note-mark"
+            (click)="$event.stopPropagation(); emitNote()"
+            [attr.aria-label]="noteInAi() ? 'Edit note (included in AI)' : 'Edit note'"
+          >
+            <mt-icon name="sticky_note" [size]="14" />
+          </button>
+        }
         <input
           #picker
           type="file"
@@ -135,6 +153,7 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       cursor: pointer;
       color: var(--mt-text);
       touch-action: manipulation;
+      overflow: visible;
     }
     .card[data-category='abandoned'] { border-left-color: var(--surface-400, #9ca3af); opacity: 0.85; }
     .card[data-category='misconception'] { border-left-color: var(--ideate-type-misconception); }
@@ -212,6 +231,18 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     header :is(mt-button) { display: inline-flex; align-items: center; }
     h3 { margin: 0.4rem 0 0.2rem; font-size: 0.95rem; line-height: 1.25; }
     .summary { margin: 0; font-size: 0.8rem; color: var(--mt-text-muted); line-height: 1.35; }
+    .user-note {
+      margin: 0.28rem 0 0;
+      font-size: 0.72rem;
+      line-height: 1.35;
+      color: var(--mt-text);
+      font-style: italic;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .user-note.in-ai { color: var(--mt-primary, #10b981); }
     .acc {
       margin: 0 0 0 auto;
       padding: 0;
@@ -241,6 +272,17 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
       border-top: 1px dotted var(--mt-surface-border, var(--surface-border));
     }
     .chatref {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      padding: 0;
+      border: 0;
+      background: none;
+      cursor: pointer;
+      color: var(--mt-primary, currentColor);
+      line-height: 1;
+    }
+    .note-mark {
       flex: 0 0 auto;
       display: inline-flex;
       align-items: center;
@@ -321,6 +363,7 @@ export class ObjectCardChromeComponent {
   readonly open = output<IdeaObject>();
   readonly typeChange = output<string>();
   readonly newNode = output<IdeaObject>();
+  readonly note = output<IdeaObject>();
   readonly menu = output<IdeaObject>();
   readonly openChat = output<IdeaObject>();
   readonly attachments = computed(() => this.attachmentsStore.forObject(this.object().id));
@@ -440,6 +483,12 @@ export class ObjectCardChromeComponent {
     return acts;
   });
   readonly epistemic = computed(() => epistemicChips(this.object(), this.bridge?.snapshot()?.edges ?? []));
+  readonly noteText = computed(() => cardUserNote(this.object()));
+  readonly noteInAi = computed(() => includeCardNoteInAi(this.object()));
+  readonly plusItems = computed((): MtMenuItem[] => [
+    { label: 'Add related', icon: 'add', command: () => this.emitNew() },
+    { label: this.noteText() ? 'Edit note' : 'Add note', icon: 'sticky_note', command: () => this.emitNote() },
+  ]);
 
   box() {
     const b = cardBox(this.object(), this.expanded());
@@ -447,7 +496,8 @@ export class ObjectCardChromeComponent {
       (this.studentActions().length ? 22 : 0) +
       (this.inventorActions().length ? 22 : 0) +
       (this.explorerActions().length ? 22 : 0) +
-      (this.productActions().length ? 22 : 0);
+      (this.productActions().length ? 22 : 0) +
+      (this.noteText() ? 28 : 0);
     if (extra) {
       return { width: b.width, height: b.height + extra };
     }
@@ -505,6 +555,11 @@ export class ObjectCardChromeComponent {
     this.bridge?.newNode$.next(this.object());
   }
 
+  emitNote() {
+    this.note.emit(this.object());
+    this.bridge?.note$.next(this.object());
+  }
+
   emitMenu() {
     this.menu.emit(this.object());
     this.bridge?.menu$.next(this.object());
@@ -551,7 +606,7 @@ export class ObjectCardChromeComponent {
   private openedAt = 0;
 
   private isChromeControl(target: EventTarget | null): boolean {
-    return target instanceof Element && !!target.closest('button, select, a, input, textarea, label');
+    return target instanceof Element && !!target.closest('button, select, a, input, textarea, label, mt-menu, .mt-menu');
   }
 
   private noteTap(x: number, y: number): boolean {

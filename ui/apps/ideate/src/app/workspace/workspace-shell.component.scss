@@ -674,7 +674,8 @@ $right-drawer-width: 320px;
 }
 
 .new-node-form input,
-.new-node-form select {
+.new-node-form select,
+.new-node-form textarea {
   width: 100%;
   box-sizing: border-box;
   font: inherit;
@@ -685,4 +686,10 @@ $right-drawer-width: 320px;
   border: 1px solid var(--mt-surface-border);
   padding: 0.35rem 0.45rem;
   min-height: 1.85rem;
+}
+
+.new-node-form textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+  line-height: 1.4;
 }

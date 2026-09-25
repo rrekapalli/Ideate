@@ -207,6 +207,7 @@ export class GraphCanvasComponent implements OnDestroy {
   readonly open = output<IdeaObject>();
   readonly typeChange = output<{ object: IdeaObject; type: string }>();
   readonly newNode = output<IdeaObject>();
+  readonly note = output<IdeaObject>();
   readonly menu = output<IdeaObject>();
   readonly openChat = output<IdeaObject>();
   readonly edgeSelect = output<IdeaEdge>();
@@ -240,6 +241,7 @@ export class GraphCanvasComponent implements OnDestroy {
     this.bridge.open$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.open.emit(o));
     this.bridge.typeChange$.pipe(takeUntil(this.destroy$)).subscribe((v) => this.typeChange.emit(v));
     this.bridge.newNode$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.newNode.emit(o));
+    this.bridge.note$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.note.emit(o));
     this.bridge.menu$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.menu.emit(o));
     this.bridge.openChat$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.openChat.emit(o));
     effect(() => {

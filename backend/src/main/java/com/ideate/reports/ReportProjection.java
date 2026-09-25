@@ -1,5 +1,6 @@
 package com.ideate.reports;
 
+import com.ideate.graph.CardUserNote;
 import com.ideate.graph.GraphService;
 import com.ideate.graph.IdeaEdge;
 import com.ideate.graph.IdeaObject;
@@ -75,6 +76,12 @@ public final class ReportProjection {
                 }
                 if (fullBodyIds.contains(n.id()) && n.body() != null && !n.body().isBlank()) {
                     sb.append("  body: ").append(trim(n.body(), 1800)).append('\n');
+                }
+            }
+            if (CardUserNote.includeInAi(n)) {
+                String note = CardUserNote.text(n);
+                if (note != null) {
+                    sb.append("  user note: ").append(trim(note, 400)).append('\n');
                 }
             }
         }

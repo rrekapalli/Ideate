@@ -8,6 +8,7 @@ export class DiagramCanvasBridge {
   readonly open$ = new Subject<IdeaObject>();
   readonly typeChange$ = new Subject<{ object: IdeaObject; type: string }>();
   readonly newNode$ = new Subject<IdeaObject>();
+  readonly note$ = new Subject<IdeaObject>();
   readonly menu$ = new Subject<IdeaObject>();
   readonly openChat$ = new Subject<IdeaObject>();
   readonly studentAction$ = new Subject<{ object: IdeaObject; action: StudentCardAction }>();

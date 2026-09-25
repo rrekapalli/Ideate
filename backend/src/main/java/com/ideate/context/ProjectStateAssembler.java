@@ -1,6 +1,7 @@
 package com.ideate.context;
 
 import com.ideate.attachments.AttachmentService;
+import com.ideate.graph.CardUserNote;
 import com.ideate.graph.GraphService;
 import com.ideate.orchestrator.ChatReplyCleaner;
 import com.ideate.graph.IdeaObject;
@@ -88,6 +89,7 @@ public class ProjectStateAssembler {
         } else if ("analyst".equalsIgnoreCase(bits.persona())) {
             sb.append(AnalystPosture.appendix(mode, focusIds, graph));
         }
+        CardUserNote.appendOptedIn(sb, graph.nodes(), 12, 280);
 
         String cache = currentCache(workspaceId, branchId);
         if (cache != null && !cache.isBlank()) {
