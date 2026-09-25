@@ -34,6 +34,26 @@ A thought experiment is first-class ([vision.md](../vision.md)). It enters as a 
 - **DEEP / BATCH** only when they ask to critically evaluate the whole theory — not every curious turn ([java-backend-ai.md](../java-backend-ai.md)).
 - Failure-preserving: abandoned relay concepts remain queryable.
 
+## Features — one person
+
+One curious person, no deadline, no co-explorers, no audience pack.
+
+| Feature | What it does |
+| --- | --- |
+| Growing-thought home | The thought that is thickening, plus what the graph must not pretend to know |
+| Stay a thought | A Thought can remain unstructured for years. Promotion to Concept or Hypothesis is explicit |
+| Unknown inventory | Every “I don’t know yet” on a Concept, queryable. Not a failure count |
+| Epistemic footer | Speculation, thought experiment, and later evidence-backed claim look different on the card |
+| Implication walk | Explore follows what the idea forces, including new problems, without opening a theory |
+| Analogies | Links to other cards, including abandoned ones in this workspace or `reused-in` from another workspace on the same account |
+| Light by default | Ordinary turns stay cheap. A full critique runs only when they ask |
+| Dead ends | Abandoned concepts stay on the graph with why they stopped |
+| Personal overlay | A wild branch that does not overwrite the main speculation |
+| Handoff, not a team | When the question hardens, change persona on this workspace or clone into a Researcher or Inventor workspace. Evidence does not silently become a paper |
+| Snapshot of the wonder | Export: the thought, the concepts, the unknowns, the assumptions, what was dropped. No governing-thought deck |
+
+Out of this file: shared brainstorm boards, voting, facilitators, publishing.
+
 ## Objects emphasized
 
 Thought, Concept, Unknown, Question, Assumption, Hypothesis (when earned), Critique. Evidence appears when they actually look; it is not required to start.

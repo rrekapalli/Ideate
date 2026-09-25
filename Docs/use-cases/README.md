@@ -29,7 +29,9 @@ Persistent state + graph + provenance + temporal evolution + routed AI. Only the
 | [Consulting](./consulting.md) | Engagement reasoning memory for professional services | Analyst first; Consultant lens later |
 | [Consulting engagement features](./consulting-engagement-features.md) | Research, fieldwork, team collaboration, and report prep for a delivery team | — |
 | [Big Four vs Ideate](./big-four-comparison.md) | Public feature comparison (Deloitte, PwC, KPMG, EY) | — |
-| [Product research](./product-research.md) | Product / market inquiry (e.g. RxFolio-class) | Analyst or Inventor |
+| [Product research](./product-research.md) | Solo product / market inquiry (e.g. RxFolio-class) | Analyst or Inventor |
+
+Single-person feature lists (no team) live on [Student](./student.md), [Researcher](./researcher.md), [Inventor](./inventor.md), [Explorer](./explorer.md), and [Product research](./product-research.md). Consulting team features stay in [consulting-engagement-features.md](./consulting-engagement-features.md).
 
 Design references (not shipped samples): [design-benchmarks.md](../design-benchmarks.md). Persona rules: [personas.md](../personas.md).
 
@@ -110,7 +112,7 @@ Pro, plus the controls a firm will require before client data is in the system, 
 | Use case | Natural offering | Why |
 | --- | --- | --- |
 | Student, Explorer | Free | One person, one inquiry |
-| Researcher, Inventor, Analyst | Free to start; Pro when co-authors share the graph | The OS is the same; co-authors are the upgrade |
-| Product research | Pro | Shared evidence and a decision review |
+| Researcher, Inventor, Analyst | Free for one person; Pro when co-authors share the graph | The OS is the same; co-authors are the upgrade |
+| Product research | Free for one founder or PM; Pro if a product team shares it | Solo features are in [product-research.md](./product-research.md) |
 | Consulting delivery team | Pro for a boutique case; Enterprise for a firm | Team views are Pro. Client data at firm scale is Enterprise |
 | Firm knowledge across matters | Enterprise only | Cross-engagement recall without isolation is a leak |

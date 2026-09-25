@@ -42,8 +42,29 @@ Curriculum is a line of chapters. The student sees a graph: gravity, energy, mot
 
 - **Misconception cards** remain queryable. The system can say you used to believe X.
 - **Practice / Challenge / Learn** modes over the *learner’s* graph, not a hidden curriculum dump.
-- **Clone + overlay** (v1): a class Mainstream graph; the student’s overlay stays theirs until merge ([learning-mode.md](../learning-mode.md)).
+- **Personal overlay:** try “what if I’m wrong?” without rewriting the understanding on Mainstream. A class graph with a teacher merge is a later team feature, not this persona’s single-person scope.
 - Jump-to-object: “show me throw ratio” pans the canvas to that id.
+
+## Features — one person
+
+No classmates, no shared workspace, no assignments from a teacher account. The student is the only author. The AI teaches from the graph they already built ([learning-mode.md](../learning-mode.md)).
+
+| Feature | What it does |
+| --- | --- |
+| Understanding home | Current concept, open Unknowns, and misconceptions still in play. Not a chapter list |
+| Learn from what I have | Explain and Learn start at cards that exist. A beginner walk and a later walk are depth on the same nodes, not a second course |
+| Socratic turn | Challenge and Practice ask what they think, why, and what breaks if an assumption is wrong, before filling a gap |
+| Unknown cards | “I don’t know yet” stays a node on the concept. Resolving it is promote-to-question or attach an example, not delete |
+| Misconception history | Prior belief kept with `object_category: misconception` and how it changed. Queryable: “what did I used to think about orbits?” |
+| Examples as evidence | A worked example attaches to the concept as Evidence tagged `example`. It is not marked fact unless they accept that |
+| Practice gaps | Practice mode lists concepts with no example, hypotheses never challenged, and unknowns that block the next concept |
+| Explain at another depth | Same graph, shorter or fuller body. Does not mint a parallel curriculum |
+| Personal overlay | A private branch for a rival explanation. Merge back only if they accept it |
+| Resume | Reopen to the last concept, the last confusion, and the transcript that produced it |
+| Revision sheet | Export from the graph: what I understand, what I confuse, misconceptions I dropped, questions still open. Markdown / PDF / DOCX within credits |
+| Jump and search | Display id or phrase pans to the card |
+
+Out of this file: class Mainstream, teacher review, cohort progress, homework submission, grading.
 
 ## Objects emphasized
 
