@@ -4,7 +4,8 @@
 **Lens today:** [Analyst](./analyst.md) on the engagement workspace  
 **Later:** optional **Consultant** dropdown value if Client / Engagement objects become first-class — same schema, not a second product  
 **Engine:** [object-model.md](../object-model.md) + [java-backend-ai.md](../java-backend-ai.md)  
-**vs firm platforms:** [big-four-comparison.md](./big-four-comparison.md)
+**vs firm platforms:** [big-four-comparison.md](./big-four-comparison.md)  
+**Feature catalog (research, observations, collaboration, reports):** [consulting-engagement-features.md](./consulting-engagement-features.md)
 
 Business consulting is one of the strongest enterprise uses of Ideate. An engagement is the Idea Evolution loop applied to a client problem.
 
@@ -72,7 +73,7 @@ Six months later the client asks why the firm said *close 12 underperforming sto
 
 That is institutional reasoning memory. Provenance and versions already exist in the object model.
 
-## Firm knowledge graph (Pro / later)
+## Firm knowledge graph (Enterprise / later)
 
 ```text
                  CONSULTING FIRM
@@ -116,6 +117,50 @@ Next investigation      Distribution-cost variance by region
 ```
 
 An AI mentor over the engagement graph. Teacher / Explore modes; Analyst (or later Consultant) persona.
+
+## Benefits for the delivery team
+
+The benefit is not a shorter SOW on day one. It is less wasted senior time, faster ramp for the people who join mid-case, and fewer client conversations that start from a deck nobody can defend. Productivity shows up as hours returned to analysis. Cost shows up as leverage: the same partner and manager cover the case without another week of reconstruction. Quality shows up when a recommendation can still be explained after the team has rolled off.
+
+These are directional, for a case that actually lives in the graph. They are not a promised percent saving.
+
+| Where time goes today | What changes | Productivity | Cost |
+| --- | --- | --- | --- |
+| New joiner reads the data room and the last deck | Engagement brief is a query over live hypotheses, contradictions, and owners | Days of reading become a guided first day | Less unbillable or low-value ramp on every roll-on |
+| Interviews sit in personal notes until someone writes a synthesis slide | Observations and quotes attach to the hypothesis they support or weaken | Synthesis is continuous, not a Friday exercise | Fewer lost interviews when the note-taker leaves |
+| Manager hunts Slack, Excel, and slide notes to ask “why this number?” | Claim, calculation, and evidence share ids | Review meetings start from the chain | Partner hours shift from archaeology to challenge |
+| Sunday rewrite because the model and the story diverged | Ghost slides go stale when the underlying hypothesis or assumption changes | Rework is a diff, not a new narrative | Less week-before-steerco fire drill |
+| Next engagement on the same client starts from files | Prior problems, decisions, and outcomes reconstruct | Week-1 scoping uses what the firm already concluded | Less repeat research the client already paid for |
+| “Why did we say close 12 stores?” months later | Provenance from hypothesis versions to the decision | Answer in the room, not a scavenger hunt | Protects the relationship and reduces write-off of partner time |
+
+**Productivity.** Associates file evidence and field notes once. Seniors link them to hypotheses instead of re-explaining them in three artifacts. Managers review an issue tree, a contradiction inbox, and a weekly delta. The deck is updated where the claim changed, not rewritten from memory.
+
+**Cost.** The expensive loop in professional services is senior people re-deriving context. Cutting that loop improves realization and leverage without requiring a smaller team. A second saving is abandoned work that stays visible: the team does not re-open a killed hypothesis because nobody remembers why it died. Inference itself is a new cost; credits and routing have to stay predictable or the productivity gain is spent on model bills. Enterprise packaging is where that predictability is a requirement, not an afterthought.
+
+**Quality and risk.** Unsupported claims, single-source management assertions, and contradictions are lists, not surprises in the steering committee. Sign-off is on a snapshot of the graph. That is attractive to quality reviewers even when it does not remove hours.
+
+What this does **not** automatically do: shrink the engagement, replace the manager, or remove PowerPoint. A firm that adopts the graph and still keeps a parallel story in slides will not see these gains.
+
+### Pros
+
+- One chain from problem to hypothesis to evidence to recommendation, shared by the whole case team.
+- Mid-case joiners and replacements inherit the reasoning, not a folder.
+- Field notes and interviews become evidence on the hypothesis they affect, so fieldwork survives the person who captured it.
+- Partner challenge is concrete: which assumption, which source, what would change the decision.
+- Storyline and appendix stay tied to the same objects, so the working paper and the steerco pack do not drift apart.
+- Killed ideas and prior client work stay queryable, which is the asset firms already claim in knowledge-management programs and rarely have.
+- Same engine as individual Analyst work. A team plan adds people and views; it does not fork the product.
+
+### Cons
+
+- The team has to record thinking as objects. If the real answer still lives only in the deck, Ideate is a second system and productivity falls.
+- Upfront cost on week 1: issue tree, owners, and source hygiene before the first steerco feels slower than opening a slide template.
+- Managers must review the graph. A partner who only reads PowerPoint will not get the provenance benefit.
+- Collaboration, roles, and client views are a team product. A free single-player workspace does not run an engagement.
+- Firm-wide “have we seen this before?” is unsafe until matter isolation and explicit permission exist. Until then, cross-engagement search is a liability, not a feature.
+- Model cost, residency, and approved-model policy are procurement issues. A practice that cannot explain inference spend will block the rollout.
+- It does not replace the firm’s PSA, data room, or slide production. Teams that expect those replacements will call the pilot a failure.
+- Quality features (contradictions, unsupported claims, sign-off) add scrutiny. Some teams will experience that as friction before they experience it as fewer client challenges.
 
 ## Consulting objects (weights, not a fork)
 
@@ -172,7 +217,7 @@ Do not lead with “AI research assistant.” They already have GenAI practices.
 
 Lead with: **a persistent reasoning layer for professional services** — how an engagement’s hypotheses, evidence, assumptions, analyses, and recommendations evolve, so knowledge compounds when the team or the project ends.
 
-Demonstrate on **one real case**. Monetization: enterprise contract, not student ₹199–999/month. Consulting may be the stronger first B2B path.
+Demonstrate on **one real case**. A boutique delivery team fits **Pro**. A firm pilot fits **Enterprise** (contract, isolation, approved models) — not a consumer monthly plan. Packaging is in [use-cases/README.md](./README.md). Consulting may be the stronger first B2B path.
 
 ## What this is not
 

@@ -15,7 +15,7 @@ Read these in order if you are new to the project:
 9. [Learning mode](./learning-mode.md) — students and Socratic exploration
 10. [Design benchmarks](./design-benchmarks.md) — satellite + projector (same OS)
 11. [Market landscape](./market-landscape.md) — adjacent products and the gap
-12. [Use cases](./use-cases/README.md) — Student, Researcher, Inventor, Analyst, Explorer, consulting, Big Four comparison
+12. [Use cases](./use-cases/README.md) — Student, Researcher, Inventor, Analyst, Explorer, consulting, engagement features, Big Four comparison
 13. [Open questions](./open-questions.md) — what still needs refinement
 14. [Proxmox deployment](./deployment-proxmox.md) — LXC VMIDs 7201/7202 on the local host
 
