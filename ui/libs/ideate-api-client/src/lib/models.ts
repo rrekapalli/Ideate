@@ -315,6 +315,63 @@ export function objectTypeIcon(type: string | null | undefined): string {
   return TYPE_ICONS[type ?? ''] ?? 'type_unknown';
 }
 
+const EDGE_ICONS: Record<string, string> = {
+  mentions: 'chat',
+  'parent-of': 'sitemap',
+  supports: 'check',
+  contradicts: 'cancel',
+  assumes: 'help',
+  'tested-by': 'play',
+  'evaluated-by': 'checklist',
+  'promoted-to': 'north_east',
+  produces: 'bolt',
+  affects: 'sliders',
+  solves: 'check_circle',
+  introduces: 'add',
+  'led-to': 'arrow_forward',
+  'version-of': 'history',
+  'abandoned-because': 'delete',
+  'resurrected-as': 'refresh',
+  constrains: 'lock',
+  'calculated-from': 'percent',
+  'represented-by': 'article',
+  'reused-in': 'share',
+  'derived-from': 'arrow_down_left',
+  'split-from': 'expand_more',
+  'merged-from': 'done_all',
+  'merged-into': 'done_all',
+  'overlay-on': 'dashboard',
+  'branched-from': 'sitemap',
+};
+
+const EDGE_SUPPORT = new Set([
+  'supports', 'produces', 'solves', 'promoted-to', 'resurrected-as', 'led-to', 'tested-by',
+]);
+const EDGE_OPPOSE = new Set(['contradicts', 'abandoned-because']);
+
+export type EdgeTone = 'support' | 'oppose' | 'neutral';
+
+export function edgeTypeIcon(type: string | null | undefined): string {
+  return EDGE_ICONS[type ?? ''] ?? 'share';
+}
+
+export function edgeTypeTone(type: string | null | undefined): EdgeTone {
+  const key = type ?? '';
+  if (EDGE_SUPPORT.has(key)) {
+    return 'support';
+  }
+  if (EDGE_OPPOSE.has(key)) {
+    return 'oppose';
+  }
+  return 'neutral';
+}
+
+export function edgeTooltip(type: string | null | undefined, why?: string | null): string {
+  const label = lookupLabel(type);
+  const extra = why?.trim();
+  return extra ? `${label} · ${extra}` : label;
+}
+
 export function personaIcon(persona: string | null | undefined): string {
   return PERSONA_ICONS[persona ?? ''] ?? 'person';
 }

@@ -19,17 +19,18 @@ export interface MtSelectOption {
   selector: 'mt-select',
   standalone: true,
   template: `
-    <div class="mt-select" [class.mt-select--open]="open()">
+    <div class="mt-select" [class.mt-select--open]="open()" [class.mt-select--up]="placement() === 'up'">
       <button
         type="button"
         class="mt-select__trigger"
         [disabled]="disabled()"
         [attr.aria-expanded]="open()"
+        [attr.aria-label]="ariaLabel() || null"
         aria-haspopup="listbox"
         (click)="toggle()"
       >
         <span class="mt-select__value">{{ displayLabel() }}</span>
-        <span class="mt-select__chev" aria-hidden="true">▾</span>
+        <span class="mt-select__chev" aria-hidden="true">{{ placement() === 'up' ? '▴' : '▾' }}</span>
       </button>
       @if (open()) {
         <div class="mt-select__panel" role="listbox">
@@ -106,6 +107,11 @@ export interface MtSelectOption {
         border-radius: var(--mt-corner-radius, 1px);
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
       }
+      .mt-select--up .mt-select__panel {
+        top: auto;
+        bottom: calc(100% + 2px);
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+      }
       .mt-select__filter {
         width: 100%;
         box-sizing: border-box;
@@ -157,6 +163,8 @@ export class MtSelectComponent implements ControlValueAccessor {
   readonly filterable = input(false);
   readonly filterPlaceholder = input('Filter');
   readonly disabled = input(false);
+  readonly placement = input<'down' | 'up'>('down');
+  readonly ariaLabel = input('');
   readonly value = model<string | number | boolean | null>(null);
   readonly open = signal(false);
   readonly filter = signal('');

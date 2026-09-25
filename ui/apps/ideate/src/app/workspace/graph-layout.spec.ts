@@ -1,4 +1,4 @@
-import { layoutGraph, nextGraphLayout, parseGraphLayout } from './graph-layout';
+import { graphLayoutRouting, layoutGraph, nextGraphLayout, parseGraphLayout } from './graph-layout';
 
 const nodes = [
   { id: 'a', width: 100, height: 40, type: 'question' },
@@ -8,11 +8,13 @@ const nodes = [
 const edges = [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }];
 
 describe('graph-layout', () => {
-  it('cycles Stack → Types → Grid → Flow → Stack', () => {
+  it('cycles Organic → Radial → Stack → Types → Grid → Flow → Organic', () => {
+    expect(nextGraphLayout('organic')).toBe('radial');
+    expect(nextGraphLayout('radial')).toBe('stack');
     expect(nextGraphLayout('stack')).toBe('types');
     expect(nextGraphLayout('types')).toBe('grid');
     expect(nextGraphLayout('grid')).toBe('flow');
-    expect(nextGraphLayout('flow')).toBe('stack');
+    expect(nextGraphLayout('flow')).toBe('organic');
   });
 
   it('places a chain left-to-right in Flow and top-to-bottom in Stack', () => {
@@ -35,9 +37,48 @@ describe('graph-layout', () => {
     expect(new Set(grid.map((p) => p.id)).size).toBe(3);
   });
 
-  it('falls back unknown stored values to Stack', () => {
-    expect(parseGraphLayout('nope')).toBe('stack');
-    expect(parseGraphLayout(null)).toBe('stack');
+  it('falls back unknown stored values to Organic', () => {
+    expect(parseGraphLayout('nope')).toBe('organic');
+    expect(parseGraphLayout(null)).toBe('organic');
     expect(parseGraphLayout('flow')).toBe('flow');
+    expect(parseGraphLayout('organic')).toBe('organic');
+  });
+
+  it('places every node in Organic without overlapping boxes', () => {
+    const placed = layoutGraph(nodes, edges, 'organic');
+    expect(placed.map((p) => p.id).sort()).toEqual(['a', 'b', 'c']);
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    for (let i = 0; i < placed.length; i++) {
+      for (let j = i + 1; j < placed.length; j++) {
+        const a = placed[i];
+        const b = placed[j];
+        const an = byId.get(a.id)!;
+        const bn = byId.get(b.id)!;
+        const overlap =
+          a.x < b.x + bn.width &&
+          a.x + an.width > b.x &&
+          a.y < b.y + bn.height &&
+          a.y + an.height > b.y;
+        expect(overlap).toBe(false);
+      }
+    }
+  });
+
+  it('places deeper Radial nodes farther from the origin than roots', () => {
+    const placed = Object.fromEntries(layoutGraph(nodes, edges, 'radial').map((p) => [p.id, p]));
+    const center = (id: keyof typeof placed) => {
+      const n = nodes.find((node) => node.id === id)!;
+      return { x: placed[id].x + n.width / 2, y: placed[id].y + n.height / 2 };
+    };
+    const root = center('a');
+    const dist = (id: 'a' | 'b' | 'c') => {
+      const c = center(id);
+      return Math.hypot(c.x - root.x, c.y - root.y);
+    };
+    expect(dist('c')).toBeGreaterThan(dist('a'));
+    expect(dist('b')).toBeGreaterThan(dist('a'));
+    expect(graphLayoutRouting('radial')).toBe('bezier');
+    expect(graphLayoutRouting('organic')).toBe('bezier');
+    expect(graphLayoutRouting('stack')).toBe('orthogonal');
   });
 });

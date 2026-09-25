@@ -14,7 +14,7 @@ import {
   type ViewportChangedEvent,
 } from 'ng-diagram';
 import { Subject, takeUntil } from 'rxjs';
-import { MtButtonComponent } from '@ideate/ui';
+import { MtButtonComponent, MtSelectComponent, type MtSelectOption } from '@ideate/ui';
 import { GraphSnapshot, IdeaEdge, IdeaObject, OBJECT_TYPES } from '@ideate/api-client';
 import { cardBox } from '../cards/card-layout';
 import { DiagramCanvasBridge } from '../cards/diagram-canvas-bridge';
@@ -22,9 +22,9 @@ import { DiagramEdgeComponent } from './diagram-edge.component';
 import { DiagramObjectNodeComponent } from './diagram-object-node.component';
 import {
   type GraphLayoutMode,
-  graphLayoutLabel,
+  GRAPH_LAYOUTS,
+  graphLayoutRouting,
   layoutGraph,
-  nextGraphLayout,
   parseGraphLayout,
 } from './graph-layout';
 
@@ -32,11 +32,11 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 const FIT_PADDING = 56;
 const CM_PX = 38;
-const LAYOUT_STORE = 'ideate.graphLayout.v2';
+const LAYOUT_STORE = 'ideate.graphLayout.v3';
 
 @Component({
   selector: 'ideate-graph-canvas',
-  imports: [NgDiagramComponent, NgDiagramBackgroundComponent, MtButtonComponent],
+  imports: [NgDiagramComponent, NgDiagramBackgroundComponent, MtButtonComponent, MtSelectComponent],
   providers: [provideNgDiagram()],
   template: `
     <div class="wrap">
@@ -67,12 +67,13 @@ const LAYOUT_STORE = 'ideate.graphLayout.v2';
           (input)="onZoomSlide($event)"
         />
         <span class="zoom-label">{{ atFit() ? 'Fit' : zoomPercent() + '%' }}</span>
-        <mt-button
-          variant="text"
-          size="sm"
-          [label]="layoutLabel()"
-          [ariaLabel]="'Change graph layout, current ' + layoutLabel() + '. Next ' + nextLayoutLabel()"
-          (clicked)="cycleLayout()"
+        <mt-select
+          class="layout-select"
+          placement="up"
+          ariaLabel="Graph layout"
+          [options]="layoutOptions"
+          [value]="layoutMode()"
+          (valueChange)="onLayoutPick($event)"
         />
         <mt-button variant="text" size="sm" label="Fit" ariaLabel="Fit graph" (clicked)="fit()" />
       </div>
@@ -103,6 +104,10 @@ const LAYOUT_STORE = 'ideate.graphLayout.v2';
       stroke: var(--mt-primary, var(--primary-color)) !important;
       stroke-width: 2.5px !important;
     }
+    :host ::ng-deep .ng-diagram-edge-label,
+    :host ::ng-deep ng-diagram-base-edge-label {
+      pointer-events: auto;
+    }
     :host ::ng-deep ng-diagram-background { opacity: 0; }
     :host-context(html[data-theme='dark']) ng-diagram,
     :host-context(.app-dark) ng-diagram {
@@ -112,7 +117,7 @@ const LAYOUT_STORE = 'ideate.graphLayout.v2';
       position: absolute;
       right: 0.75rem;
       bottom: 0.75rem;
-      z-index: 4;
+      z-index: 12;
       display: flex;
       align-items: center;
       gap: 0.15rem;
@@ -168,6 +173,18 @@ const LAYOUT_STORE = 'ideate.graphLayout.v2';
       font-variant-numeric: tabular-nums;
     }
     .zoom-bar mt-button { min-width: 3.2rem; }
+    .layout-select { width: auto; min-width: 6.2rem; }
+    :host ::ng-deep .layout-select .mt-select__trigger {
+      min-width: 6.2rem;
+      min-height: 1.4rem;
+      padding: 0 0.35rem;
+      border: 0;
+      background: transparent;
+      font-size: 0.75rem;
+    }
+    :host ::ng-deep .layout-select .mt-select__panel {
+      min-width: 7rem;
+    }
   `,
 })
 export class GraphCanvasComponent implements OnDestroy {
@@ -178,6 +195,7 @@ export class GraphCanvasComponent implements OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private highlighting = false;
   private ready = false;
+  private pendingFocusId: string | null = null;
   private syncedKey = '';
   private appliedDefaultZoom = false;
   private fittedScale: number | null = null;
@@ -205,6 +223,7 @@ export class GraphCanvasComponent implements OnDestroy {
     edgeRouting: {
       defaultRouting: 'orthogonal',
       orthogonal: { firstLastSegmentLength: 32, maxCornerRadius: 12 },
+      bezier: { bezierControlOffset: 72 },
     },
     background: {
       cellSize: { width: CM_PX, height: CM_PX },
@@ -214,6 +233,7 @@ export class GraphCanvasComponent implements OnDestroy {
   readonly zoomPercent = signal(100);
   readonly atFit = signal(true);
   readonly layoutMode = signal<GraphLayoutMode>(parseGraphLayout(localStorage.getItem(LAYOUT_STORE)));
+  readonly layoutOptions: MtSelectOption[] = GRAPH_LAYOUTS.map((m) => ({ value: m.id, label: m.label }));
 
   constructor() {
     this.bridge.open$.pipe(takeUntil(this.destroy$)).subscribe((o) => this.open.emit(o));
@@ -237,7 +257,7 @@ export class GraphCanvasComponent implements OnDestroy {
   onInit() {
     this.ready = true;
     this.syncZoomLabel();
-    void this.sync(this.snapshot());
+    void this.sync(this.snapshot()).then(() => this.flushPendingFocus());
   }
 
   onViewport(ev: ViewportChangedEvent): void {
@@ -254,6 +274,9 @@ export class GraphCanvasComponent implements OnDestroy {
   }
 
   onZoomSlide(ev: Event): void {
+    if (!this.ready) {
+      return;
+    }
     const raw = Number((ev.target as HTMLInputElement).value);
     const pct = Number.isFinite(raw) ? Math.min(400, Math.max(10, raw)) : 100;
     this.atFit.set(false);
@@ -261,16 +284,11 @@ export class GraphCanvasComponent implements OnDestroy {
     void this.setScaleKeepingCenter(pct / 100);
   }
 
-  layoutLabel(): string {
-    return graphLayoutLabel(this.layoutMode());
-  }
-
-  nextLayoutLabel(): string {
-    return graphLayoutLabel(nextGraphLayout(this.layoutMode()));
-  }
-
-  cycleLayout(): void {
-    const next = nextGraphLayout(this.layoutMode());
+  onLayoutPick(raw: string | number | boolean | null): void {
+    const next = parseGraphLayout(raw == null ? null : String(raw));
+    if (next === this.layoutMode()) {
+      return;
+    }
     this.layoutMode.set(next);
     localStorage.setItem(LAYOUT_STORE, next);
     this.syncedKey = '';
@@ -282,7 +300,7 @@ export class GraphCanvasComponent implements OnDestroy {
   }
 
   onSelection(ev: SelectionChangedEvent) {
-    if (this.highlighting) {
+    if (!this.ready || this.highlighting) {
       return;
     }
     if (ev.selectedEdges.length === 1 && ev.selectedNodes.length === 0) {
@@ -307,6 +325,23 @@ export class GraphCanvasComponent implements OnDestroy {
   }
 
   focus(objectId: string) {
+    if (!this.ready) {
+      this.pendingFocusId = objectId;
+      return;
+    }
+    this.applyFocus(objectId);
+  }
+
+  private flushPendingFocus() {
+    const id = this.pendingFocusId;
+    if (!id) {
+      return;
+    }
+    this.pendingFocusId = null;
+    this.applyFocus(id);
+  }
+
+  private applyFocus(objectId: string) {
     const snap = this.snapshot();
     const node = snap.nodes.find((n) => n.id === objectId);
     if (!node) {
@@ -327,6 +362,9 @@ export class GraphCanvasComponent implements OnDestroy {
   }
 
   private async sync(snap: GraphSnapshot) {
+    if (!this.ready) {
+      return;
+    }
     const visible = snap.nodes;
     const key = this.layoutMode() + '|' + visible.map((n) => n.id + n.updatedAt).join(',') + '|' + snap.edges.map((e) => e.id).join(',');
     if (key === this.syncedKey) {
@@ -373,7 +411,7 @@ export class GraphCanvasComponent implements OnDestroy {
         target: e.toObjectId,
         sourcePort: 'out',
         targetPort: 'in',
-        routing: 'orthogonal',
+        routing: graphLayoutRouting(this.layoutMode()),
         data: { label: e.why ? `${e.type} · ${e.why}` : e.type, edge: e },
       })));
     }
@@ -398,6 +436,9 @@ export class GraphCanvasComponent implements OnDestroy {
   }
 
   private async fitToContent(): Promise<void> {
+    if (!this.ready) {
+      return;
+    }
     this.fitting = true;
     try {
       if (this.models.nodes().length === 0) {
