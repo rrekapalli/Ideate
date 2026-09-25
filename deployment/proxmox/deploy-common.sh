@@ -289,6 +289,13 @@ ideate_bootstrap_lxc() {
   "${SCRIPT_DIR}/add-lxc-to-tailscale.sh" --required "$vmid" "$container_name"
 }
 
+ideate_restore_magicdns() {
+  local vmid="$1"
+  local search="${TAILNET_DNS:-tailce422e.ts.net}"
+  log_info "Pointing container DNS at Tailscale MagicDNS..."
+  proxmox_exec_in_container "$vmid" "printf 'nameserver 100.100.100.100\\nnameserver 8.8.8.8\\nnameserver 8.8.4.4\\nsearch ${search}\\n' > /etc/resolv.conf && chmod 644 /etc/resolv.conf" || true
+}
+
 ideate_wait_for_health() {
   local url="$1"
   local attempts="${2:-36}"

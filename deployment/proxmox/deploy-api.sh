@@ -139,9 +139,10 @@ rm -f "$START_TEMP"
 
 proxmox_exec_in_container "$VMID" "chown -R ${CONTAINER_USER:-raja}:${CONTAINER_USER:-raja} ${APP_DIR} && chmod 600 ${APP_DIR}/.env && chmod 755 ${APP_DIR}/start.sh && chmod 644 ${APP_DIR}/ideate-api.jar"
 proxmox_exec_in_container "$VMID" "command -v ufw >/dev/null 2>&1 && (ufw allow ${APP_PORT}/tcp >/dev/null 2>&1; ufw allow 22/tcp >/dev/null 2>&1; ufw --force enable >/dev/null 2>&1) || true"
-proxmox_exec_in_container "$VMID" "systemctl daemon-reload && systemctl enable ideate-api && systemctl restart ideate-api"
 
 ideate_deploy_final_tailscale "$SCRIPT_DIR" --required "$VMID" "$CONTAINER_NAME"
+ideate_restore_magicdns "$VMID"
+proxmox_exec_in_container "$VMID" "systemctl daemon-reload && systemctl enable ideate-api && systemctl restart ideate-api"
 ideate_wait_for_health "http://${DOMAIN}:${APP_PORT}/actuator/health" || {
   log_error "API did not become healthy. Check: pct exec ${VMID} -- journalctl -u ideate-api -n 80 --no-pager"
   exit 1

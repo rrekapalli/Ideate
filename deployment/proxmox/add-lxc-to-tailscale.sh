@@ -165,11 +165,26 @@ lxc_tailscale_binary_present() {
     run_on_host "pct exec ${VMID} -- sh -c 'command -v tailscale >/dev/null 2>&1 || test -x /usr/bin/tailscale || test -x /usr/sbin/tailscale'"
 }
 
-# 0. Use public DNS so tailscale.com and pkgs.tailscale.com resolve (Tailscale-first 100.100.100.100 often fails before the node has joined)
-exec_in_container "printf 'nameserver 8.8.8.8\nnameserver 8.8.4.4\n' > /etc/resolv.conf 2>/dev/null || true"
+# Public DNS is only needed while installing Tailscale (pkgs.tailscale.com). After the node
+# is on the tailnet, MagicDNS (100.100.100.100) must be first — glibc/Java treat 8.8.8.8
+# NXDOMAIN as final and never reach pg18.<tailnet>.
+restore_tailscale_magicdns() {
+    local content="nameserver 100.100.100.100
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+"
+    if [[ -n "${TAILNET_DNS:-}" ]]; then
+        content+="search ${TAILNET_DNS}
+"
+    fi
+    write_in_container "$content" "/etc/resolv.conf"
+    exec_in_container "chmod 644 /etc/resolv.conf 2>/dev/null || true"
+    log_info "[add-lxc-to-tailscale] Restored MagicDNS in /etc/resolv.conf (100.100.100.100 first)."
+}
 
 # 1. Install Tailscale if not present (apt on Debian/Ubuntu is faster than install.sh; fallback to install.sh)
 if ! lxc_tailscale_binary_present; then
+    exec_in_container "printf 'nameserver 8.8.8.8\nnameserver 8.8.4.4\n' > /etc/resolv.conf 2>/dev/null || true"
     log_info "[add-lxc-to-tailscale] Installing Tailscale..."
     # Minimal images (e.g. clone from OS template) often lack curl; install it so we can fetch keyring and fallback install.sh
     exec_in_container "command -v curl >/dev/null 2>&1 || (DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates)"
@@ -232,6 +247,7 @@ if run_on_host "pct exec $VMID -- test -S /var/run/tailscale/tailscaled.sock 2>/
     current_short="${current_name%%.*}"
     if [[ -n "$expected_short" && -n "$current_short" && "$current_short" == "$expected_short" ]]; then
         log_info "[add-lxc-to-tailscale] Already on tailnet as $current_name; skipping (no config change, no re-join)."
+        restore_tailscale_magicdns
         exit 0
     fi
     # 4. Stale identity (typical: LXC cloned from a base that had Tailscale — same machine key as another host).
@@ -318,8 +334,9 @@ if run_on_host "pct exec $VMID -- test -S /var/run/tailscale/tailscaled.sock 2>/
     exec_in_container "/usr/local/bin/tailscale-autojoin.sh" || true
     if tailscale_lxc_has_tailnet_ip; then
         log_success "[add-lxc-to-tailscale] Tailscale is up (IPv4 in 100.64.0.0/10)."
+        restore_tailscale_magicdns
     elif ensure_tailscale_connected_after_join; then
-        :
+        restore_tailscale_magicdns
     else
         dump_tailscale_join_logs
         log_warn "[add-lxc-to-tailscale] VMID $VMID still has no Tailscale 100.x IPv4 after automatic retries; check logs above and journalctl -u tailscale-autojoin on the LXC."
