@@ -283,14 +283,6 @@
               <p class="muted">Select a card to inspect it.</p>
             }
           }
-          @default {
-            @for (n of graph().nodes; track n.id) {
-              <button type="button" class="tree" (click)="focusObject(n)">
-                <ideate-type-glyph [type]="n.type" [size]="12" />
-                {{ n.displayId }} {{ n.title }}
-              </button>
-            }
-          }
         }
       </div>
       @if (rightTab() === 'chat') {
@@ -345,12 +337,6 @@
         <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'inspector'" title="Inspector" (click)="selectRight('inspector')">
           <mt-icon name="visibility" [size]="14" />
           <span class="btn-label">Look</span>
-        </button>
-      </li>
-      <li>
-        <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'outline'" title="Outline" (click)="selectRight('outline')">
-          <mt-icon name="list" [size]="14" />
-          <span class="btn-label">List</span>
         </button>
       </li>
     </ul>

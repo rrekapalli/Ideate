@@ -64,7 +64,7 @@ type EditorTab =
   | { kind: 'settings' };
 
 type LeftTab = 'objects' | 'documents' | 'branches' | 'reports';
-type RightTab = 'chat' | 'inspector' | 'outline';
+type RightTab = 'chat' | 'inspector';
 type BottomTab = 'review' | 'jobs' | 'problems';
 
 @Component({
@@ -1051,14 +1051,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   }
 
   rightTitle(): string {
-    switch (this.rightTab()) {
-      case 'inspector':
-        return 'Inspector';
-      case 'outline':
-        return 'Outline';
-      default:
-        return 'Chat';
-    }
+    return this.rightTab() === 'inspector' ? 'Inspector' : 'Chat';
   }
 
   private pushShell() {
@@ -1218,8 +1211,8 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       } else if (v.leftOpen === true && (v.leftTab === 'objects' || v.leftTab === 'documents' || v.leftTab === 'branches' || v.leftTab === 'reports')) {
         this.shell.leftDrawer.set(v.leftTab);
       }
-      const rightTab = v.rightTab === 'insights' || v.rightTab === 'timeline' ? 'chat' : v.rightTab;
-      if (rightTab === 'chat' || rightTab === 'inspector' || rightTab === 'outline') {
+      const rightTab = v.rightTab === 'insights' || v.rightTab === 'timeline' || v.rightTab === 'outline' ? 'chat' : v.rightTab;
+      if (rightTab === 'chat' || rightTab === 'inspector') {
         this.rightTab.set(rightTab);
       }
     } catch {
