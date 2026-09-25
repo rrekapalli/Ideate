@@ -189,7 +189,7 @@ public class IdeateApiController {
     public Object newNode(@PathVariable String id, @PathVariable String objectId, @RequestBody ApiDtos.NewNodeBody body) {
         workspaces.get(currentUser.get().accountId(), id);
         return graph.createLinkedNode(id, objectId, new GraphService.CreateObjectRequest(
-                body.type(), body.title(), body.summary(), body.body(), null, "original", null, null,
+                body.type(), body.title(), body.summary(), body.body(), null, "original", null, body.objectCategory(),
                 "user", null, null, null, null, body.tags(), List.of(objectId)
         ));
     }
@@ -437,9 +437,11 @@ public class IdeateApiController {
     }
 
     @GetMapping("/workspaces/{id}/search")
-    public SearchService.SearchResult search(@PathVariable String id, @RequestParam String q) {
+    public SearchService.SearchResult search(@PathVariable String id, @RequestParam(required = false) String q,
+                                             @RequestParam(required = false) String type,
+                                             @RequestParam(required = false) String category) {
         workspaces.get(currentUser.get().accountId(), id);
-        return search.search(id, q);
+        return search.search(id, q, type, category);
     }
 
     @GetMapping("/workspaces/{id}/timeline")

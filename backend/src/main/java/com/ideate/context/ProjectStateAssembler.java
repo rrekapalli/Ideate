@@ -33,10 +33,18 @@ public class ProjectStateAssembler {
 
     public String assemble(String workspaceId, String branchId, String utterance, List<String> focusIds,
                            List<String> turnAttachmentIds) {
+        return assemble(workspaceId, branchId, utterance, focusIds, turnAttachmentIds, null);
+    }
+
+    public String assemble(String workspaceId, String branchId, String utterance, List<String> focusIds,
+                           List<String> turnAttachmentIds, String mode) {
         StringBuilder sb = new StringBuilder();
         WorkspaceBits bits = loadWorkspace(workspaceId);
         sb.append("You are helping a ").append(bits.persona)
                 .append(" in the workspace \"").append(bits.name).append("\".\n");
+        if (mode != null && !mode.isBlank()) {
+            sb.append("Current mode: ").append(mode.trim()).append(".\n");
+        }
         sb.append("Answer ONLY the latest user message. Notes and earlier chat are background. ");
         sb.append("If the latest question is a new topic, answer that topic; do not repeat a previous answer. ");
         sb.append("Include typical measured values and units when they exist for THIS question. ");
@@ -69,6 +77,9 @@ public class ProjectStateAssembler {
             graph.nodes().stream().limit(16).forEach(n ->
                     sb.append("- ").append(n.displayId()).append(" [").append(n.type()).append("] ")
                             .append(n.title()).append('\n'));
+        }
+        if ("student".equalsIgnoreCase(bits.persona())) {
+            sb.append(StudentPosture.appendix(mode, focusIds, graph));
         }
 
         String cache = currentCache(workspaceId, branchId);

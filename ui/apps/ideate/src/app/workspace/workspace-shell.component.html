@@ -43,6 +43,7 @@
               [workspaceId]="workspaceId"
               [branches]="branches()"
               [activeBranchId]="activeBranchId()"
+              [persona]="workspace()?.persona ?? ''"
               (open)="openBranch($event)"
               (changed)="reloadAll()"
             />
@@ -98,16 +99,25 @@
     <div class="editor">
       @if (currentTab(); as tab) {
         @if (tab.kind === 'graph') {
-          <ideate-graph-canvas
-            #canvas
-            [snapshot]="graph()"
-            (open)="openObject($event)"
-            (typeChange)="changeType($event.object, $event.type)"
-            (newNode)="promptNewNode($event)"
-            (menu)="promptMenu($event)"
-            (openChat)="jumpChat($event)"
-            (inspect)="$event && setChatContext($event)"
-          />
+          <div class="graph-tab">
+            @if (isStudent()) {
+              <ideate-student-home
+                [home]="studentHome()"
+                (focus)="focusObject($event)"
+                (practice)="onPracticeGap($event)"
+              />
+            }
+            <ideate-graph-canvas
+              #canvas
+              [snapshot]="graph()"
+              (open)="openObject($event)"
+              (typeChange)="changeType($event.object, $event.type)"
+              (newNode)="promptNewNode($event)"
+              (menu)="promptMenu($event)"
+              (openChat)="jumpChat($event)"
+              (inspect)="$event && setChatContext($event)"
+            />
+          </div>
         } @else if (tab.kind === 'object') {
           <ideate-object-page
             [object]="tab.object"
@@ -168,7 +178,6 @@
     </div>
     <div class="bottom-panel">
       <div class="btabs">
-        <button type="button" [class.active]="bottomTab() === 'timeline'" (click)="selectBottom('timeline')">Timeline</button>
         <button type="button" [class.active]="bottomTab() === 'review'" (click)="selectBottom('review')">Review</button>
         <button type="button" [class.active]="bottomTab() === 'jobs'" (click)="selectBottom('jobs')">Jobs</button>
         <button type="button" [class.active]="bottomTab() === 'problems'" (click)="selectBottom('problems')">Problems</button>
@@ -177,11 +186,6 @@
       @if (bottomOpen()) {
         <div class="bbody">
           @switch (bottomTab()) {
-            @case ('timeline') {
-              @for (e of timeline(); track e.id) {
-                <button type="button" class="tree linkish" (click)="openById(e.objectId)">{{ e.createdAt }} · {{ e.eventType }} · {{ e.objectId }}</button>
-              }
-            }
             @case ('jobs') {
               <mt-button size="sm" [label]="'Run graph review (BATCH)'" (clicked)="runReview()" />
               @for (j of jobs(); track j.id) {
@@ -258,12 +262,37 @@
               }
             </div>
           }
-          @case ('insights') {
-            @if (timeline().length === 0) {
-              <p class="muted">Graph events will list object ids here.</p>
-            }
-            @for (e of timeline(); track e.id) {
-              <button type="button" class="tree" (click)="openById(e.objectId)">{{ e.createdAt }} · {{ e.eventType }} · {{ e.objectId }}</button>
+          @case ('timeline') {
+            @if (timelineNodes().length === 0) {
+              <p class="muted">Objects appear here as they are created.</p>
+            } @else {
+              <ol class="node-timeline">
+                @for (n of timelineNodes(); track n.id) {
+                  <li>
+                    <button
+                      type="button"
+                      class="node-card"
+                      [class.active]="inspected()?.id === n.id"
+                      [attr.data-type]="n.type"
+                      [attr.data-category]="n.objectCategory"
+                      (click)="focusObject(n)"
+                      (dblclick)="openObject(n)"
+                    >
+                      <time [attr.datetime]="n.createdAt">{{ chatWhen(n.createdAt) }}</time>
+                      <span class="node-card-head">
+                        <ideate-type-glyph [type]="n.type" [size]="12" />
+                        <span class="id">{{ n.displayId }}</span>
+                        <span class="kind">{{ lookupLabel(n.type) }}</span>
+                        <span class="ver">v{{ n.version }}</span>
+                      </span>
+                      <span class="node-card-title">{{ n.title }}</span>
+                      <span class="node-card-summary">
+                        <ideate-md [source]="n.summary || 'No summary yet.'" />
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ol>
             }
           }
           @case ('inspector') {
@@ -272,7 +301,7 @@
                 <ideate-type-glyph [type]="obj.type" [size]="14" />
                 <strong>{{ obj.displayId }}</strong> {{ obj.title }}
               </p>
-              <p class="muted">{{ lookupLabel(obj.type) }} · {{ lookupLabel(obj.objectCategory) }} · v{{ obj.version }}</p>
+              <p class="muted">{{ typeDisplayLabel(workspace()?.persona, obj.type, obj.tags) }} · {{ lookupLabel(obj.objectCategory) }} · v{{ obj.version }}</p>
               <ideate-md [source]="obj.summary || obj.body || 'No body yet.'" />
               <div class="inspect-files">
                 <ideate-attachment-list
@@ -346,9 +375,9 @@
         </button>
       </li>
       <li>
-        <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'insights'" title="Insights" (click)="selectRight('insights')">
-          <mt-icon name="chart" [size]="14" />
-          <span class="btn-label">Info</span>
+        <button type="button" class="nav-icon-btn" [class.active]="rightOpen() && rightTab() === 'timeline'" title="Timeline" (click)="selectRight('timeline')">
+          <mt-icon name="history" [size]="14" />
+          <span class="btn-label btn-label--long">Timeline</span>
         </button>
       </li>
       <li>
@@ -381,8 +410,8 @@
       <label>
         Type
         <select [ngModel]="newNodeType()" (ngModelChange)="newNodeType.set($event)" name="newNodeType">
-          @for (t of types; track t) {
-            <option [value]="t">{{ lookupLabel(t) }}</option>
+          @for (t of types(); track t) {
+            <option [value]="t">{{ typeDisplayLabel(workspace()?.persona, t) }}</option>
           }
         </select>
       </label>
@@ -409,6 +438,12 @@
     <div class="overlay" (click)="searchOpen.set(false)">
       <div class="palette" (click)="$event.stopPropagation()">
         <input [(ngModel)]="searchQuery" (keydown.enter)="runSearch()" autofocus />
+        @if (isStudent()) {
+          <div class="search-chips">
+            <button type="button" [class.active]="searchType === ''" (click)="setSearchType('')">All</button>
+            <button type="button" [class.active]="searchType === 'misconception'" (click)="setSearchType('misconception')">Misconceptions</button>
+          </div>
+        }
         @for (o of searchObjects(); track o.id) {
           <button type="button" (click)="pickSearchObject(o)">
             <ideate-type-glyph [type]="o.type" [size]="12" />

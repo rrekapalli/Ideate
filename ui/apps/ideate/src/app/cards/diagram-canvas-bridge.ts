@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
 import { IdeaObject } from '@ideate/api-client';
+import { StudentCardAction } from '../persona/persona-lens';
 
 @Injectable({ providedIn: 'root' })
 export class DiagramCanvasBridge {
@@ -9,4 +10,5 @@ export class DiagramCanvasBridge {
   readonly newNode$ = new Subject<IdeaObject>();
   readonly menu$ = new Subject<IdeaObject>();
   readonly openChat$ = new Subject<IdeaObject>();
+  readonly studentAction$ = new Subject<{ object: IdeaObject; action: StudentCardAction }>();
 }

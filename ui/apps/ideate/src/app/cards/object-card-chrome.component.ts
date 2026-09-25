@@ -1,10 +1,12 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ATTACHMENT_ACCEPT, IdeaObject, OBJECT_TYPES, lookupLabel } from '@ideate/api-client';
+import { ATTACHMENT_ACCEPT, IdeaObject, lookupLabel } from '@ideate/api-client';
 import { MtButtonComponent, MtIconComponent, MtTagComponent } from '@ideate/ui';
 import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { AttachmentStore } from '../workspace/attachment.store';
+import { ShellContextService } from '../core/shell/shell-context.service';
+import { hasTag, isStudentPersona, orderedObjectTypes, typeDisplayLabel } from '../persona/persona-lens';
 import { cardBox } from './card-layout';
 import { DiagramCanvasBridge } from './diagram-canvas-bridge';
 
@@ -28,8 +30,8 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
           <ideate-type-glyph [type]="object().type" [size]="14" />
           <span class="id">{{ object().displayId }}</span>
           <select [ngModel]="object().type" (ngModelChange)="emitType($event)" [attr.aria-label]="'Type'">
-            @for (t of types; track t) {
-              <option [value]="t">{{ lookupLabel(t) }}</option>
+            @for (t of types(); track t) {
+              <option [value]="t">{{ typeLabel(t) }}</option>
             }
           </select>
         </div>
@@ -39,6 +41,13 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
           <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="emitMenu()" />
         </div>
       </header>
+      @if (studentActions().length) {
+        <div class="student-acts" (click)="$event.stopPropagation()">
+          @for (act of studentActions(); track act.action) {
+            <button type="button" (click)="emitStudent(act.action)">{{ act.label }}</button>
+          }
+        </div>
+      }
       <h3>{{ object().title }}</h3>
       <div class="summary"><ideate-md [source]="object().summary || 'No summary yet.'" /></div>
       <footer>
@@ -223,13 +232,30 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     .attach .n { font-size: 0.68rem; font-weight: 700; }
     .tags { display: flex; gap: 0.25rem; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; }
     .ver { font-size: 0.7rem; color: var(--mt-text-muted); }
+    .student-acts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin: 0.3rem 0 0;
+    }
+    .student-acts button {
+      padding: 0.1rem 0.35rem;
+      border: 1px solid var(--mt-surface-border, var(--surface-border));
+      background: transparent;
+      color: var(--mt-primary);
+      font: inherit;
+      font-size: 0.68rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
   `,
 })
 export class ObjectCardChromeComponent {
   private readonly bridge = inject(DiagramCanvasBridge, { optional: true });
   private readonly attachmentsStore = inject(AttachmentStore);
+  private readonly shell = inject(ShellContextService);
   readonly object = input.required<IdeaObject>();
-  readonly types = OBJECT_TYPES;
+  readonly types = computed(() => orderedObjectTypes(this.shell.workspacePersona()));
   readonly lookupLabel = lookupLabel;
   readonly expanded = signal(false);
   readonly accept = ATTACHMENT_ACCEPT;
@@ -240,9 +266,32 @@ export class ObjectCardChromeComponent {
   readonly openChat = output<IdeaObject>();
   readonly attachments = computed(() => this.attachmentsStore.forObject(this.object().id));
   readonly attachCount = computed(() => this.attachments().length);
+  readonly studentActions = computed(() => {
+    if (!isStudentPersona(this.shell.workspacePersona())) {
+      return [] as { action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller'; label: string }[];
+    }
+    const obj = this.object();
+    const acts: { action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller'; label: string }[] = [];
+    if (obj.type === 'unknown') {
+      acts.push({ action: 'promote-question', label: 'Promote to question' });
+      acts.push({ action: 'attach-example', label: 'Attach example' });
+    }
+    if (obj.type === 'evidence' && hasTag(obj.tags, 'example') && obj.objectCategory !== 'supported') {
+      acts.push({ action: 'accept-example', label: 'Accept example' });
+    }
+    if (obj.type === 'concept') {
+      acts.push({ action: 'explain-shorter', label: 'Shorter' });
+      acts.push({ action: 'explain-fuller', label: 'Fuller' });
+    }
+    return acts;
+  });
 
   box() {
-    return cardBox(this.object(), this.expanded());
+    const b = cardBox(this.object(), this.expanded());
+    if (this.studentActions().length) {
+      return { width: b.width, height: b.height + 22 };
+    }
+    return b;
   }
 
   hasBody(): boolean {
@@ -304,6 +353,14 @@ export class ObjectCardChromeComponent {
   emitChat() {
     this.openChat.emit(this.object());
     this.bridge?.openChat$.next(this.object());
+  }
+
+  typeLabel(type: string): string {
+    return typeDisplayLabel(this.shell.workspacePersona(), type, type === this.object().type ? this.object().tags : []);
+  }
+
+  emitStudent(action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller') {
+    this.bridge?.studentAction$.next({ object: this.object(), action });
   }
 
   onPick(ev: Event) {

@@ -18,12 +18,18 @@ public class SearchService {
     }
 
     public SearchResult search(String workspaceId, String query) {
-        if (query == null || query.isBlank()) {
+        return search(workspaceId, query, null, null);
+    }
+
+    public SearchResult search(String workspaceId, String query, String type, String category) {
+        boolean hasText = query != null && !query.isBlank();
+        boolean hasFilter = (type != null && !type.isBlank()) || (category != null && !category.isBlank());
+        if (!hasText && !hasFilter) {
             return new SearchResult(List.of(), List.of());
         }
-        List<IdeaObject> objects = retrievalService.searchObjects(workspaceId, query.trim(), 20);
-        String q = query.toLowerCase();
-        List<DocumentService.Item> docs = documentService.items(workspaceId).stream()
+        List<IdeaObject> objects = retrievalService.searchObjects(workspaceId, query == null ? "" : query.trim(), 20, type, category);
+        String q = query == null ? "" : query.toLowerCase();
+        List<DocumentService.Item> docs = !hasText ? List.of() : documentService.items(workspaceId).stream()
                 .filter(i -> i.name().toLowerCase().contains(q) || i.url().toLowerCase().contains(q))
                 .limit(20)
                 .toList();

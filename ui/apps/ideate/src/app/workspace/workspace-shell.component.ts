@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl, SafeUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -17,7 +17,6 @@ import {
   IdeateApi,
   JobRecord,
   MODES,
-  OBJECT_TYPES,
   TimelineEvent,
   TranscriptMessage,
   UsageRollup,
@@ -43,6 +42,18 @@ import { SettingsPageComponent } from './settings-page.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { AttachmentStore } from './attachment.store';
 import { reportFileName as formatReportFileName, resolveReportTitle } from './report-display';
+import { DiagramCanvasBridge } from '../cards/diagram-canvas-bridge';
+import {
+  EXPLAIN_FULLER,
+  EXPLAIN_SHORTER,
+  defaultChatMode,
+  isStudentPersona,
+  orderedObjectTypes,
+  typeDisplayLabel,
+} from '../persona/persona-lens';
+import { PracticeGap, deriveStudentHome } from '../persona/student-home';
+import { StudentHomeComponent } from '../persona/student-home.component';
+import { readResume, writeResume } from '../persona/workspace-resume';
 
 type EditorTab =
   | { kind: 'graph' }
@@ -53,12 +64,12 @@ type EditorTab =
   | { kind: 'settings' };
 
 type LeftTab = 'objects' | 'documents' | 'branches' | 'reports';
-type RightTab = 'chat' | 'insights' | 'inspector' | 'outline';
-type BottomTab = 'timeline' | 'review' | 'jobs' | 'problems';
+type RightTab = 'chat' | 'timeline' | 'inspector' | 'outline';
+type BottomTab = 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, ReportsTreeComponent, ReportPageComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent],
+  imports: [FormsModule, MtButtonComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, ReportsTreeComponent, ReportPageComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent, StudentHomeComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -76,6 +87,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   readonly newNodeType = signal('thought');
   readonly newNodeTitle = signal('');
   readonly attachments = inject(AttachmentStore);
+  private readonly canvasBridge = inject(DiagramCanvasBridge);
   private readonly subs = new Subscription();
 
   @ViewChild('canvas') canvas?: GraphCanvasComponent;
@@ -103,7 +115,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   rightOpen = signal(true);
   rightTab = signal<RightTab>('chat');
   bottomOpen = signal(false);
-  bottomTab = signal<BottomTab>('timeline');
+  bottomTab = signal<BottomTab>('review');
   inspected = signal<IdeaObject | null>(null);
   chatFrom = signal<IdeaObject | null>(null);
   chatPath = signal<IdeaObject[]>([]);
@@ -112,11 +124,15 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   searchQuery = '';
   searchObjects = signal<IdeaObject[]>([]);
   searchDocs = signal<DocumentItem[]>([]);
+  searchType = '';
   draft = '';
   mode = 'explore';
   modes = MODES;
-  types = OBJECT_TYPES;
+  readonly types = computed(() => orderedObjectTypes(this.workspace()?.persona));
   readonly lookupLabel = lookupLabel;
+  readonly typeDisplayLabel = typeDisplayLabel;
+  readonly lastFocusedConceptId = signal<string | null>(null);
+  readonly studentHome = computed(() => deriveStudentHome(this.graph(), this.lastFocusedConceptId()));
   readonly acceptFiles = ATTACHMENT_ACCEPT;
   sending = signal(false);
   pendingFiles = signal<File[]>([]);
@@ -132,15 +148,19 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.restoreChrome();
     this.workspaceId = this.route.snapshot.paramMap.get('id') ?? '';
     const objectId = this.route.snapshot.paramMap.get('objectId');
+    this.subs.add(this.canvasBridge.studentAction$.subscribe((ev) => this.onStudentAction(ev.object, ev.action)));
     this.api.getWorkspace(this.workspaceId).subscribe({
       next: (res) => {
         this.workspace.set(res.workspace);
+        this.mode = defaultChatMode(res.workspace.persona);
         this.branches.set(res.branches ?? []);
         this.activeBranchId.set(res.workspace.mainstreamBranchId ?? res.branches?.[0]?.id ?? null);
         this.pushShell();
         this.reloadAll(() => {
           if (objectId) {
             this.api.getObject(this.workspaceId, objectId).subscribe((obj) => this.openObject(obj));
+          } else {
+            this.restoreResume();
           }
         });
       },
@@ -588,6 +608,10 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.inspected.set(object);
     this.chatFrom.set(object);
     this.chatPath.set(ancestorPath(this.graph(), object));
+    if (object.type === 'concept') {
+      this.lastFocusedConceptId.set(object.id);
+    }
+    this.persistResume(object.id, object.sourceUserMessageId ?? object.sourceAssistantMessageId);
   }
 
   ancestorPathFor(object: IdeaObject): IdeaObject[] {
@@ -600,7 +624,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
 
   promptNewNode(object: IdeaObject) {
     this.newNodeParent.set(object);
-    this.newNodeType.set('thought');
+    this.newNodeType.set(isStudentPersona(this.workspace()?.persona) ? 'concept' : 'thought');
     this.newNodeTitle.set('');
     this.newNodeOpen.set(true);
   }
@@ -807,6 +831,10 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
               this.transcript.set(this.transcript().map((m) => (
                 m.id === localUser.id ? { ...m, id: res.userMessageId! } : m
               )));
+              const focusId = this.chatFrom()?.id;
+              if (focusId) {
+                this.persistResume(focusId, res.userMessageId);
+              }
             }
             this.attachments.load(this.workspaceId);
             if (res.jobId) {
@@ -973,7 +1001,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
 
   runSearch() {
     this.searchOpen.set(true);
-    this.api.search(this.workspaceId, this.searchQuery).subscribe((res) => {
+    this.api.search(this.workspaceId, this.searchQuery, this.searchType ? { type: this.searchType } : undefined).subscribe((res) => {
       this.searchObjects.set(res.objects);
       this.searchDocs.set(res.documents);
     });
@@ -1022,10 +1050,14 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     }
   }
 
+  timelineNodes(): IdeaObject[] {
+    return [...this.graph().nodes].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.displayId.localeCompare(b.displayId));
+  }
+
   rightTitle(): string {
     switch (this.rightTab()) {
-      case 'insights':
-        return 'Insights';
+      case 'timeline':
+        return 'Timeline';
       case 'inspector':
         return 'Inspector';
       case 'outline':
@@ -1039,7 +1071,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     const ws = this.workspace();
     if (!ws) return;
     const branch = this.branches().find((b) => b.id === this.activeBranchId())?.name ?? 'Mainstream';
-    this.shell.bindWorkspace(ws.name, `${ws.persona} · ${branch}`, this.credits(), this.usageMinor());
+    this.shell.bindWorkspace(ws.name, `${ws.persona} · ${branch}`, this.credits(), this.usageMinor(), ws.persona);
   }
 
   persistChrome() {
@@ -1050,6 +1082,135 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       leftWidth: this.shell.leftDrawerWidth(),
       rightWidth: this.shell.rightDrawerWidth(),
     }));
+  }
+
+  isStudent(): boolean {
+    return isStudentPersona(this.workspace()?.persona);
+  }
+
+  onPracticeGap(gap: PracticeGap) {
+    this.mode = 'practice';
+    this.focusObject(gap.object);
+    this.rightTab.set('chat');
+    this.rightOpen.set(true);
+    this.persistChrome();
+  }
+
+  onStudentAction(
+    object: IdeaObject,
+    action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller',
+  ) {
+    if (action === 'promote-question') {
+      this.api.updateObject(this.workspaceId, object.id, { type: 'question', objectCategory: 'active' })
+        .subscribe(() => this.reloadAll());
+      return;
+    }
+    if (action === 'accept-example') {
+      this.api.updateObject(this.workspaceId, object.id, { objectCategory: 'supported' })
+        .subscribe(() => this.reloadAll());
+      return;
+    }
+    if (action === 'attach-example') {
+      this.attachExample(object);
+      return;
+    }
+    this.explainDepth(object, action === 'explain-shorter' ? EXPLAIN_SHORTER : EXPLAIN_FULLER);
+  }
+
+  private attachExample(unknown: IdeaObject) {
+    const parent = this.parentConcept(unknown);
+    const sourceId = parent?.id ?? unknown.id;
+    this.api.newNode(this.workspaceId, sourceId, {
+      type: 'evidence',
+      title: unknown.title ? `Example: ${unknown.title}` : 'Example',
+      tags: ['example'],
+      objectCategory: 'speculative',
+    }).subscribe((created) => {
+      const extraTarget = parent && sourceId === unknown.id ? parent.id
+        : parent && sourceId !== unknown.id ? unknown.id
+        : null;
+      if (extraTarget && extraTarget !== sourceId) {
+        this.api.createEdge(this.workspaceId, {
+          type: 'derived-from',
+          fromObjectId: created.id,
+          toObjectId: extraTarget,
+          why: 'example',
+        }).subscribe({
+          next: () => this.reloadAll(),
+          error: () => this.reloadAll(),
+        });
+        return;
+      }
+      this.reloadAll();
+    });
+  }
+
+  private parentConcept(node: IdeaObject): IdeaObject | undefined {
+    const byId = new Map(this.graph().nodes.map((n) => [n.id, n]));
+    for (const id of node.derivedFrom ?? []) {
+      const parent = byId.get(id);
+      if (parent?.type === 'concept') {
+        return parent;
+      }
+    }
+    for (const e of this.graph().edges) {
+      const otherId = e.toObjectId === node.id ? e.fromObjectId : e.fromObjectId === node.id ? e.toObjectId : null;
+      if (!otherId) {
+        continue;
+      }
+      const other = byId.get(otherId);
+      if (other?.type === 'concept') {
+        return other;
+      }
+    }
+    return undefined;
+  }
+
+  private explainDepth(object: IdeaObject, utterance: string) {
+    this.mode = 'explain';
+    this.setChatContext(object);
+    this.rightTab.set('chat');
+    this.rightOpen.set(true);
+    this.persistChrome();
+    this.draft = utterance;
+    this.send();
+  }
+
+  setSearchType(type: string) {
+    this.searchType = type;
+    this.runSearch();
+  }
+
+  private persistResume(objectId: string, messageId?: string | null) {
+    writeResume(localStorage, this.workspaceId, objectId, messageId);
+  }
+
+  private restoreResume() {
+    const saved = readResume(localStorage, this.workspaceId);
+    if (!saved) {
+      return;
+    }
+    const found = this.graph().nodes.find((n) => n.id === saved.objectId);
+    if (!found) {
+      this.api.getObject(this.workspaceId, saved.objectId).subscribe({
+        next: (obj) => this.applyResume(obj, saved.messageId),
+        error: () => undefined,
+      });
+      return;
+    }
+    this.applyResume(found, saved.messageId);
+  }
+
+  private applyResume(object: IdeaObject, messageId?: string | null) {
+    this.focusObject(object);
+    if (messageId) {
+      this.rightTab.set('chat');
+      this.rightOpen.set(true);
+      this.highlightedMsg.set(messageId);
+      queueMicrotask(() => {
+        document.getElementById('msg-' + messageId)?.scrollIntoView({ block: 'center' });
+      });
+    }
   }
 
   private restoreChrome() {
@@ -1063,8 +1224,9 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
       } else if (v.leftOpen === true && (v.leftTab === 'objects' || v.leftTab === 'documents' || v.leftTab === 'branches' || v.leftTab === 'reports')) {
         this.shell.leftDrawer.set(v.leftTab);
       }
-      if (v.rightTab === 'chat' || v.rightTab === 'insights' || v.rightTab === 'inspector' || v.rightTab === 'outline') {
-        this.rightTab.set(v.rightTab);
+      const rightTab = v.rightTab === 'insights' ? 'timeline' : v.rightTab;
+      if (rightTab === 'chat' || rightTab === 'timeline' || rightTab === 'inspector' || rightTab === 'outline') {
+        this.rightTab.set(rightTab);
       }
     } catch {
       /* ignore */

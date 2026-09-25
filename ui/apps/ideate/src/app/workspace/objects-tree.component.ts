@@ -1,7 +1,8 @@
 import { Component, computed, input, output, signal } from '@angular/core';
-import { IdeaObject, lookupLabel, lookupPluralLabel, personaIcon } from '@ideate/api-client';
+import { IdeaObject, lookupLabel, personaIcon } from '@ideate/api-client';
 import { MtIconComponent } from '@ideate/ui';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
+import { STUDENT_PROMOTED_TYPES, isStudentPersona, typePluralDisplayLabel } from '../persona/persona-lens';
 
 type TreeRow =
   | { kind: 'root'; id: 'workspace'; depth: 0 }
@@ -164,12 +165,25 @@ export class ObjectsTreeComponent {
       list.push(n);
       map.set(n.type, list);
     }
-    return [...map.entries()].map(([type, items]) => ({
+    const persona = this.persona();
+    const entries = [...map.entries()].map(([type, items]) => ({
       type,
       id: 'type:' + type,
-      label: lookupPluralLabel(type),
+      label: typePluralDisplayLabel(persona, type),
       items,
     }));
+    if (!isStudentPersona(persona)) {
+      return entries;
+    }
+    const rank = new Map<string, number>(STUDENT_PROMOTED_TYPES.map((t, i) => [t, i]));
+    return entries.sort((a, b) => {
+      const ra = rank.has(a.type) ? rank.get(a.type)! : 100;
+      const rb = rank.has(b.type) ? rank.get(b.type)! : 100;
+      if (ra !== rb) {
+        return ra - rb;
+      }
+      return a.label.localeCompare(b.label);
+    });
   });
 
   readonly visibleRows = computed((): TreeRow[] => {

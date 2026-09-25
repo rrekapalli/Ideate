@@ -4,7 +4,6 @@ import {
   Attachment,
   IdeaObject,
   JobRecord,
-  OBJECT_TYPES,
   lookupLabel,
   TimelineEvent,
   TranscriptMessage,
@@ -17,6 +16,9 @@ import { hasMermaidFence } from '../shared/render-markdown';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { AttachmentListComponent } from '../shared/attachment-list.component';
 import { AttachmentStore } from './attachment.store';
+import { ShellContextService } from '../core/shell/shell-context.service';
+import { DiagramCanvasBridge } from '../cards/diagram-canvas-bridge';
+import { hasTag, isStudentPersona, orderedObjectTypes, typeDisplayLabel } from '../persona/persona-lens';
 
 @Component({
   selector: 'ideate-object-page',
@@ -45,8 +47,8 @@ import { AttachmentStore } from './attachment.store';
           <ideate-type-glyph [type]="object().type" [size]="16" />
           <span class="id">{{ object().displayId }}</span>
           <select [ngModel]="object().type" (ngModelChange)="typeChange.emit($event)">
-            @for (t of types; track t) {
-              <option [value]="t">{{ lookupLabel(t) }}</option>
+            @for (t of types(); track t) {
+              <option [value]="t">{{ typeLabel(t) }}</option>
             }
           </select>
           <span class="pill">v{{ object().version }}</span>
@@ -55,6 +57,9 @@ import { AttachmentStore } from './attachment.store';
         <div class="hero-row">
           <h1>{{ object().title }}</h1>
           <div class="actions">
+            @for (act of studentActions(); track act.action) {
+              <mt-button size="sm" variant="outlined" [label]="act.label" (clicked)="emitStudent(act.action)" />
+            }
             <mt-button size="sm" variant="outlined" label="Open in Chat" (clicked)="openChat.emit(object())" />
             <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="menu.emit(object())" />
           </div>
@@ -316,6 +321,8 @@ import { AttachmentStore } from './attachment.store';
 })
 export class ObjectPageComponent {
   private readonly attachmentsStore = inject(AttachmentStore);
+  private readonly shell = inject(ShellContextService);
+  private readonly bridge = inject(DiagramCanvasBridge, { optional: true });
   readonly object = input.required<IdeaObject>();
   readonly trail = input<IdeaObject[]>([]);
   readonly userMessage = input<TranscriptMessage | null>(null);
@@ -327,7 +334,7 @@ export class ObjectPageComponent {
   readonly menu = output<IdeaObject>();
   readonly openChat = output<IdeaObject>();
   readonly open = output<IdeaObject>();
-  readonly types = OBJECT_TYPES;
+  readonly types = computed(() => orderedObjectTypes(this.shell.workspacePersona()));
   readonly lookupLabel = lookupLabel;
   readonly pane = signal<string>('page');
   readonly crumbs = computed(() => {
@@ -335,6 +342,33 @@ export class ObjectPageComponent {
     return trail.length ? trail : [this.object()];
   });
   readonly attachments = computed(() => this.attachmentsStore.forObject(this.object().id));
+  readonly studentActions = computed(() => {
+    if (!isStudentPersona(this.shell.workspacePersona())) {
+      return [] as { action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller'; label: string }[];
+    }
+    const obj = this.object();
+    const acts: { action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller'; label: string }[] = [];
+    if (obj.type === 'unknown') {
+      acts.push({ action: 'promote-question', label: 'Promote to question' });
+      acts.push({ action: 'attach-example', label: 'Attach example' });
+    }
+    if (obj.type === 'evidence' && hasTag(obj.tags, 'example') && obj.objectCategory !== 'supported') {
+      acts.push({ action: 'accept-example', label: 'Accept example' });
+    }
+    if (obj.type === 'concept') {
+      acts.push({ action: 'explain-shorter', label: 'Shorter' });
+      acts.push({ action: 'explain-fuller', label: 'Fuller' });
+    }
+    return acts;
+  });
+
+  typeLabel(type: string): string {
+    return typeDisplayLabel(this.shell.workspacePersona(), type, type === this.object().type ? this.object().tags : []);
+  }
+
+  emitStudent(action: 'promote-question' | 'attach-example' | 'accept-example' | 'explain-shorter' | 'explain-fuller') {
+    this.bridge?.studentAction$.next({ object: this.object(), action });
+  }
 
   addFiles(files: File[]) {
     for (const file of files) {

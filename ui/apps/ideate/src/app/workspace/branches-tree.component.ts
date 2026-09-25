@@ -2,6 +2,7 @@ import { Component, computed, inject, input, output, signal } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { MtButtonComponent, MtCheckboxComponent, MtConfirm, MtFieldComponent, MtIconComponent, MtTooltipDirective } from '@ideate/ui';
 import { IdeateApi, WorkspaceBranch } from '@ideate/api-client';
+import { overlayCreateLabel, overlayNameFieldLabel, overlayNewLabel } from '../persona/persona-lens';
 
 type BranchNode = { branch: WorkspaceBranch; children: BranchNode[] };
 type VisibleRow = { branch: WorkspaceBranch; depth: number; hasChildren: boolean };
@@ -13,15 +14,15 @@ type VisibleRow = { branch: WorkspaceBranch; depth: number; hasChildren: boolean
     <div class="docs-header">
       <div class="docs-toolbar" role="toolbar" aria-label="Branch commands">
         <mt-checkbox [checked]="allSelected()" mtTooltip="Select all" (checkedChange)="toggleAll($event)" />
-        <mt-button variant="icon" size="sm" icon="add" ariaLabel="New overlay" mtTooltip="New overlay" (clicked)="beginCreate()" />
+        <mt-button variant="icon" size="sm" icon="add" [ariaLabel]="newLabel()" [mtTooltip]="newLabel()" (clicked)="beginCreate()" />
         <mt-button variant="icon" size="sm" icon="visibility" ariaLabel="Open" mtTooltip="Open" [disabled]="!singleSelected()" (clicked)="openSelected()" />
         <mt-button variant="icon" size="sm" icon="recycle_bin" ariaLabel="Delete" mtTooltip="Delete" [disabled]="!canDeleteSelection()" (clicked)="deleteSelected()" />
       </div>
     </div>
     @if (creating()) {
       <div class="docs-create">
-        <mt-field label="Overlay name" [(ngModel)]="newName" />
-        <mt-button size="sm" [label]="'Create overlay'" [disabled]="!newName.trim()" (clicked)="createOverlay()" />
+        <mt-field [label]="nameFieldLabel()" [(ngModel)]="newName" />
+        <mt-button size="sm" [label]="createLabel()" [disabled]="!newName.trim()" (clicked)="createOverlay()" />
         <p class="hint">Creates under {{ parentLabel() }}</p>
       </div>
     }
@@ -74,6 +75,7 @@ export class BranchesTreeComponent {
   readonly workspaceId = input.required<string>();
   readonly branches = input.required<WorkspaceBranch[]>();
   readonly activeBranchId = input<string | null>(null);
+  readonly persona = input('');
   readonly open = output<WorkspaceBranch>();
   readonly changed = output<void>();
 
@@ -92,6 +94,18 @@ export class BranchesTreeComponent {
 
   beginCreate(): void {
     this.creating.update((v) => !v);
+  }
+
+  newLabel(): string {
+    return overlayNewLabel(this.persona());
+  }
+
+  createLabel(): string {
+    return overlayCreateLabel(this.persona());
+  }
+
+  nameFieldLabel(): string {
+    return overlayNameFieldLabel(this.persona());
   }
 
   focusBranch(branch: WorkspaceBranch): void {

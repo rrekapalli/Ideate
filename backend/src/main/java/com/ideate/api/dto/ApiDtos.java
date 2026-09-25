@@ -58,6 +58,7 @@ public final class ApiDtos {
             String title,
             String summary,
             String body,
+            String objectCategory,
             List<String> tags
     ) {}
 

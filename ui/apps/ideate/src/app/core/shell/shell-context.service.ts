@@ -6,6 +6,7 @@ export type AppLeftDrawer = 'workspaces' | 'objects' | 'documents' | 'branches' 
 @Injectable({ providedIn: 'root' })
 export class ShellContextService {
   readonly workspaceName = signal<string | null>(null);
+  readonly workspacePersona = signal<string | null>(null);
   readonly workspaceMeta = signal('');
   readonly credits = signal<number | null>(null);
   readonly usageMinor = signal<number | null>(null);
@@ -53,8 +54,9 @@ export class ShellContextService {
     this.leftDrawer.set(null);
   }
 
-  bindWorkspace(name: string, meta: string, credits: number, usageMinor: number): void {
+  bindWorkspace(name: string, meta: string, credits: number, usageMinor: number, persona?: string | null): void {
     this.workspaceName.set(name);
+    this.workspacePersona.set(persona ?? null);
     this.workspaceMeta.set(meta);
     this.credits.set(credits);
     this.usageMinor.set(usageMinor);
@@ -66,6 +68,7 @@ export class ShellContextService {
 
   clearWorkspace(): void {
     this.workspaceName.set(null);
+    this.workspacePersona.set(null);
     this.workspaceMeta.set('');
     this.credits.set(null);
     this.usageMinor.set(null);

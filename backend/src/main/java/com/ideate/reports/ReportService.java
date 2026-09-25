@@ -29,24 +29,6 @@ import java.util.concurrent.Executors;
 @Service
 public class ReportService {
     private static final Logger log = LoggerFactory.getLogger(ReportService.class);
-    private static final String SYSTEM = """
-            You write a publication-quality research report from a workspace idea graph.
-            The graph is the only source of claims. Do not invent numbers, papers, authors, DOIs, or stronger conclusions.
-            Call a hypothesis conclusive only when an Evaluation outcome is supported, or a Theory exists via promoted-to.
-            Keep abandoned hypotheses and misconceptions as history. Keep unknowns, questions, targets, and estimates labeled.
-            If the graph is thin, say the exploration has not reached a conclusion.
-            Do not mention cards, nodes, edges, tools, JSON, or that you are an AI.
-            You may include at most one mermaid fence when a figure carries the argument. Use one diagram type and matching syntax only:
-            flowchart TD  OR  sequenceDiagram (participant / Note left of Name:)  OR  stateDiagram-v2 (state and [*] transitions).
-            Never mix those. Never put participant lines in a stateDiagram.
-            Reply in this exact shape:
-
-            TITLE: <the workspace's central question, or the workspace name — never the words Title, Question, or Report>
-            SUMMARY: <2–4 sentences>
-            BODY:
-            Markdown report with sections for the question, established facts (cite display ids), reasoning, conclusions, dropped lines, and still open.
-            Do not repeat TITLE, SUMMARY, or BODY labels inside the markdown.
-            """;
 
     private final JdbcTemplate jdbc;
     private final GraphService graph;
@@ -185,7 +167,7 @@ public class ReportService {
             GraphService.GraphSnapshot snapshot = graph.graph(workspaceId, branchId);
             String projection = ReportProjection.assemble(snapshot, workspaceName, persona);
             ProviderTarget target = resolveProvider(accountId, workspaceId);
-            ChatClient.ChatResult completion = complete(target, projection);
+            ChatClient.ChatResult completion = complete(target, projection, persona);
             usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), "DEEP",
                     completion.inputTokens(), completion.outputTokens(), 0);
             if (completion.error() != null) {
@@ -232,7 +214,7 @@ public class ReportService {
         jobs.markFailed(jobId, error);
     }
 
-    private ChatClient.ChatResult complete(ProviderTarget target, String projection) {
+    private ChatClient.ChatResult complete(ProviderTarget target, String projection, String persona) {
         List<String> bases = new ArrayList<>();
         addUnique(bases, target.baseUrl());
         addUnique(bases, properties.getOllama().getBaseUrl());
@@ -251,7 +233,7 @@ public class ReportService {
                         base,
                         target.apiKey(),
                         List.of(
-                                new ChatClient.Message("system", SYSTEM),
+                                new ChatClient.Message("system", ReportPrompts.system(persona)),
                                 new ChatClient.Message("user", projection)
                         ),
                         4000,

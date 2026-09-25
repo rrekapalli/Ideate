@@ -18,14 +18,12 @@ public class RetrievalService {
     }
 
     public List<IdeaObject> searchObjects(String workspaceId, String query, int limit) {
-        String q = "%" + query.toLowerCase() + "%";
-        List<String> ids = jdbc.queryForList("""
-                SELECT id FROM idea_object
-                WHERE workspace_id = ? AND deleted_at IS NULL
-                  AND (lower(display_id) LIKE ? OR lower(title) LIKE ? OR lower(summary) LIKE ? OR lower(body) LIKE ?)
-                ORDER BY updated_at DESC
-                LIMIT ?
-                """, String.class, workspaceId, q, q, q, q, limit);
+        return searchObjects(workspaceId, query, limit, null, null);
+    }
+
+    public List<IdeaObject> searchObjects(String workspaceId, String query, int limit, String type, String category) {
+        ObjectSearchQuery spec = ObjectSearchQuery.build(workspaceId, query, type, category, limit);
+        List<String> ids = jdbc.queryForList(spec.sql, String.class, spec.args.toArray());
         return ids.stream().map(id -> graphService.getObject(workspaceId, id)).toList();
     }
 }

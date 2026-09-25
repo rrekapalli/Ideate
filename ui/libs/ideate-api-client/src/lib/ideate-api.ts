@@ -91,7 +91,7 @@ export class IdeateApi {
     return this.http.delete(this.url(`/workspaces/${workspaceId}/objects/${objectId}`));
   }
 
-  newNode(workspaceId: string, objectId: string, body: { type: string; title: string }) {
+  newNode(workspaceId: string, objectId: string, body: { type: string; title: string; tags?: string[]; objectCategory?: string; summary?: string }) {
     return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/nodes`), body);
   }
 
@@ -197,9 +197,20 @@ export class IdeateApi {
     });
   }
 
-  search(workspaceId: string, q: string) {
+  search(workspaceId: string, q: string, opts?: { type?: string; category?: string }) {
+    const params = new URLSearchParams();
+    if (q) {
+      params.set('q', q);
+    }
+    if (opts?.type) {
+      params.set('type', opts.type);
+    }
+    if (opts?.category) {
+      params.set('category', opts.category);
+    }
+    const qs = params.toString();
     return this.http.get<{ objects: IdeaObject[]; documents: DocumentItem[] }>(
-      this.url(`/workspaces/${workspaceId}/search?q=${encodeURIComponent(q)}`),
+      this.url(`/workspaces/${workspaceId}/search${qs ? '?' + qs : ''}`),
     );
   }
 

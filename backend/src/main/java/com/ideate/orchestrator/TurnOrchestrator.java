@@ -129,7 +129,7 @@ public class TurnOrchestrator {
                             TurnRequest request, String userMsgId, String jobId) {
         try {
             String projectState = assembler.assemble(workspaceId, branchId, request.content(),
-                    request.focusObjectIds(), request.attachmentIds());
+                    request.focusObjectIds(), request.attachmentIds(), mode);
             ProviderTarget target = resolveProvider(accountId, workspaceId, jobClass);
             ChatClient.ChatResult completion = completeWithRetry(target, projectState, true, request.attachmentIds(), workspaceId);
             usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), jobClass,
