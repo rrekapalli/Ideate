@@ -50,12 +50,15 @@ import {
   EXTRACT_CLAIMS,
   ExplorerCardAction,
   InventorCardAction,
+  ProductCardAction,
   WALK_IMPLICATIONS,
   composerPlaceholder,
   defaultChatMode,
   hasTag,
+  isAnalystPersona,
   isExplorerPersona,
   isInventorPersona,
+  isProductResearchPersona,
   isStudentPersona,
   orderedObjectTypes,
   typeDisplayLabel,
@@ -66,6 +69,8 @@ import { deriveInventorHome } from '../persona/inventor-home';
 import { InventorHomeComponent } from '../persona/inventor-home.component';
 import { deriveExplorerHome } from '../persona/explorer-home';
 import { ExplorerHomeComponent } from '../persona/explorer-home.component';
+import { assumptionBreaks, deriveProductHome } from '../persona/product-home';
+import { ProductHomeComponent } from '../persona/product-home.component';
 import { readResume, writeResume } from '../persona/workspace-resume';
 
 type EditorTab =
@@ -82,7 +87,7 @@ type BottomTab = 'review' | 'jobs' | 'problems';
 
 @Component({
   selector: 'ideate-workspace-shell',
-  imports: [FormsModule, MtButtonComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, ReportsTreeComponent, ReportPageComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent, StudentHomeComponent, InventorHomeComponent, ExplorerHomeComponent],
+  imports: [FormsModule, MtButtonComponent, MtDialogComponent, MtIconComponent, GraphCanvasComponent, ObjectPageComponent, ObjectsTreeComponent, DocsTreeComponent, BranchesTreeComponent, ReportsTreeComponent, ReportPageComponent, DrawerResizeComponent, MdViewComponent, SettingsPageComponent, TypeGlyphComponent, AttachmentListComponent, StudentHomeComponent, InventorHomeComponent, ExplorerHomeComponent, ProductHomeComponent],
   templateUrl: './workspace-shell.component.html',
   styleUrl: './workspace-shell.component.scss',
 })
@@ -109,6 +114,19 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   readonly abandonOpen = signal(false);
   readonly abandonFrom = signal<IdeaObject | null>(null);
   abandonWhy = '';
+  readonly productDialog = signal<ProductCardAction | null>(null);
+  readonly productFrom = signal<IdeaObject | null>(null);
+  productTitle = '';
+  productKind = 'interview';
+  productRelation = 'supports';
+  productIntent = 'interviews';
+  productResult = '';
+  productDisposition = 'build';
+  productChoice = '';
+  productReason = '';
+  productAlternatives = '';
+  productOutcome = '';
+  readonly breakHits = signal<{ object: IdeaObject; via: string }[]>([]);
   readonly analogyCandidates = computed(() => {
     const from = this.analogyFrom();
     return this.graph().nodes.filter((n) => n.id !== from?.id);
@@ -165,6 +183,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
   readonly studentHome = computed(() => deriveStudentHome(this.graph(), this.lastFocusedConceptId()));
   readonly inventorHome = computed(() => deriveInventorHome(this.graph()));
   readonly explorerHome = computed(() => deriveExplorerHome(this.graph(), this.lastFocusedThoughtId()));
+  readonly productHome = computed(() => deriveProductHome(this.graph(), this.workspace()?.pinnedObjectId));
   readonly acceptFiles = ATTACHMENT_ACCEPT;
   sending = signal(false);
   pendingFiles = signal<File[]>([]);
@@ -183,6 +202,7 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.subs.add(this.canvasBridge.studentAction$.subscribe((ev) => this.onStudentAction(ev.object, ev.action)));
     this.subs.add(this.canvasBridge.inventorAction$.subscribe((ev) => this.onInventorAction(ev.object, ev.action)));
     this.subs.add(this.canvasBridge.explorerAction$.subscribe((ev) => this.onExplorerAction(ev.object, ev.action)));
+    this.subs.add(this.canvasBridge.productAction$.subscribe((ev) => this.onProductAction(ev.object, ev.action)));
     this.api.getWorkspace(this.workspaceId).subscribe({
       next: (res) => {
         this.workspace.set(res.workspace);
@@ -1133,6 +1153,14 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     return isExplorerPersona(this.workspace()?.persona);
   }
 
+  isAnalyst(): boolean {
+    return isAnalystPersona(this.workspace()?.persona);
+  }
+
+  isProductResearch(): boolean {
+    return isProductResearchPersona(this.workspace()?.persona);
+  }
+
   onPracticeGap(gap: PracticeGap) {
     this.mode = 'practice';
     this.focusObject(gap.object);
@@ -1287,6 +1315,228 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     }
   }
 
+  onProductAction(object: IdeaObject, action: ProductCardAction) {
+    const after = () => this.reloadAll();
+    if (action === 'pin-problem') {
+      this.api.pinProblem(this.workspaceId, object.id).subscribe((ws) => {
+        this.workspace.set(ws);
+        this.reloadAll();
+      });
+      return;
+    }
+    if (action === 'assumption-break') {
+      this.productFrom.set(object);
+      this.breakHits.set(assumptionBreaks(this.graph(), object.id));
+      this.productDialog.set('assumption-break');
+      return;
+    }
+    if (action === 'abandon') {
+      this.abandonFrom.set(object);
+      this.abandonWhy = '';
+      this.abandonOpen.set(true);
+      return;
+    }
+    if (action === 'resurrect') {
+      this.api.resurrect(this.workspaceId, object.id).subscribe(after);
+      return;
+    }
+    if (action === 'reuse') {
+      this.reuseSource.set(object);
+      this.reuseQuery = object.title || '';
+      this.reuseHits.set([]);
+      this.reuseOpen.set(true);
+      this.searchReuse();
+      return;
+    }
+    if (action === 'replay') {
+      this.openObject(object);
+      return;
+    }
+    this.productFrom.set(object);
+    this.productTitle = '';
+    this.productKind = 'interview';
+    this.productRelation = 'supports';
+    this.productIntent = 'interviews';
+    this.productResult = '';
+    this.productDisposition = 'build';
+    this.productChoice = object.title;
+    this.productReason = '';
+    this.productAlternatives = '';
+    this.productOutcome = object.details?.['outcome'] ? String(object.details['outcome']) : '';
+    this.productDialog.set(action);
+  }
+
+  closeProductDialog() {
+    this.productDialog.set(null);
+    this.productFrom.set(null);
+    this.breakHits.set([]);
+  }
+
+  submitProductDialog() {
+    const from = this.productFrom();
+    const action = this.productDialog();
+    if (!from || !action) {
+      return;
+    }
+    const after = () => {
+      this.closeProductDialog();
+      this.reloadAll();
+    };
+    if (action === 'add-research-note') {
+      const title = this.productTitle.trim() || 'Research note';
+      this.api
+        .newNode(this.workspaceId, from.id, {
+          type: 'evidence',
+          title,
+          tags: ['heard'],
+          details: { kind: this.productKind },
+        })
+        .subscribe((note) => {
+          this.api
+            .createEdge(this.workspaceId, {
+              type: this.productRelation,
+              fromObjectId: note.id,
+              toObjectId: from.id,
+              why: this.productKind,
+            })
+            .subscribe({ next: after, error: after });
+        });
+      return;
+    }
+    if (action === 'critique-bet') {
+      const title = this.productTitle.trim() || 'Critique';
+      this.api.newNode(this.workspaceId, from.id, { type: 'critique', title }).subscribe((crit) => {
+        this.api
+          .createEdge(this.workspaceId, {
+            type: 'contradicts',
+            fromObjectId: crit.id,
+            toObjectId: from.id,
+            why: 'critique',
+          })
+          .subscribe({ next: after, error: after });
+      });
+      return;
+    }
+    if (action === 'record-test') {
+      const title = this.productTitle.trim() || 'Test';
+      this.api
+        .newNode(this.workspaceId, from.id, {
+          type: 'experiment',
+          title,
+          details: { intent: this.productIntent },
+        })
+        .subscribe((test) => {
+          this.api
+            .createEdge(this.workspaceId, {
+              type: 'tested-by',
+              fromObjectId: from.id,
+              toObjectId: test.id,
+              why: this.productIntent,
+            })
+            .subscribe({ next: after, error: after });
+        });
+      return;
+    }
+    if (action === 'record-result') {
+      const title = this.productTitle.trim() || 'Result';
+      this.api
+        .newNode(this.workspaceId, from.id, {
+          type: 'observation',
+          title,
+          details: { result: this.productResult, intent: from.details?.['intent'] },
+        })
+        .subscribe((obs) => {
+          this.api
+            .createEdge(this.workspaceId, {
+              type: 'produces',
+              fromObjectId: from.id,
+              toObjectId: obs.id,
+              why: 'result',
+            })
+            .subscribe({
+              next: () => {
+                const bet = this.graph().nodes.find(
+                  (n) =>
+                    n.type === 'hypothesis' &&
+                    this.graph().edges.some(
+                      (e) =>
+                        e.type === 'tested-by' &&
+                        ((e.fromObjectId === n.id && e.toObjectId === from.id) ||
+                          (e.toObjectId === n.id && e.fromObjectId === from.id)),
+                    ),
+                );
+                if (!bet) {
+                  after();
+                  return;
+                }
+                this.api
+                  .createEdge(this.workspaceId, {
+                    type: this.productRelation,
+                    fromObjectId: obs.id,
+                    toObjectId: bet.id,
+                    why: 'test result',
+                  })
+                  .subscribe({ next: after, error: after });
+              },
+              error: after,
+            });
+        });
+      return;
+    }
+    if (action === 'decide') {
+      const title = this.productTitle.trim() || this.productChoice.trim() || from.title;
+      const tags = this.productDisposition ? ['concluded'] : [];
+      this.api
+        .newNode(this.workspaceId, from.id, {
+          type: 'decision',
+          title,
+          tags,
+          details: {
+            disposition: this.productDisposition,
+            choice: this.productChoice || title,
+            reason: this.productReason,
+            alternatives: this.productAlternatives
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean),
+          },
+        })
+        .subscribe((decision) => {
+          const finish = () => {
+            this.api
+              .createEdge(this.workspaceId, {
+                type: 'led-to',
+                fromObjectId: from.id,
+                toObjectId: decision.id,
+                why: this.productDisposition,
+              })
+              .subscribe({ next: after, error: after });
+          };
+          if (this.productDisposition === 'kill') {
+            this.api
+              .abandon(this.workspaceId, from.id, { why: this.productReason || 'killed', becauseObjectId: decision.id })
+              .subscribe({ next: finish, error: finish });
+            return;
+          }
+          finish();
+        });
+      return;
+    }
+    if (action === 'write-outcome') {
+      const tags = [...(from.tags ?? [])];
+      if (!hasTag(tags, 'concluded')) {
+        tags.push('concluded');
+      }
+      this.api
+        .updateObject(this.workspaceId, from.id, {
+          tags,
+          details: { outcome: this.productOutcome },
+          newVersion: true,
+        })
+        .subscribe(after);
+    }
+  }
+
   closeAnalogy() {
     this.analogyOpen.set(false);
     this.analogyFrom.set(null);
@@ -1363,11 +1613,37 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     });
   }
 
-  cloneWorkspace(persona: string) {
+  cloneWorkspace(personaOrRequest: string | { name?: string; persona: string }) {
+    const persona = typeof personaOrRequest === 'string' ? personaOrRequest : personaOrRequest.persona;
+    if (!persona) {
+      return;
+    }
     const source = this.workspace();
-    const name = source?.name ? `${source.name} — ${persona}` : undefined;
+    const name = typeof personaOrRequest === 'string'
+      ? (source?.name ? `${source.name} — ${persona}` : undefined)
+      : (personaOrRequest.name?.trim() || undefined);
     this.api.cloneWorkspace(this.workspaceId, { name, persona }).subscribe((ws) => {
+      this.shell.workspacesChanged.next();
       this.router.navigate(['/workspaces', ws.id]);
+    });
+  }
+
+  deleteWorkspace() {
+    const label = this.workspace()?.name ?? 'this workspace';
+    this.confirm.confirm({
+      header: 'Delete workspace?',
+      message: `Delete “${label}”? Cards, documents, and history in this workspace will be removed. This cannot be undone.`,
+      acceptLabel: 'Delete',
+      rejectLabel: 'Cancel',
+      danger: true,
+      accept: () => {
+        this.api.deleteWorkspace(this.workspaceId).subscribe({
+          next: () => {
+            this.shell.workspacesChanged.next();
+            void this.router.navigate(['/']);
+          },
+        });
+      },
     });
   }
 
@@ -1440,6 +1716,27 @@ export class WorkspaceShellComponent implements OnInit, OnDestroy {
     this.persistChrome();
     this.draft = utterance;
     this.send();
+  }
+
+  productDialogHeader(): string {
+    switch (this.productDialog()) {
+      case 'assumption-break':
+        return 'What breaks if this is false?';
+      case 'add-research-note':
+        return 'Add research note';
+      case 'critique-bet':
+        return 'Critique this bet';
+      case 'record-test':
+        return 'Record test';
+      case 'record-result':
+        return 'Record result';
+      case 'decide':
+        return 'Decide';
+      case 'write-outcome':
+        return 'Write outcome';
+      default:
+        return 'Product research';
+    }
   }
 
   setSearchType(type: string) {

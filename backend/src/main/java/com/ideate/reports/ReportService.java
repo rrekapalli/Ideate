@@ -108,7 +108,8 @@ public class ReportService {
                     WHERE id = ?
                     """, job.id(), reportId);
         }
-        pool.execute(() -> runJob(accountId, workspaceId, branch, reportId, job.id(), ws.name(), ws.persona(), false));
+        pool.execute(() -> runJob(accountId, workspaceId, branch, reportId, job.id(), ws.name(), ws.persona(),
+                ws.pinnedObjectId(), false));
         return job;
     }
 
@@ -132,7 +133,8 @@ public class ReportService {
                 SET status = 'updating', error = NULL, last_job_id = ?, updated_at = now()
                 WHERE id = ?
                 """, job.id(), existing.id());
-        pool.execute(() -> runJob(accountId, workspaceId, branch, existing.id(), job.id(), ws.name(), ws.persona(), true));
+        pool.execute(() -> runJob(accountId, workspaceId, branch, existing.id(), job.id(), ws.name(), ws.persona(),
+                ws.pinnedObjectId(), true));
         return job;
     }
 
@@ -149,7 +151,11 @@ public class ReportService {
                 .filter(v -> v.version() == version)
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report version not found"));
-        byte[] bytes = export.render(ver.title(), ver.summary(), ver.body(), format, diagrams);
+        GraphService.GraphSnapshot snapshot = graph.graph(workspaceId, report.branchId());
+        String title = ReportRedaction.redact(ver.title(), snapshot);
+        String summary = ReportRedaction.redact(ver.summary(), snapshot);
+        String body = ReportRedaction.redact(ver.body(), snapshot);
+        byte[] bytes = export.render(title, summary, body, format, diagrams);
         String filename = export.filename(ver.title(), version, format);
         String contentType = export.contentType(format);
         try {
@@ -161,11 +167,11 @@ public class ReportService {
     }
 
     private void runJob(String accountId, String workspaceId, String branchId, String reportId, String jobId,
-                        String workspaceName, String persona, boolean update) {
+                        String workspaceName, String persona, String pinnedObjectId, boolean update) {
         jobs.markRunning(jobId);
         try {
             GraphService.GraphSnapshot snapshot = graph.graph(workspaceId, branchId);
-            String projection = ReportProjection.assemble(snapshot, workspaceName, persona);
+            String projection = ReportProjection.assemble(snapshot, workspaceName, persona, pinnedObjectId);
             ProviderTarget target = resolveProvider(accountId, workspaceId);
             ChatClient.ChatResult completion = complete(target, projection, persona);
             usage.record(workspaceId, accountId, jobId, target.provider(), target.model(), "DEEP",
@@ -174,12 +180,15 @@ public class ReportService {
                 fail(reportId, jobId, completion.error(), update);
                 return;
             }
-            ReportDraftParser.Draft draft = ReportDraftParser.parse(
+            ReportDraftParser.Draft parsed = ReportDraftParser.parse(
                     completion.text(), workspaceName, primaryQuestionTitle(snapshot));
-            if (draft.body() == null || draft.body().isBlank()) {
+            if (parsed.body() == null || parsed.body().isBlank()) {
                 fail(reportId, jobId, "The model returned an empty report.", update);
                 return;
             }
+            String title = ReportRedaction.redact(parsed.title(), snapshot);
+            String summary = ReportRedaction.redact(parsed.summary(), snapshot);
+            String body = ReportRedaction.redact(parsed.body(), snapshot);
             Integer next = jdbc.queryForObject(
                     "SELECT current_version FROM workspace_report WHERE id = ?", Integer.class, reportId);
             int version = (next == null ? 0 : next) + 1;
@@ -188,14 +197,14 @@ public class ReportService {
                     INSERT INTO workspace_report_version (
                         id, report_id, version, title, summary, body, generated_by, job_id, created_at)
                     VALUES (?,?,?,?,?,?,?,?, now())
-                    """, Ids.id("rptv_"), reportId, version, draft.title(), draft.summary(), draft.body(),
+                    """, Ids.id("rptv_"), reportId, version, title, summary, body,
                     generatedBy, jobId);
             jdbc.update("""
                     UPDATE workspace_report
                     SET status = 'ready', current_version = ?, title = ?, error = NULL, updated_at = now()
                     WHERE id = ?
-                    """, version, draft.title(), reportId);
-            storeMarkdownInDocs(workspaceId, draft.title(), draft.summary(), draft.body(), version);
+                    """, version, title, reportId);
+            storeMarkdownInDocs(workspaceId, title, summary, body, version);
             jobs.markApplied(jobId, List.of(reportId));
             credits.debit(accountId, workspaceId, jobId, "DEEP");
         } catch (Exception ex) {

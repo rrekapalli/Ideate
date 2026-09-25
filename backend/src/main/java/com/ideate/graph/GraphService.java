@@ -62,6 +62,7 @@ public class GraphService {
 
     public IdeaObject createObject(String workspaceId, String accountId, CreateObjectRequest req) {
         ObjectCatalog.requireNodeType(req.type());
+        ObjectCatalog.requireTags(req.type(), req.tags());
         if ("theory".equals(req.type())) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Theory can only be proposed after Evaluation");
@@ -112,6 +113,7 @@ public class GraphService {
         IdeaObject current = getObject(workspaceId, objectId);
         String type = req.type() != null ? req.type() : current.type();
         ObjectCatalog.requireNodeType(type);
+        ObjectCatalog.requireTags(type, req.tags() != null ? req.tags() : current.tags());
         if (!ObjectCatalog.isLegalPromotion(current.type(), type)) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Illegal type change " + current.type() + " -> " + type);
@@ -607,9 +609,10 @@ public class GraphService {
         IdeaObject current = getObject(workspaceId, objectId);
         IdeaObject updated = updateObject(workspaceId, objectId, new UpdateObjectRequest(
                 null, null, null, null, "abandoned", true, "user", null, null, null, null, null, null));
-        if (becauseObjectId != null && !becauseObjectId.isBlank()) {
-            createEdgeInternal(workspaceId, current.branchId(), "abandoned-because", objectId, becauseObjectId,
-                    why == null ? "abandoned" : why, null, null);
+        String because = becauseObjectId != null && !becauseObjectId.isBlank() ? becauseObjectId : objectId;
+        if ((why != null && !why.isBlank()) || (becauseObjectId != null && !becauseObjectId.isBlank())) {
+            createEdgeInternal(workspaceId, current.branchId(), "abandoned-because", objectId, because,
+                    why == null || why.isBlank() ? "abandoned" : why, null, null);
         }
         return updated;
     }

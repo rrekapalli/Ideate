@@ -5,10 +5,10 @@ import { MdViewComponent } from '../shared/md-view.component';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import {
   EXPLORER_PROMOTED_TYPES,
-  INVENTOR_PROMOTED_TYPES,
+  PRODUCT_RESEARCH_PROMOTED_TYPES,
   STUDENT_PROMOTED_TYPES,
   isExplorerPersona,
-  isInventorPersona,
+  isProductResearchPersona,
   isStudentPersona,
   typePluralDisplayLabel,
 } from '../persona/persona-lens';
@@ -327,8 +327,8 @@ export class ObjectsTreeComponent {
     }));
     const promoted = isStudentPersona(persona)
       ? STUDENT_PROMOTED_TYPES
-      : isInventorPersona(persona)
-        ? INVENTOR_PROMOTED_TYPES
+      : isProductResearchPersona(persona)
+        ? PRODUCT_RESEARCH_PROMOTED_TYPES
         : isExplorerPersona(persona)
           ? EXPLORER_PROMOTED_TYPES
           : null;

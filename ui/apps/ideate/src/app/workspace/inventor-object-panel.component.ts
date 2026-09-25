@@ -10,6 +10,8 @@ import {
 import { MtButtonComponent } from '@ideate/ui';
 import { AttachmentStore } from './attachment.store';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
+import { deriveDecisionReplay } from '../persona/product-home';
+import { hasTag as objectHasTag } from '../persona/persona-lens';
 
 interface CalcInput {
   name: string;
@@ -74,8 +76,41 @@ interface ArtifactRegion {
         }
       }
 
+      @if (object().type === 'evidence') {
+        <h2>Research note</h2>
+        <label>
+          Kind
+          <select [(ngModel)]="evidenceKind">
+            <option value="">Unset</option>
+            <option value="interview">Interview</option>
+            <option value="usage">Usage</option>
+            <option value="competitor">Competitor</option>
+            <option value="pricing">Pricing</option>
+          </select>
+        </label>
+        <div class="acts">
+          <mt-button size="sm" variant="outlined" label="Save kind" (clicked)="saveEvidenceKind()" />
+          <mt-button size="sm" variant="outlined" [label]="hasTag('heard') ? 'Remove heard' : 'Tag heard'" (clicked)="toggleTag('heard')" />
+          <mt-button size="sm" variant="outlined" [label]="hasTag('do-not-quote') ? 'Allow quote' : 'Do not quote'" (clicked)="toggleTag('do-not-quote')" />
+        </div>
+      }
+
+      @if (object().type === 'experiment') {
+        <h2>Test intent</h2>
+        <label>
+          Intent
+          <select [(ngModel)]="experimentIntent">
+            <option value="">Unset</option>
+            <option value="interviews">Five interviews</option>
+            <option value="prototype">Prototype</option>
+            <option value="landing-page">Landing page</option>
+          </select>
+        </label>
+        <mt-button size="sm" variant="outlined" label="Save intent" (clicked)="saveExperimentIntent()" />
+      }
+
       @if (object().type === 'observation') {
-        <h2>Bench note</h2>
+        <h2>Result</h2>
         <label>Date <input type="date" [(ngModel)]="observedAt" /></label>
         <label>Setup <textarea [(ngModel)]="setup" rows="2"></textarea></label>
         <label>Result <textarea [(ngModel)]="result" rows="2"></textarea></label>
@@ -100,10 +135,72 @@ interface ArtifactRegion {
 
       @if (object().type === 'decision') {
         <h2>Why this choice</h2>
+        <label>
+          Disposition
+          <select [(ngModel)]="disposition">
+            <option value="">Unset</option>
+            <option value="build">Build</option>
+            <option value="defer">Defer</option>
+            <option value="kill">Kill</option>
+          </select>
+        </label>
         <label>Choice <input [(ngModel)]="choice" /></label>
         <label>Reason <textarea [(ngModel)]="reason" rows="2"></textarea></label>
         <label>Alternatives <input [(ngModel)]="alternatives" placeholder="comma separated" /></label>
+        <label>Outcome <textarea [(ngModel)]="outcome" rows="2" placeholder="What happened after shipping or the test"></textarea></label>
         <mt-button size="sm" variant="outlined" label="Save decision" (clicked)="saveDecision()" />
+        @if (replay(); as walk) {
+          <h3>Decision replay</h3>
+          <p class="muted">{{ walk.disposition || 'no disposition' }} · {{ walk.choice || walk.decision.title }}</p>
+          @if (walk.reason) {
+            <p>{{ walk.reason }}</p>
+          }
+          @if (walk.alternatives.length) {
+            <p class="muted">Alternatives: {{ walk.alternatives.join(', ') }}</p>
+          }
+          @if (walk.outcome) {
+            <p>Outcome: {{ walk.outcome }}</p>
+          }
+          @if (walk.abandonWhy) {
+            <p class="warn">Killed because {{ walk.abandonWhy }}</p>
+          }
+          @if (walk.bets.length) {
+            <h3>Bets</h3>
+            @for (n of walk.bets; track n.id) {
+              <button type="button" class="link" (click)="focus.emit(n)">
+                <ideate-type-glyph [type]="n.type" [size]="12" />
+                {{ n.displayId }} {{ n.title }}
+              </button>
+            }
+          }
+          @if (walk.weakeningEvidence.length) {
+            <h3>What weakened it</h3>
+            @for (n of walk.weakeningEvidence; track n.id) {
+              <button type="button" class="link" (click)="focus.emit(n)">
+                <ideate-type-glyph [type]="n.type" [size]="12" />
+                {{ n.displayId }} {{ n.title }}
+              </button>
+            }
+          }
+          @if (walk.assumptions.length) {
+            <h3>Assumptions that still hold</h3>
+            @for (n of walk.assumptions; track n.id) {
+              <button type="button" class="link" (click)="focus.emit(n)">
+                <ideate-type-glyph [type]="n.type" [size]="12" />
+                {{ n.displayId }} {{ n.title }}
+              </button>
+            }
+          }
+          @if (walk.constraints.length) {
+            <h3>Constraints still active</h3>
+            @for (n of walk.constraints; track n.id) {
+              <button type="button" class="link" (click)="focus.emit(n)">
+                <ideate-type-glyph [type]="n.type" [size]="12" />
+                {{ n.displayId }} {{ n.title }}
+              </button>
+            }
+          }
+        }
         @if (versions().length) {
           <h3>Versions</h3>
           @for (v of versions(); track v.id) {
@@ -245,6 +342,10 @@ export class InventorObjectPanelComponent implements OnChanges, OnInit {
   choice = '';
   reason = '';
   alternatives = '';
+  disposition = '';
+  outcome = '';
+  evidenceKind = '';
+  experimentIntent = '';
   newPart = '';
   reuseQuery = '';
   regionClaimId = '';
@@ -305,6 +406,9 @@ export class InventorObjectPanelComponent implements OnChanges, OnInit {
     }
     return this.api.attachmentContentUrl(this.workspaceId(), images[0].id);
   });
+  readonly replay = computed(() =>
+    this.object().type === 'decision' ? deriveDecisionReplay(this.snapshot(), this.object()) : null,
+  );
 
   ngOnInit() {
     this.refresh();
@@ -345,6 +449,10 @@ export class InventorObjectPanelComponent implements OnChanges, OnInit {
     this.result = String(details['result'] ?? '');
     this.choice = String(details['choice'] ?? this.object().title);
     this.reason = String(details['reason'] ?? '');
+    this.disposition = String(details['disposition'] ?? '');
+    this.outcome = String(details['outcome'] ?? '');
+    this.evidenceKind = String(details['kind'] ?? '');
+    this.experimentIntent = String(details['intent'] ?? '');
     const alts = details['alternatives'];
     this.alternatives = Array.isArray(alts) ? alts.map(String).join(', ') : String(alts ?? '');
     this.regions.set(Array.isArray(details['regions']) ? (details['regions'] as ArtifactRegion[]) : []);
@@ -401,10 +509,35 @@ export class InventorObjectPanelComponent implements OnChanges, OnInit {
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
+          disposition: this.disposition,
+          outcome: this.outcome,
         },
         newVersion: true,
       })
       .subscribe(() => this.changed.emit());
+  }
+
+  saveEvidenceKind() {
+    this.api
+      .updateObject(this.workspaceId(), this.object().id, { details: { kind: this.evidenceKind } })
+      .subscribe(() => this.changed.emit());
+  }
+
+  saveExperimentIntent() {
+    this.api
+      .updateObject(this.workspaceId(), this.object().id, { details: { intent: this.experimentIntent } })
+      .subscribe(() => this.changed.emit());
+  }
+
+  hasTag(name: string): boolean {
+    return objectHasTag(this.object().tags, name);
+  }
+
+  toggleTag(name: string) {
+    const tags = this.hasTag(name)
+      ? (this.object().tags ?? []).filter((t) => t.toLowerCase() !== name)
+      : [...(this.object().tags ?? []), name];
+    this.api.updateObject(this.workspaceId(), this.object().id, { tags }).subscribe(() => this.changed.emit());
   }
 
   addPart() {

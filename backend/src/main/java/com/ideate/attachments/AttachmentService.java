@@ -321,9 +321,56 @@ public class AttachmentService {
         return parts;
     }
 
+    public void copyWorkspace(String sourceWorkspaceId, String destWorkspaceId,
+                               Map<String, String> objectIds, Map<String, String> messageIds) {
+        List<Row> rows = jdbc.query("""
+                SELECT id, workspace_id, object_id, message_id, original_name, content_type,
+                       byte_size, storage_key, extract_text, extract_status, created_at
+                FROM attachment
+                WHERE workspace_id = ?
+                ORDER BY created_at ASC
+                """, rowMapper(), sourceWorkspaceId);
+        for (Row row : rows) {
+            String newObjectId = row.objectId() == null ? null : objectIds.get(row.objectId());
+            String newMessageId = row.messageId() == null ? null : messageIds.get(row.messageId());
+            if (row.objectId() != null && newObjectId == null) {
+                continue;
+            }
+            if (row.messageId() != null && newMessageId == null) {
+                continue;
+            }
+            String newId = Ids.id("att_");
+            String storageKey = storageKeyFor(destWorkspaceId, newObjectId, newId, row.originalName());
+            Path from = resolveKey(row.storageKey());
+            Path dest = resolveKey(storageKey);
+            try {
+                Files.createDirectories(dest.getParent());
+                if (Files.isRegularFile(from)) {
+                    Files.copy(from, dest, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException ex) {
+                log.warn("Could not copy attachment {}: {}", row.id(), ex.getMessage());
+                continue;
+            }
+            jdbc.update("""
+                    INSERT INTO attachment (
+                        id, workspace_id, object_id, message_id, original_name, content_type, byte_size,
+                        storage_key, extract_text, extract_status, created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    newId, destWorkspaceId, newObjectId, newMessageId, row.originalName(), row.contentType(),
+                    row.byteSize(), storageKey, row.extractText(), row.extractStatus(),
+                    Timestamp.from(row.createdAt()));
+        }
+    }
+
     public void deleteWorkspaceFiles(String workspaceId) {
-        deleteTree(root().resolve(safeSegment(workspaceFolder(workspaceId))));
-        deleteTree(root().resolve(safeSegment(workspaceId)));
+        try {
+            deleteTree(root().resolve(safeSegment(workspaceFolder(workspaceId))));
+            deleteTree(root().resolve(safeSegment(workspaceId)));
+        } catch (RuntimeException ex) {
+            log.warn("Could not remove attachment files for {}: {}", workspaceId, ex.getMessage());
+        }
     }
 
     private void deleteTree(Path dir) {
@@ -548,6 +595,8 @@ public class AttachmentService {
 
     private static String folderSegment(String value) {
         String cleaned = value == null ? "" : value.replaceAll("[\\\\/]+", " ").trim();
+        cleaned = cleaned.replaceAll("[<>:\"|?*\\u0000-\\u001F]", "").replaceAll("\\s+", " ").trim();
+        cleaned = cleaned.replaceAll("[. ]+$", "");
         if (cleaned.isBlank() || cleaned.contains("..")) {
             return "Misc";
         }
@@ -587,7 +636,8 @@ public class AttachmentService {
         if (value == null || value.isBlank() || value.contains("..") || value.contains("/") || value.contains("\\")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid path segment");
         }
-        return value;
+        String cleaned = value.replaceAll("[<>:\"|?*\\u0000-\\u001F]", "_").replaceAll("[. ]+$", "");
+        return cleaned.isBlank() ? "_" : cleaned;
     }
 
     private static String sanitizeName(String name) {

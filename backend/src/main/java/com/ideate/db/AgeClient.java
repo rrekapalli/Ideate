@@ -6,6 +6,8 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Statement;
 
@@ -23,6 +25,7 @@ public class AgeClient {
         return ensure();
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void upsertVertex(String id, String type, String workspaceId, String displayId, String title) {
         if (!ensure()) {
             return;
@@ -38,6 +41,7 @@ public class AgeClient {
         run(cypher);
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void upsertEdge(String id, String type, String fromId, String toId, String workspaceId) {
         if (!ensure()) {
             return;
@@ -54,6 +58,7 @@ public class AgeClient {
         run(cypher);
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void deleteVertex(String id) {
         if (!ensure()) {
             return;
@@ -65,6 +70,7 @@ public class AgeClient {
                 """.formatted(esc(id)));
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void deleteEdge(String id) {
         if (!ensure()) {
             return;
@@ -131,14 +137,21 @@ public class AgeClient {
 
     private void onAgeConnection(SqlWork work) {
         jdbc.execute((ConnectionCallback<Void>) con -> {
+            boolean previous = con.getAutoCommit();
+            con.setAutoCommit(false);
             try (Statement st = con.createStatement()) {
+                // One transaction so PgBouncer keeps a single server connection.
+                // SET LOCAL dies at commit; a session-level SET would leak onto the
+                // next request and resolve "workspace" to ag_catalog.workspace.
                 st.execute("LOAD 'age'");
-                st.execute("SET search_path = ag_catalog, \"$user\", public");
-                try {
-                    work.run(st);
-                } finally {
-                    st.execute("SET search_path TO public");
-                }
+                st.execute("SET LOCAL search_path = ag_catalog, \"$user\", public");
+                work.run(st);
+                con.commit();
+            } catch (RuntimeException | java.sql.SQLException ex) {
+                con.rollback();
+                throw ex;
+            } finally {
+                con.setAutoCommit(previous);
             }
             return null;
         });

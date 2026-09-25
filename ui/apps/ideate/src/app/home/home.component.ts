@@ -58,19 +58,19 @@ import { ShellContextService } from '../core/shell/shell-context.service';
               </div>
               <span class="n">{{ totalObjects() }}</span>
             </article>
-            <article class="metric" [class.warn]="openProblems() > 0">
+            <article class="metric">
               <div class="metric-head">
-                <span class="l">Open problems</span>
-                <mt-icon name="flag" [size]="13" />
+                <span class="l">Input tokens</span>
+                <mt-icon name="arrow_downward" [size]="13" />
               </div>
-              <span class="n">{{ openProblems() }}</span>
+              <span class="n">{{ formatCount(totalInputTokens()) }}</span>
             </article>
             <article class="metric">
               <div class="metric-head">
-                <span class="l">Usage (minor)</span>
-                <mt-icon name="chart" [size]="13" />
+                <span class="l">Output tokens</span>
+                <mt-icon name="arrow_upward" [size]="13" />
               </div>
-              <span class="n">{{ totalUsage() }}</span>
+              <span class="n">{{ formatCount(totalOutputTokens()) }}</span>
             </article>
           </section>
 
@@ -244,8 +244,6 @@ import { ShellContextService } from '../core/shell/shell-context.service';
       display: block; margin-top: 0.2rem; font-size: 1.2rem; font-weight: 700;
       font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1.15;
     }
-    .metric.warn .n { color: var(--mt-severity-danger, #b91c1c); }
-
     .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin-bottom: 0.55rem; }
     @media (max-width: 40rem) { .lists { grid-template-columns: 1fr; } }
     .panel {
@@ -377,8 +375,9 @@ export class HomeComponent {
     })),
   );
   readonly totalObjects = computed(() => this.rows().reduce((n, w) => n + w.objectCount, 0));
-  readonly openProblems = computed(() => this.rows().reduce((n, w) => n + w.problemCount, 0));
   readonly totalUsage = computed(() => this.rows().reduce((n, w) => n + w.usageMinor, 0));
+  readonly totalInputTokens = computed(() => this.rows().reduce((n, w) => n + (w.inputTokens || 0), 0));
+  readonly totalOutputTokens = computed(() => this.rows().reduce((n, w) => n + (w.outputTokens || 0), 0));
 
   constructor() {
     this.shell.showHomeDashboard();
@@ -389,6 +388,10 @@ export class HomeComponent {
 
   rupees(minor: number): string {
     return (minor / 100).toFixed(2);
+  }
+
+  formatCount(n: number): string {
+    return n.toLocaleString();
   }
 
   reload(): void {

@@ -23,10 +23,12 @@ import { DiagramCanvasBridge } from '../cards/diagram-canvas-bridge';
 import {
   ExplorerCardAction,
   InventorCardAction,
-  epistemicFooter,
+  ProductCardAction,
+  epistemicChips,
   hasTag,
   isExplorerPersona,
   isInventorPersona,
+  isProductResearchPersona,
   isStudentPersona,
   orderedObjectTypes,
   typeDisplayLabel,
@@ -66,7 +68,7 @@ import { InventorObjectPanelComponent } from './inventor-object-panel.component'
           </select>
           <span class="pill">v{{ object().version }}</span>
           <span class="pill">{{ lookupLabel(object().objectCategory) }}</span>
-          @if (epistemic(); as chip) {
+          @for (chip of epistemic(); track chip.kind + (chip.why || '')) {
             <span class="pill">{{ chip.label }}{{ chip.why ? ' · ' + chip.why : '' }}</span>
           }
         </div>
@@ -81,6 +83,9 @@ import { InventorObjectPanelComponent } from './inventor-object-panel.component'
             }
             @for (act of explorerActions(); track act.action) {
               <mt-button size="sm" variant="outlined" [label]="act.label" (clicked)="emitExplorer(act.action)" />
+            }
+            @for (act of productActions(); track act.action) {
+              <mt-button size="sm" variant="outlined" [label]="act.label" (clicked)="emitProduct(act.action)" />
             }
             <mt-button size="sm" variant="outlined" label="Open in Chat" (clicked)="openChat.emit(object())" />
             <mt-button size="sm" variant="icon" icon="recycle_bin" ariaLabel="Delete" (clicked)="menu.emit(object())" />
@@ -461,10 +466,44 @@ export class ObjectPageComponent {
     }
     return acts;
   });
-  readonly epistemic = computed(() => epistemicFooter(this.object(), this.snapshot().edges ?? []));
+  readonly productActions = computed(() => {
+    if (!isProductResearchPersona(this.shell.workspacePersona())) {
+      return [] as { action: ProductCardAction; label: string }[];
+    }
+    const obj = this.object();
+    const acts: { action: ProductCardAction; label: string }[] = [];
+    if (obj.type === 'question') {
+      acts.push({ action: 'pin-problem', label: 'Pin problem' });
+    }
+    if (obj.type === 'assumption' && obj.objectCategory !== 'abandoned') {
+      acts.push({ action: 'assumption-break', label: 'What breaks if this is false?' });
+    }
+    if (obj.type === 'hypothesis' && obj.objectCategory !== 'abandoned') {
+      acts.push({ action: 'add-research-note', label: 'Add research note' });
+      acts.push({ action: 'critique-bet', label: 'Critique this bet' });
+      acts.push({ action: 'record-test', label: 'Record test' });
+      acts.push({ action: 'decide', label: 'Decide' });
+    }
+    if (obj.type === 'experiment') {
+      acts.push({ action: 'record-result', label: 'Record result' });
+    }
+    if (obj.type === 'decision') {
+      acts.push({ action: 'write-outcome', label: 'Write outcome' });
+      acts.push({ action: 'replay', label: 'Replay' });
+    }
+    if (obj.objectCategory === 'abandoned') {
+      acts.push({ action: 'resurrect', label: 'Resurrect' });
+    } else if (['hypothesis', 'assumption', 'decision'].includes(obj.type)) {
+      acts.push({ action: 'abandon', label: 'Abandon' });
+    }
+    acts.push({ action: 'reuse', label: 'Reuse from another project' });
+    return acts;
+  });
+  readonly epistemic = computed(() => epistemicChips(this.object(), this.snapshot().edges ?? []));
   readonly showDesign = computed(() =>
     isInventorPersona(this.shell.workspacePersona()) ||
-    ['constraint', 'calculation', 'target', 'architecture', 'component', 'decision', 'observation', 'design_artifact'].includes(this.object().type),
+    isProductResearchPersona(this.shell.workspacePersona()) ||
+    ['constraint', 'calculation', 'target', 'architecture', 'component', 'decision', 'observation', 'design_artifact', 'evidence', 'experiment'].includes(this.object().type),
   );
 
   typeLabel(type: string): string {
@@ -481,6 +520,10 @@ export class ObjectPageComponent {
 
   emitExplorer(action: ExplorerCardAction) {
     this.bridge?.explorerAction$.next({ object: this.object(), action });
+  }
+
+  emitProduct(action: ProductCardAction) {
+    this.bridge?.productAction$.next({ object: this.object(), action });
   }
 
   addFiles(files: File[]) {

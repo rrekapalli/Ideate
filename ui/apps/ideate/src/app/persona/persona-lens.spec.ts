@@ -13,6 +13,8 @@ import {
 describe('persona-lens', () => {
   it('defaults Learn only for student workspaces', () => {
     expect(defaultChatMode('student')).toBe('learn');
+    expect(defaultChatMode('analyst')).toBe('challenge');
+    expect(defaultChatMode('inventor')).toBe('challenge');
     expect(defaultChatMode('researcher')).toBe('explore');
     expect(defaultChatMode('explorer')).toBe('explore');
     expect(isStudentPersona('Student')).toBe(true);
@@ -23,7 +25,19 @@ describe('persona-lens', () => {
     const types = orderedObjectTypes('student');
     expect(types.slice(0, 4)).toEqual(['concept', 'unknown', 'misconception', 'question']);
     expect(types).toContain('hypothesis');
-    expect(orderedObjectTypes('inventor')[0]).toBe('thought');
+    expect(orderedObjectTypes('inventor').slice(0, 9)).toEqual([
+      'question',
+      'hypothesis',
+      'assumption',
+      'evidence',
+      'experiment',
+      'observation',
+      'critique',
+      'decision',
+      'constraint',
+    ]);
+    expect(orderedObjectTypes('analyst')[0]).toBe('question');
+    expect(orderedObjectTypes('analyst')[1]).toBe('hypothesis');
   });
 
   it('promotes Thought, Concept, Unknown first for explorers and keeps the full catalog', () => {
@@ -50,11 +64,19 @@ describe('persona-lens', () => {
     expect(typeDisplayLabel('explorer', 'unknown')).toBe("I don't know yet");
     expect(typePluralDisplayLabel('explorer', 'unknown')).toBe("I don't know yet");
     expect(typeDisplayLabel('explorer', 'hypothesis')).toBe('Hypothesis');
+    expect(typeDisplayLabel('analyst', 'question')).toBe('Problem');
+    expect(typeDisplayLabel('analyst', 'hypothesis')).toBe('Bet');
+    expect(typeDisplayLabel('inventor', 'hypothesis')).toBe('Bet');
+    expect(typeDisplayLabel('inventor', 'observation')).toBe('Result');
+    expect(typeDisplayLabel('analyst', 'evidence')).toBe('Research note');
+    expect(typePluralDisplayLabel('analyst', 'hypothesis')).toBe('Bets');
   });
 
   it('uses rival-explanation copy on student overlays and wild-branch copy for explorer', () => {
     expect(overlayCreateLabel('student')).toBe('Rival explanation');
     expect(overlayCreateLabel('explorer')).toBe('Wild branch');
+    expect(overlayCreateLabel('analyst')).toBe('Rival product shape');
+    expect(overlayCreateLabel('inventor')).toBe('Rival product shape');
   });
 
   it('asks the explorer home question in the composer', () => {
@@ -62,6 +84,7 @@ describe('persona-lens', () => {
       'What thought is growing, and what should we not pretend to know?',
     );
     expect(composerPlaceholder('student')).toBe('Think out loud…');
+    expect(composerPlaceholder('analyst')).toBe('Why this decision, and what would change our mind?');
   });
 
   it('picks epistemic footer chips from reserved tags and category', () => {
@@ -76,6 +99,9 @@ describe('persona-lens', () => {
         { id: 'e', objectCategory: 'abandoned', tags: ['speculation'] },
         [{ id: 'x', workspaceId: 'ws', branchId: 'br', displayId: 'R', type: 'abandoned-because', fromObjectId: 'e', toObjectId: 'e', why: 'Power dies', createdAt: '' }],
       ),
-    ).toEqual({ kind: 'dropped', label: 'Dropped', why: 'Power dies' });
+    expect(epistemicFooter({ id: 'f', objectCategory: 'active', tags: ['heard', 'do-not-quote'] })?.label).toBe(
+      'Do not quote',
+    );
+    expect(epistemicFooter({ id: 'g', objectCategory: 'active', tags: ['concluded'] })?.label).toBe('Concluded');
   });
 });

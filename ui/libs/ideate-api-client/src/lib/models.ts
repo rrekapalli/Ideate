@@ -7,6 +7,7 @@ export interface Workspace {
   persona: Persona;
   mainstreamBranchId: string;
   createdAt: string;
+  pinnedObjectId?: string | null;
 }
 
 export interface WorkspaceBranch {
@@ -23,6 +24,8 @@ export interface WorkspaceSummary extends Workspace {
   documentCount: number;
   problemCount: number;
   usageMinor: number;
+  inputTokens: number;
+  outputTokens: number;
   lastActivity?: string | null;
 }
 

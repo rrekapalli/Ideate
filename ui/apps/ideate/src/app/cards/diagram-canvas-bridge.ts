@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { GraphSnapshot, IdeaObject } from '@ideate/api-client';
-import { ExplorerCardAction, InventorCardAction, StudentCardAction } from '../persona/persona-lens';
+import { ExplorerCardAction, InventorCardAction, ProductCardAction, StudentCardAction } from '../persona/persona-lens';
 
 @Injectable({ providedIn: 'root' })
 export class DiagramCanvasBridge {
@@ -13,5 +13,6 @@ export class DiagramCanvasBridge {
   readonly studentAction$ = new Subject<{ object: IdeaObject; action: StudentCardAction }>();
   readonly inventorAction$ = new Subject<{ object: IdeaObject; action: InventorCardAction }>();
   readonly explorerAction$ = new Subject<{ object: IdeaObject; action: ExplorerCardAction }>();
+  readonly productAction$ = new Subject<{ object: IdeaObject; action: ProductCardAction }>();
   readonly snapshot = signal<GraphSnapshot>({ nodes: [], edges: [] });
 }

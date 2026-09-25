@@ -1,6 +1,8 @@
 package com.ideate.graph;
 
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -79,6 +81,41 @@ public final class ObjectCatalog {
         if (!PERSONAS.contains(persona)) {
             throw new IllegalArgumentException("Persona is required and must be one of " + PERSONAS);
         }
+    }
+
+    public static final String TAG_HEARD = "heard";
+    public static final String TAG_CONCLUDED = "concluded";
+    public static final String TAG_DO_NOT_QUOTE = "do-not-quote";
+
+    public static void requireTags(String type, List<String> tags) {
+        if (tags == null) {
+            return;
+        }
+        for (String tag : tags) {
+            if (tag == null || tag.isBlank()) {
+                continue;
+            }
+            String normalized = tag.trim().toLowerCase(Locale.ROOT);
+            if (TAG_HEARD.equals(normalized) && !"evidence".equals(type) && !"claim".equals(type)) {
+                throw new IllegalArgumentException("Tag heard is only allowed on Evidence or Claim");
+            }
+            if (TAG_CONCLUDED.equals(normalized) && !"evaluation".equals(type) && !"decision".equals(type)) {
+                throw new IllegalArgumentException("Tag concluded is only allowed on Evaluation or Decision");
+            }
+        }
+    }
+
+    public static boolean hasTag(List<String> tags, String name) {
+        if (tags == null || name == null) {
+            return false;
+        }
+        String want = name.toLowerCase(Locale.ROOT);
+        for (String tag : tags) {
+            if (tag != null && want.equals(tag.trim().toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean isLegalPromotion(String fromType, String toType) {

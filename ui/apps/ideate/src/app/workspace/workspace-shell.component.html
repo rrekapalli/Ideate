@@ -107,9 +107,16 @@
                 (practice)="onPracticeGap($event)"
               />
             }
+            @if (isAnalyst()) {
+              <ideate-product-home
+                [home]="productHome()"
+                (focus)="focusObject($event)"
+              />
+            }
             @if (isInventor()) {
               <ideate-inventor-home
                 [home]="inventorHome()"
+                [product]="productHome()"
                 (focus)="focusObject($event)"
               />
             }
@@ -175,7 +182,8 @@
             [usageMinor]="usageMinor()"
             [usage]="usage()"
             (personaChange)="changePersona($event)"
-            (clonePersona)="cloneWorkspace($event)"
+            (cloneRequest)="cloneWorkspace($event)"
+            (deleteWorkspace)="deleteWorkspace()"
           />
         } @else if (tab.kind === 'report') {
           <ideate-report-page
@@ -476,6 +484,94 @@
     </div>
   </mt-dialog>
 
+  <mt-dialog
+    [visible]="!!productDialog()"
+    (visibleChange)="!$event && closeProductDialog()"
+    [header]="productDialogHeader()"
+    [closable]="true"
+    [dismissableMask]="true"
+    width="26rem"
+  >
+    @if (productFrom(); as obj) {
+      <p class="new-node-lead">{{ obj.displayId }} “{{ obj.title }}”</p>
+    }
+    @if (productDialog() === 'assumption-break') {
+      @for (row of breakHits(); track row.object.id) {
+        <button type="button" class="row" (click)="focusObject(row.object); closeProductDialog()">
+          {{ row.object.displayId }} {{ row.object.title }}
+        </button>
+      } @empty {
+        <p class="new-node-lead">Nothing on the graph depends on this assumption yet.</p>
+      }
+    }
+    @if (productDialog() === 'add-research-note') {
+      <label class="new-node-form">Title <input [(ngModel)]="productTitle" name="productTitle" placeholder="Quote or page" /></label>
+      <label class="new-node-form">
+        Kind
+        <select [(ngModel)]="productKind" name="productKind">
+          <option value="interview">Interview</option>
+          <option value="usage">Usage</option>
+          <option value="competitor">Competitor</option>
+          <option value="pricing">Pricing</option>
+        </select>
+      </label>
+      <label class="new-node-form">
+        Relation
+        <select [(ngModel)]="productRelation" name="productRelation">
+          <option value="supports">supports</option>
+          <option value="contradicts">weakens</option>
+        </select>
+      </label>
+    }
+    @if (productDialog() === 'critique-bet') {
+      <label class="new-node-form">Title <input [(ngModel)]="productTitle" name="critiqueTitle" placeholder="Structured doubt" /></label>
+    }
+    @if (productDialog() === 'record-test') {
+      <label class="new-node-form">Title <input [(ngModel)]="productTitle" name="testTitle" placeholder="Five interviews" /></label>
+      <label class="new-node-form">
+        Intent
+        <select [(ngModel)]="productIntent" name="productIntent">
+          <option value="interviews">Interviews</option>
+          <option value="prototype">Prototype</option>
+          <option value="landing-page">Landing page</option>
+        </select>
+      </label>
+    }
+    @if (productDialog() === 'record-result') {
+      <label class="new-node-form">Title <input [(ngModel)]="productTitle" name="resultTitle" placeholder="What came back" /></label>
+      <label class="new-node-form">Result <textarea [(ngModel)]="productResult" name="productResult" rows="3"></textarea></label>
+      <label class="new-node-form">
+        Relation
+        <select [(ngModel)]="productRelation" name="resultRelation">
+          <option value="supports">supports</option>
+          <option value="contradicts">weakens</option>
+        </select>
+      </label>
+    }
+    @if (productDialog() === 'decide') {
+      <label class="new-node-form">
+        Disposition
+        <select [(ngModel)]="productDisposition" name="productDisposition">
+          <option value="build">Build</option>
+          <option value="defer">Defer</option>
+          <option value="kill">Kill</option>
+        </select>
+      </label>
+      <label class="new-node-form">Choice <input [(ngModel)]="productChoice" name="productChoice" /></label>
+      <label class="new-node-form">Reason <textarea [(ngModel)]="productReason" name="productReason" rows="2"></textarea></label>
+      <label class="new-node-form">Alternatives <input [(ngModel)]="productAlternatives" name="productAlternatives" placeholder="comma separated" /></label>
+    }
+    @if (productDialog() === 'write-outcome') {
+      <label class="new-node-form">What happened <textarea [(ngModel)]="productOutcome" name="productOutcome" rows="3"></textarea></label>
+    }
+    <div class="dlg-actions" mtDialogFooter>
+      <mt-button variant="text" label="Close" (clicked)="closeProductDialog()" />
+      @if (productDialog() !== 'assumption-break') {
+        <mt-button variant="filled" label="Save" (clicked)="submitProductDialog()" />
+      }
+    </div>
+  </mt-dialog>
+
   @if (searchOpen()) {
     <div class="overlay" (click)="searchOpen.set(false)">
       <div class="palette" (click)="$event.stopPropagation()">
@@ -486,11 +582,12 @@
             <button type="button" [class.active]="searchType === 'misconception'" (click)="setSearchType('misconception')">Misconceptions</button>
           </div>
         }
-        @if (isInventor()) {
+        @if (isProductResearch()) {
           <div class="search-chips">
             <button type="button" [class.active]="searchType === ''" (click)="setSearchType('')">All</button>
-            <button type="button" [class.active]="searchType === 'constraint'" (click)="setSearchType('constraint')">Constraints</button>
-            <button type="button" [class.active]="searchType === 'target'" (click)="setSearchType('target')">Targets</button>
+            <button type="button" [class.active]="searchType === 'hypothesis'" (click)="setSearchType('hypothesis')">Bets</button>
+            <button type="button" [class.active]="searchType === 'decision'" (click)="setSearchType('decision')">Decisions</button>
+            <button type="button" [class.active]="searchCategory === 'abandoned'" (click)="setSearchFilter('', 'abandoned')">Killed</button>
           </div>
         }
         @if (isExplorer()) {

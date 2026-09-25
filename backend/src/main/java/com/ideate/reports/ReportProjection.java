@@ -17,11 +17,24 @@ public final class ReportProjection {
     private ReportProjection() {}
 
     public static String assemble(GraphService.GraphSnapshot graph, String workspaceName, String persona) {
+        return assemble(graph, workspaceName, persona, null);
+    }
+
+    public static String assemble(GraphService.GraphSnapshot graph, String workspaceName, String persona,
+                                  String pinnedObjectId) {
         StringBuilder sb = new StringBuilder();
         sb.append("Workspace: ").append(nullToEmpty(workspaceName)).append('\n');
         sb.append("Persona: ").append(nullToEmpty(persona)).append('\n');
         List<IdeaObject> nodes = graph.nodes() == null ? List.of() : graph.nodes();
         List<IdeaEdge> edges = graph.edges() == null ? List.of() : graph.edges();
+        if (pinnedObjectId != null && !pinnedObjectId.isBlank()) {
+            for (IdeaObject n : nodes) {
+                if (pinnedObjectId.equals(n.id())) {
+                    sb.append("Pinned problem: ").append(n.displayId()).append(' ').append(nullToEmpty(n.title())).append('\n');
+                    break;
+                }
+            }
+        }
         if (nodes.isEmpty()) {
             sb.append("\nThe graph is empty. The report must say exploration has not reached a conclusion.\n");
             return sb.toString();
@@ -48,15 +61,21 @@ public final class ReportProjection {
                     .append("category=").append(nullToEmpty(n.objectCategory()))
                     .append(" origin=").append(nullToEmpty(n.origin()))
                     .append('\n');
-            sb.append("  title: ").append(trim(n.title(), 180)).append('\n');
+            boolean withhold = hasDoNotQuote(n);
             if (n.tags() != null && !n.tags().isEmpty()) {
                 sb.append("  tags: ").append(String.join(", ", n.tags())).append('\n');
             }
-            if (n.summary() != null && !n.summary().isBlank()) {
-                sb.append("  summary: ").append(trim(n.summary(), 400)).append('\n');
-            }
-            if (fullBodyIds.contains(n.id()) && n.body() != null && !n.body().isBlank()) {
-                sb.append("  body: ").append(trim(n.body(), 1800)).append('\n');
+            if (withhold) {
+                sb.append("  title: ").append(n.displayId()).append(" withheld\n");
+                sb.append("  text: withheld (do-not-quote)\n");
+            } else {
+                sb.append("  title: ").append(trim(n.title(), 180)).append('\n');
+                if (n.summary() != null && !n.summary().isBlank()) {
+                    sb.append("  summary: ").append(trim(n.summary(), 400)).append('\n');
+                }
+                if (fullBodyIds.contains(n.id()) && n.body() != null && !n.body().isBlank()) {
+                    sb.append("  body: ").append(trim(n.body(), 1800)).append('\n');
+                }
             }
         }
 
@@ -139,6 +158,18 @@ public final class ReportProjection {
             return 5;
         }
         return 6;
+    }
+
+    private static boolean hasDoNotQuote(IdeaObject n) {
+        if (n.tags() == null) {
+            return false;
+        }
+        for (String tag : n.tags()) {
+            if (tag != null && "do-not-quote".equalsIgnoreCase(tag.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String displayOf(List<IdeaObject> nodes, String id) {

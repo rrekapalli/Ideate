@@ -9,10 +9,12 @@ import { ShellContextService } from '../core/shell/shell-context.service';
 import {
   ExplorerCardAction,
   InventorCardAction,
-  epistemicFooter,
+  ProductCardAction,
+  epistemicChips,
   hasTag,
   isExplorerPersona,
   isInventorPersona,
+  isProductResearchPersona,
   isStudentPersona,
   orderedObjectTypes,
   typeDisplayLabel,
@@ -65,6 +67,13 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
           }
         </div>
       }
+      @if (productActions().length) {
+        <div class="student-acts" (click)="$event.stopPropagation()">
+          @for (act of productActions(); track act.action) {
+            <button type="button" (click)="emitProduct(act.action)">{{ act.label }}</button>
+          }
+        </div>
+      }
       <h3>{{ object().title }}</h3>
       <div class="summary"><ideate-md [source]="object().summary || 'No summary yet.'" /></div>
       <footer>
@@ -96,7 +105,7 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
             <mt-tag [value]="tag" />
           }
         </span>
-        @if (epistemic(); as chip) {
+        @for (chip of epistemic(); track chip.kind + (chip.why || '')) {
           <span class="epistemic" [attr.data-kind]="chip.kind" [title]="chip.why || chip.label">
             {{ chip.label }}
             @if (chip.why) {
@@ -277,6 +286,9 @@ import { DiagramCanvasBridge } from './diagram-canvas-bridge';
     .epistemic[data-kind='evidence-backed'] { color: var(--ideate-type-evidence, var(--mt-primary)); }
     .epistemic[data-kind='unknown'] { color: var(--ideate-type-unknown, var(--mt-primary)); }
     .epistemic[data-kind='dropped'] { color: var(--surface-400, #9ca3af); }
+    .epistemic[data-kind='heard'] { color: var(--ideate-type-evidence, var(--mt-primary)); }
+    .epistemic[data-kind='concluded'] { color: var(--ideate-type-decision, var(--mt-primary)); }
+    .epistemic[data-kind='do-not-quote'] { color: var(--ideate-type-critique, var(--mt-primary)); }
     .epistemic .why { text-transform: none; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
     .ver { font-size: 0.7rem; color: var(--mt-text-muted); }
     .student-acts {
@@ -394,14 +406,48 @@ export class ObjectCardChromeComponent {
     }
     return acts;
   });
-  readonly epistemic = computed(() => epistemicFooter(this.object(), this.bridge?.snapshot()?.edges ?? []));
+  readonly productActions = computed(() => {
+    if (!isProductResearchPersona(this.shell.workspacePersona())) {
+      return [] as { action: ProductCardAction; label: string }[];
+    }
+    const obj = this.object();
+    const acts: { action: ProductCardAction; label: string }[] = [];
+    if (obj.type === 'question') {
+      acts.push({ action: 'pin-problem', label: 'Pin problem' });
+    }
+    if (obj.type === 'assumption' && obj.objectCategory !== 'abandoned') {
+      acts.push({ action: 'assumption-break', label: 'What breaks if this is false?' });
+    }
+    if (obj.type === 'hypothesis' && obj.objectCategory !== 'abandoned') {
+      acts.push({ action: 'add-research-note', label: 'Add research note' });
+      acts.push({ action: 'critique-bet', label: 'Critique this bet' });
+      acts.push({ action: 'record-test', label: 'Record test' });
+      acts.push({ action: 'decide', label: 'Decide' });
+    }
+    if (obj.type === 'experiment') {
+      acts.push({ action: 'record-result', label: 'Record result' });
+    }
+    if (obj.type === 'decision') {
+      acts.push({ action: 'write-outcome', label: 'Write outcome' });
+      acts.push({ action: 'replay', label: 'Replay' });
+    }
+    if (obj.objectCategory === 'abandoned') {
+      acts.push({ action: 'resurrect', label: 'Resurrect' });
+    } else if (['hypothesis', 'assumption', 'decision'].includes(obj.type)) {
+      acts.push({ action: 'abandon', label: 'Abandon' });
+    }
+    acts.push({ action: 'reuse', label: 'Reuse from another project' });
+    return acts;
+  });
+  readonly epistemic = computed(() => epistemicChips(this.object(), this.bridge?.snapshot()?.edges ?? []));
 
   box() {
     const b = cardBox(this.object(), this.expanded());
     const extra =
       (this.studentActions().length ? 22 : 0) +
       (this.inventorActions().length ? 22 : 0) +
-      (this.explorerActions().length ? 22 : 0);
+      (this.explorerActions().length ? 22 : 0) +
+      (this.productActions().length ? 22 : 0);
     if (extra) {
       return { width: b.width, height: b.height + extra };
     }
@@ -483,6 +529,10 @@ export class ObjectCardChromeComponent {
 
   emitExplorer(action: ExplorerCardAction) {
     this.bridge?.explorerAction$.next({ object: this.object(), action });
+  }
+
+  emitProduct(action: ProductCardAction) {
+    this.bridge?.productAction$.next({ object: this.object(), action });
   }
 
   onPick(ev: Event) {

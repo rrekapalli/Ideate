@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { UsageEvent, UsageRollup, PERSONAS, lookupLabel } from '@ideate/api-client';
 import { MtButtonComponent, MtTabComponent, MtTabsComponent, type MtAppearancePreference } from '@ideate/ui';
 import { AppearanceThemeControlsComponent } from '../core/theme/appearance-theme-controls.component';
@@ -38,24 +38,43 @@ import { ThemeService } from '../core/theme/theme.service';
                 <div>
                   <dt>Persona</dt>
                   <dd>
-                    <select [value]="persona()" (change)="onPersona($event)" [attr.aria-label]="'Persona'">
+                    <select (change)="onPersona($event)" [attr.aria-label]="'Persona'">
                       @for (p of personas; track p) {
-                        <option [value]="p">{{ lookupLabel(p) }}</option>
+                        <option [value]="p" [selected]="p === persona()">{{ lookupLabel(p) }}</option>
                       }
                     </select>
                     <p class="lead">Evidence stays evidence. This does not write a paper.</p>
                   </dd>
                 </div>
                 <div>
-                  <dt>Handoff</dt>
-                  <dd class="handoff">
-                    <mt-button size="sm" variant="outlined" label="Clone to Researcher" (clicked)="clonePersona.emit('researcher')" />
-                    <mt-button size="sm" variant="outlined" label="Clone to Inventor" (clicked)="clonePersona.emit('inventor')" />
+                  <dt>Active branch</dt>
+                  <dd>{{ branch() || '—' }}</dd>
+                </div>
+                <div>
+                  <dt>Clone</dt>
+                  <dd class="clone">
+                    <label>
+                      Name
+                      <input [value]="cloneName()" (input)="onCloneName($event)" aria-label="Clone name" />
+                    </label>
+                    <label>
+                      Persona
+                      <select (change)="onClonePersona($event)" aria-label="Clone persona">
+                        @for (p of personas; track p) {
+                          <option [value]="p" [selected]="p === clonePersonaValue()">{{ lookupLabel(p) }}</option>
+                        }
+                      </select>
+                    </label>
+                    <mt-button size="sm" variant="outlined" label="Clone workspace" [disabled]="!clonePersonaValue()" (clicked)="submitClone()" />
+                    <p class="lead">Copies cards, branches, documents, reports, chat, and files into a new workspace.</p>
                   </dd>
                 </div>
                 <div>
-                  <dt>Active branch</dt>
-                  <dd>{{ branch() || '—' }}</dd>
+                  <dt>Delete</dt>
+                  <dd class="clone">
+                    <mt-button size="sm" variant="outlined" label="Delete workspace" (clicked)="deleteWorkspace.emit()" />
+                    <p class="lead">Removes this workspace and everything in it. This cannot be undone.</p>
+                  </dd>
                 </div>
               </dl>
             </section>
@@ -195,10 +214,14 @@ import { ThemeService } from '../core/theme/theme.service';
     }
     dl { display: grid; gap: 0.45rem; margin: 0; }
     dl > div { display: grid; grid-template-columns: 9.5rem 1fr; gap: 0.6rem; font-size: 0.88rem; align-items: baseline; }
+    dl > div:has(.clone) { align-items: start; }
     dt { color: var(--mt-text-muted); }
     dd { margin: 0; font-weight: 650; }
     dd select { font: inherit; font-weight: 650; }
-    .handoff { display: flex; flex-wrap: wrap; gap: 0.35rem; font-weight: 500; }
+    .clone { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; font-weight: 500; }
+    .clone label { display: grid; gap: 0.2rem; font-size: 0.75rem; font-weight: 600; color: var(--mt-text-muted); }
+    .clone input, .clone select { font: inherit; font-weight: 650; color: var(--mt-text); min-width: 16rem; }
+    .clone .lead { margin: 0; }
     .metrics { display: flex; flex-wrap: wrap; gap: 0.7rem; }
     .metric {
       min-width: 6.5rem;
@@ -229,11 +252,31 @@ export class SettingsPageComponent {
   readonly usageMinor = input(0);
   readonly usage = input<UsageRollup | null>(null);
   readonly personaChange = output<string>();
-  readonly clonePersona = output<string>();
+  readonly cloneRequest = output<{ name: string; persona: string }>();
+  readonly deleteWorkspace = output<void>();
   readonly pane = signal('workspace');
+  readonly cloneName = signal('');
+  readonly clonePersonaValue = signal('');
+  private cloneNameTouched = false;
+  private clonePersonaTouched = false;
   readonly lookupLabel = lookupLabel;
   readonly personas = PERSONAS;
   pref: MtAppearancePreference = this.theme.getLastApplied();
+
+  constructor() {
+    effect(() => {
+      const next = this.name();
+      if (!this.cloneNameTouched) {
+        this.cloneName.set(next ? `${next} copy` : '');
+      }
+    });
+    effect(() => {
+      const next = this.persona();
+      if (!this.clonePersonaTouched && next) {
+        this.clonePersonaValue.set(next);
+      }
+    });
+  }
 
   readonly events = computed<UsageEvent[]>(() => this.usage()?.recent ?? []);
 
@@ -263,6 +306,24 @@ export class SettingsPageComponent {
     if (next && next !== this.persona()) {
       this.personaChange.emit(next);
     }
+  }
+
+  onCloneName(ev: Event): void {
+    this.cloneNameTouched = true;
+    this.cloneName.set((ev.target as HTMLInputElement).value);
+  }
+
+  onClonePersona(ev: Event): void {
+    this.clonePersonaTouched = true;
+    this.clonePersonaValue.set((ev.target as HTMLSelectElement).value);
+  }
+
+  submitClone(): void {
+    const persona = this.clonePersonaValue();
+    if (!persona) {
+      return;
+    }
+    this.cloneRequest.emit({ name: this.cloneName().trim(), persona });
   }
 
   rupees(minor: number): string {

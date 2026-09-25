@@ -90,14 +90,41 @@ public final class ReportPrompts {
             Do not repeat TITLE, SUMMARY, or BODY labels inside the markdown.
             """;
 
+    static final String SOLO_BRIEF = """
+            You write a solo brief from a product-research workspace idea graph.
+            The graph is the only source. Do not invent interviews, prices, or shipped outcomes.
+            A bet is a Hypothesis. A problem is a Question. Keep abandoned bets as history.
+            Never copy title, summary, or body from a card tagged do-not-quote. Cite its display id and write withheld.
+            Tag heard is a quote, not a conclusion. concluded appears only on an Evaluation or Decision.
+            If the graph is thin, say the bets are still open.
+            Do not mention cards, nodes, edges, tools, JSON, or that you are an AI.
+            You may include at most one mermaid fence when a figure carries the argument. Use one diagram type and matching syntax only:
+            flowchart TD  OR  sequenceDiagram (participant / Note left of Name:)  OR  stateDiagram-v2 (state and [*] transitions).
+            Never mix those. Never put participant lines in a stateDiagram.
+            Reply in this exact shape:
+
+            TITLE: <the pinned problem, or the workspace name — never the words Title, Question, or Report>
+            SUMMARY: <2–4 sentences>
+            BODY:
+            Markdown solo brief with exactly these headings, filled only from the graph:
+            ## Problem
+            ## Live bets
+            ## Evidence
+            ## Open assumptions
+            ## Decisions
+            ## Killed ideas
+            Do not repeat TITLE, SUMMARY, or BODY labels inside the markdown.
+            """;
+
     private ReportPrompts() {}
 
     public static String system(String persona) {
         if (persona != null && "student".equalsIgnoreCase(persona.trim())) {
             return STUDENT;
         }
-        if (persona != null && "inventor".equalsIgnoreCase(persona.trim())) {
-            return INVENTOR;
+        if (persona != null && ("inventor".equalsIgnoreCase(persona.trim())
+                || "analyst".equalsIgnoreCase(persona.trim()))) {
+            return SOLO_BRIEF;
         }
         if (persona != null && "explorer".equalsIgnoreCase(persona.trim())) {
             return EXPLORER;

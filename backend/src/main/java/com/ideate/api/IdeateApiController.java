@@ -121,6 +121,16 @@ public class IdeateApiController {
         return workspaces.updatePersona(currentUser.get().accountId(), id, body.persona());
     }
 
+    @PostMapping("/workspaces/{id}/pin")
+    public WorkspaceService.WorkspaceRecord pinProblem(@PathVariable String id, @RequestBody ApiDtos.PinBody body) {
+        return workspaces.pinProblem(currentUser.get().accountId(), id, body == null ? null : body.objectId());
+    }
+
+    @DeleteMapping("/workspaces/{id}/pin")
+    public WorkspaceService.WorkspaceRecord clearPin(@PathVariable String id) {
+        return workspaces.clearPin(currentUser.get().accountId(), id);
+    }
+
     @PostMapping("/workspaces/{id}/clone")
     @ResponseStatus(HttpStatus.CREATED)
     public WorkspaceService.WorkspaceRecord cloneWorkspace(@PathVariable String id, @RequestBody ApiDtos.CloneWorkspaceBody body) {
@@ -554,7 +564,7 @@ public class IdeateApiController {
         workspaces.get(currentUser.get().accountId(), id);
         return jdbc.query("""
                 SELECT id, kind, message, object_ids, created_at
-                FROM graph_problem WHERE workspace_id = ? AND dismissed_at IS NULL
+                FROM public.graph_problem WHERE workspace_id = ? AND dismissed_at IS NULL
                 ORDER BY created_at DESC
                 """, (rs, i) -> {
             java.sql.Array arr = rs.getArray("object_ids");

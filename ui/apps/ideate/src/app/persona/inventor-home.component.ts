@@ -3,6 +3,7 @@ import { IdeaObject } from '@ideate/api-client';
 import { MtButtonComponent } from '@ideate/ui';
 import { TypeGlyphComponent } from '../shared/type-glyph.component';
 import { InventorHomeModel } from './inventor-home';
+import { ProductHomeModel } from './product-home';
 
 @Component({
   selector: 'ideate-inventor-home',
@@ -49,6 +50,15 @@ import { InventorHomeModel } from './inventor-home';
               </button>
             </p>
           }
+          @if (product()?.pinnedProblem; as problem) {
+            <p class="current">
+              Problem
+              <button type="button" class="link" (click)="focus.emit(problem)">
+                <ideate-type-glyph [type]="problem.type" [size]="12" />
+                {{ problem.displayId }} {{ problem.title }}
+              </button>
+            </p>
+          }
         </div>
         <mt-button
           variant="icon"
@@ -82,6 +92,55 @@ import { InventorHomeModel } from './inventor-home';
               <p class="muted">None stale.</p>
             }
           </div>
+          @if (product(); as prod) {
+            <div>
+              <h3>Live bets</h3>
+              @for (n of prod.liveBets; track n.id) {
+                <button type="button" class="row" (click)="focus.emit(n)">
+                  <ideate-type-glyph [type]="n.type" [size]="12" />
+                  {{ n.displayId }} {{ n.title }}
+                </button>
+              } @empty {
+                <p class="muted">No live bets.</p>
+              }
+            </div>
+            <div>
+              <h3>Open assumptions</h3>
+              @for (n of prod.openAssumptions; track n.id) {
+                <button type="button" class="row" (click)="focus.emit(n)">
+                  <ideate-type-glyph [type]="n.type" [size]="12" />
+                  {{ n.displayId }} {{ n.title }}
+                </button>
+              } @empty {
+                <p class="muted">None open.</p>
+              }
+            </div>
+            <div>
+              <h3>Decisions</h3>
+              @for (n of prod.decisions; track n.id) {
+                <button type="button" class="row" (click)="focus.emit(n)">
+                  <ideate-type-glyph [type]="n.type" [size]="12" />
+                  {{ n.displayId }} {{ n.title }}
+                </button>
+              } @empty {
+                <p class="muted">No decisions yet.</p>
+              }
+            </div>
+            <div>
+              <h3>Killed bets</h3>
+              @for (row of prod.killedBets; track row.object.id) {
+                <button type="button" class="row" (click)="focus.emit(row.object)">
+                  <ideate-type-glyph [type]="row.object.type" [size]="12" />
+                  {{ row.object.displayId }} {{ row.object.title }}
+                  @if (row.why) {
+                    <span class="why">{{ row.why }}</span>
+                  }
+                </button>
+              } @empty {
+                <p class="muted">None killed.</p>
+              }
+            </div>
+          }
         </div>
       }
     </section>
@@ -109,12 +168,14 @@ import { InventorHomeModel } from './inventor-home';
       font: inherit; font-size: 0.75rem; text-align: left; cursor: pointer;
     }
     .row:hover { color: var(--mt-primary); }
+    .why { color: var(--mt-text-muted); font-size: 0.68rem; }
     .muted { margin: 0; font-size: 0.72rem; color: var(--mt-text-muted); }
     @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
   `,
 })
 export class InventorHomeComponent {
   readonly home = input.required<InventorHomeModel>();
+  readonly product = input<ProductHomeModel | null>(null);
   readonly focus = output<IdeaObject>();
   readonly open = signal(true);
 }

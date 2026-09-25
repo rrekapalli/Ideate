@@ -62,6 +62,14 @@ export class IdeateApi {
     return this.http.post<Workspace>(this.url(`/workspaces/${id}/clone`), body);
   }
 
+  pinProblem(id: string, objectId: string): Observable<Workspace> {
+    return this.http.post<Workspace>(this.url(`/workspaces/${id}/pin`), { objectId });
+  }
+
+  clearPin(id: string): Observable<Workspace> {
+    return this.http.delete<Workspace>(this.url(`/workspaces/${id}/pin`));
+  }
+
   deleteWorkspace(id: string) {
     return this.http.delete(this.url(`/workspaces/${id}`));
   }
@@ -101,7 +109,14 @@ export class IdeateApi {
     return this.http.delete(this.url(`/workspaces/${workspaceId}/objects/${objectId}`));
   }
 
-  newNode(workspaceId: string, objectId: string, body: { type: string; title: string; tags?: string[]; objectCategory?: string; summary?: string }) {
+  newNode(workspaceId: string, objectId: string, body: {
+    type: string;
+    title: string;
+    tags?: string[];
+    objectCategory?: string;
+    summary?: string;
+    details?: Record<string, unknown>;
+  }) {
     return this.http.post<IdeaObject>(this.url(`/workspaces/${workspaceId}/objects/${objectId}/nodes`), body);
   }
 
