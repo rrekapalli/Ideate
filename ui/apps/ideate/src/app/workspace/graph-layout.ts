@@ -45,6 +45,55 @@ export function graphLayoutRouting(mode: GraphLayoutMode): GraphEdgeRouting {
   return mode === 'organic' || mode === 'radial' ? 'bezier' : 'orthogonal';
 }
 
+export type PortSide = 'top' | 'right' | 'bottom' | 'left';
+export type EdgePorts = { sourcePort: PortSide; targetPort: PortSide };
+export type PlacedNode = { id: string; x: number; y: number; width: number; height: number };
+
+const PORT_SIDES: PortSide[] = ['top', 'right', 'bottom', 'left'];
+
+/** Pick facing midpoints; unused sides on a card are taken before any side is reused. */
+export function assignEdgePorts(nodes: PlacedNode[], edges: LayoutEdge[]): EdgePorts[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const used = new Map<string, Record<PortSide, number>>();
+  for (const n of nodes) {
+    used.set(n.id, { top: 0, right: 0, bottom: 0, left: 0 });
+  }
+  return edges.map((e) => {
+    const from = byId.get(e.from);
+    const to = byId.get(e.to);
+    if (!from || !to) {
+      return { sourcePort: 'right', targetPort: 'left' };
+    }
+    const sourcePort = pickSide(from, to, used.get(from.id)!);
+    const targetPort = pickSide(to, from, used.get(to.id)!);
+    used.get(from.id)![sourcePort] += 1;
+    used.get(to.id)![targetPort] += 1;
+    return { sourcePort, targetPort };
+  });
+}
+
+function pickSide(self: PlacedNode, other: PlacedNode, usage: Record<PortSide, number>): PortSide {
+  const dx = other.x + other.width / 2 - (self.x + self.width / 2);
+  const dy = other.y + other.height / 2 - (self.y + self.height / 2);
+  const ranked = PORT_SIDES
+    .map((side) => ({ side, score: sideScore(side, dx, dy), load: usage[side] }))
+    .sort((a, b) => a.load - b.load || b.score - a.score);
+  return ranked[0].side;
+}
+
+function sideScore(side: PortSide, dx: number, dy: number): number {
+  if (side === 'right') {
+    return dx;
+  }
+  if (side === 'left') {
+    return -dx;
+  }
+  if (side === 'bottom') {
+    return dy;
+  }
+  return -dy;
+}
+
 /** Place cards so relationships stay readable; mode picks the arrangement. */
 export function layoutGraph(nodes: LayoutNode[], edges: LayoutEdge[], mode: GraphLayoutMode = 'organic'): LayoutPos[] {
   if (nodes.length === 0) {

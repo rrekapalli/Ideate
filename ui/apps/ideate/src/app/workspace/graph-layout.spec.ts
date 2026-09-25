@@ -1,4 +1,4 @@
-import { graphLayoutRouting, layoutGraph, nextGraphLayout, parseGraphLayout } from './graph-layout';
+import { assignEdgePorts, graphLayoutRouting, layoutGraph, nextGraphLayout, parseGraphLayout } from './graph-layout';
 
 const nodes = [
   { id: 'a', width: 100, height: 40, type: 'question' },
@@ -80,5 +80,42 @@ describe('graph-layout', () => {
     expect(graphLayoutRouting('radial')).toBe('bezier');
     expect(graphLayoutRouting('organic')).toBe('bezier');
     expect(graphLayoutRouting('stack')).toBe('orthogonal');
+  });
+
+  it('connects facing midpoints and uses unused sides before reuse', () => {
+    const across = assignEdgePorts(
+      [
+        { id: 'a', x: 0, y: 0, width: 100, height: 40 },
+        { id: 'b', x: 200, y: 0, width: 100, height: 40 },
+      ],
+      [{ from: 'a', to: 'b' }],
+    );
+    expect(across[0]).toEqual({ sourcePort: 'right', targetPort: 'left' });
+
+    const down = assignEdgePorts(
+      [
+        { id: 'a', x: 0, y: 0, width: 100, height: 40 },
+        { id: 'b', x: 0, y: 120, width: 100, height: 40 },
+      ],
+      [{ from: 'a', to: 'b' }],
+    );
+    expect(down[0]).toEqual({ sourcePort: 'bottom', targetPort: 'top' });
+
+    const hub = assignEdgePorts(
+      [
+        { id: 'a', x: 200, y: 200, width: 80, height: 80 },
+        { id: 'r', x: 400, y: 200, width: 80, height: 80 },
+        { id: 'd', x: 200, y: 400, width: 80, height: 80 },
+        { id: 'l', x: 0, y: 200, width: 80, height: 80 },
+        { id: 'u', x: 200, y: 0, width: 80, height: 80 },
+      ],
+      [
+        { from: 'a', to: 'r' },
+        { from: 'a', to: 'd' },
+        { from: 'a', to: 'l' },
+        { from: 'a', to: 'u' },
+      ],
+    );
+    expect(hub.map((p) => p.sourcePort).sort()).toEqual(['bottom', 'left', 'right', 'top']);
   });
 });

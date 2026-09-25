@@ -37,7 +37,7 @@ import { cleanReportBody, reportFileName, resolveReportTitle } from './report-di
         <ideate-md [source]="body()" [diagrams]="true" />
       } @else {
         <div class="empty">
-          <p class="hint">Double-click the report to open it, or Prepare to generate one from the graph.</p>
+          <p class="hint">Select a report to open it, or Prepare to generate one from the graph.</p>
         </div>
       }
     </article>

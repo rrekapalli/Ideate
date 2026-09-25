@@ -79,8 +79,7 @@ import { renderMermaidSvg, svgToPngDataUrl } from '../shared/render-mermaid';
           [class.row--active]="activeVersionId() === null"
           [class.row--busy]="busy()"
           role="treeitem"
-          (click)="selectLatest()"
-          (dblclick)="openLatest()"
+          (click)="openLatest()"
         >
           @if (busy()) {
             <mt-progress size="sm" ariaLabel="Generating" />
@@ -98,8 +97,7 @@ import { renderMermaidSvg, svgToPngDataUrl } from '../shared/render-mermaid';
             class="row version"
             [class.row--active]="activeVersionId() === ver.id"
             role="treeitem"
-            (click)="selectVersion(ver)"
-            (dblclick)="open.emit(ver)"
+            (click)="openVersion(ver)"
           >
             <span class="twist"></span>
             <mt-icon name="description" [size]="12" />
@@ -244,18 +242,15 @@ export class ReportsTreeComponent {
     return !rpt || (rpt.status === 'failed' && rpt.currentVersion === 0);
   }
 
-  selectVersion(ver: WorkspaceReportVersion) {
+  openVersion(ver: WorkspaceReportVersion) {
     this.selectedId.set(ver.id);
     this.select.emit(ver);
-  }
-
-  selectLatest() {
-    this.selectedId.set(null);
-    this.select.emit(null);
+    this.open.emit(ver);
   }
 
   openLatest() {
-    this.selectLatest();
+    this.selectedId.set(null);
+    this.select.emit(null);
     const versions = this.versions();
     this.open.emit(versions.length ? versions[versions.length - 1] : null);
   }

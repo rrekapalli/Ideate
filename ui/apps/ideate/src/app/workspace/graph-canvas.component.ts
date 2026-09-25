@@ -23,6 +23,7 @@ import { DiagramObjectNodeComponent } from './diagram-object-node.component';
 import {
   type GraphLayoutMode,
   GRAPH_LAYOUTS,
+  assignEdgePorts,
   graphLayoutRouting,
   layoutGraph,
   parseGraphLayout,
@@ -383,13 +384,16 @@ export class GraphCanvasComponent implements OnDestroy {
     const visibleEdges = snap.edges.filter((e) =>
       e.type !== 'version-of' && visibleIdSet.has(e.fromObjectId) && visibleIdSet.has(e.toObjectId),
     );
+    const pos = new Map<string, { x: number; y: number }>();
     if (visible.length) {
       const placed = layoutGraph(
         visible.map((n) => ({ id: n.id, type: n.type, ...cardBox(n) })),
         visibleEdges.map((e) => ({ from: e.fromObjectId, to: e.toObjectId })),
         this.layoutMode(),
       );
-      const pos = new Map(placed.map((p) => [p.id, p]));
+      for (const p of placed) {
+        pos.set(p.id, p);
+      }
       await this.models.addNodes(visible.map((n) => {
         const box = cardBox(n);
         const p = pos.get(n.id);
@@ -404,13 +408,21 @@ export class GraphCanvasComponent implements OnDestroy {
       }), { waitForMeasurements: true });
     }
     if (visibleEdges.length) {
-      await this.models.addEdges(visibleEdges.map((e) => ({
+      const ports = assignEdgePorts(
+        visible.map((n) => {
+          const box = cardBox(n);
+          const p = pos.get(n.id);
+          return { id: n.id, x: p?.x ?? 72, y: p?.y ?? 72, width: box.width, height: box.height };
+        }),
+        visibleEdges.map((e) => ({ from: e.fromObjectId, to: e.toObjectId })),
+      );
+      await this.models.addEdges(visibleEdges.map((e, i) => ({
         id: e.id,
         type: 'labeled',
         source: e.fromObjectId,
         target: e.toObjectId,
-        sourcePort: 'out',
-        targetPort: 'in',
+        sourcePort: ports[i].sourcePort,
+        targetPort: ports[i].targetPort,
         routing: graphLayoutRouting(this.layoutMode()),
         data: { label: e.why ? `${e.type} · ${e.why}` : e.type, edge: e },
       })));

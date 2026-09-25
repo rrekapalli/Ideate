@@ -20,13 +20,19 @@ export type DiagramObjectData = { label: string; object: IdeaObject };
         <span class="mark">Selected</span>
       }
       <ng-container [ngComponentOutlet]="card()" [ngComponentOutletInputs]="inputs()" />
-      <ng-diagram-port id="in" side="left" type="target" />
-      <ng-diagram-port id="out" side="right" type="source" />
+      <ng-diagram-port class="port port-left" id="left" side="left" type="both" />
+      <ng-diagram-port class="port port-right" id="right" side="right" type="both" />
+      <ng-diagram-port class="port port-top" id="top" side="top" type="both" />
+      <ng-diagram-port class="port port-bottom" id="bottom" side="bottom" type="both" />
     </div>
   `,
   styles: `
     :host, .node { display: block; position: relative; }
-    ng-diagram-port { position: absolute; top: 50%; }
+    .port { position: absolute; }
+    .port-left { left: 0; top: 50%; transform: translate(-50%, -50%); }
+    .port-right { right: 0; top: 50%; transform: translate(50%, -50%); }
+    .port-top { top: 0; left: 50%; transform: translate(-50%, -50%); }
+    .port-bottom { bottom: 0; left: 50%; transform: translate(-50%, 50%); }
     .node.is-selected {
       outline: 2px solid var(--mt-selection-border, var(--primary-color, var(--mt-primary)));
       outline-offset: 2px;
