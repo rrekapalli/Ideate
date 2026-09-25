@@ -51,37 +51,121 @@ export type PlacedNode = { id: string; x: number; y: number; width: number; heig
 
 const PORT_SIDES: PortSide[] = ['top', 'right', 'bottom', 'left'];
 
-/** Pick facing midpoints; unused sides on a card are taken before any side is reused. */
+const PORT_CLEAR = 28;
+
+/** Pick a midpoint pair that faces the neighbor, stays unused, and does not pile on another edge. */
 export function assignEdgePorts(nodes: PlacedNode[], edges: LayoutEdge[]): EdgePorts[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const used = new Map<string, Record<PortSide, number>>();
   for (const n of nodes) {
     used.set(n.id, { top: 0, right: 0, bottom: 0, left: 0 });
   }
-  return edges.map((e) => {
-    const from = byId.get(e.from);
-    const to = byId.get(e.to);
+  const placed: { a: { x: number; y: number }; b: { x: number; y: number } }[] = [];
+  const result: EdgePorts[] = edges.map(() => ({ sourcePort: 'right' as PortSide, targetPort: 'left' as PortSide }));
+  const order = edges
+    .map((e, i) => {
+      const from = byId.get(e.from);
+      const to = byId.get(e.to);
+      return { i, e, span: edgeSpan(from, to), clarity: axisClarity(from, to) };
+    })
+    .sort((a, b) => b.clarity - a.clarity || b.span - a.span);
+
+  for (const item of order) {
+    const from = byId.get(item.e.from);
+    const to = byId.get(item.e.to);
     if (!from || !to) {
-      return { sourcePort: 'right', targetPort: 'left' };
+      continue;
     }
-    const sourcePort = pickSide(from, to, used.get(from.id)!);
-    const targetPort = pickSide(to, from, used.get(to.id)!);
-    used.get(from.id)![sourcePort] += 1;
-    used.get(to.id)![targetPort] += 1;
-    return { sourcePort, targetPort };
-  });
+    const pick = bestPair(from, to, used.get(from.id)!, used.get(to.id)!, placed);
+    result[item.i] = pick;
+    used.get(from.id)![pick.sourcePort] += 1;
+    used.get(to.id)![pick.targetPort] += 1;
+    placed.push({ a: portPoint(from, pick.sourcePort), b: portPoint(to, pick.targetPort) });
+  }
+  return result;
 }
 
-function pickSide(self: PlacedNode, other: PlacedNode, usage: Record<PortSide, number>): PortSide {
-  const dx = other.x + other.width / 2 - (self.x + self.width / 2);
-  const dy = other.y + other.height / 2 - (self.y + self.height / 2);
-  const ranked = PORT_SIDES
-    .map((side) => ({ side, score: sideScore(side, dx, dy), load: usage[side] }))
-    .sort((a, b) => a.load - b.load || b.score - a.score);
-  return ranked[0].side;
+function edgeSpan(from: PlacedNode | undefined, to: PlacedNode | undefined): number {
+  if (!from || !to) {
+    return 0;
+  }
+  return Math.hypot(center(to).x - center(from).x, center(to).y - center(from).y);
 }
 
-function sideScore(side: PortSide, dx: number, dy: number): number {
+function axisClarity(from: PlacedNode | undefined, to: PlacedNode | undefined): number {
+  if (!from || !to) {
+    return 0;
+  }
+  const dx = Math.abs(center(to).x - center(from).x);
+  const dy = Math.abs(center(to).y - center(from).y);
+  return Math.abs(dx - dy) / (dx + dy + 1);
+}
+
+function isDiagonal(from: PlacedNode, to: PlacedNode): boolean {
+  const dx = Math.abs(center(to).x - center(from).x);
+  const dy = Math.abs(center(to).y - center(from).y);
+  const ratio = Math.min(dx, dy) / Math.max(dx, dy, 1);
+  return ratio > 0.4 && dx > 40 && dy > 40;
+}
+
+function bestPair(
+  from: PlacedNode,
+  to: PlacedNode,
+  fromUse: Record<PortSide, number>,
+  toUse: Record<PortSide, number>,
+  placed: { a: { x: number; y: number }; b: { x: number; y: number } }[],
+): EdgePorts {
+  let best: EdgePorts = { sourcePort: 'right', targetPort: 'left' };
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (const sourcePort of PORT_SIDES) {
+    for (const targetPort of PORT_SIDES) {
+      const cost = pairCost(from, to, sourcePort, targetPort, fromUse, toUse, placed);
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = { sourcePort, targetPort };
+      }
+    }
+  }
+  return best;
+}
+
+function pairCost(
+  from: PlacedNode,
+  to: PlacedNode,
+  sourcePort: PortSide,
+  targetPort: PortSide,
+  fromUse: Record<PortSide, number>,
+  toUse: Record<PortSide, number>,
+  placed: { a: { x: number; y: number }; b: { x: number; y: number } }[],
+): number {
+  const a = portPoint(from, sourcePort);
+  const b = portPoint(to, targetPort);
+  const fc = center(from);
+  const tc = center(to);
+  const diagonal = isDiagonal(from, to);
+  const lShape = isHorizontal(sourcePort) !== isHorizontal(targetPort);
+  let clashes = 0;
+  for (const seg of placed) {
+    if (segmentsInterfere(a, b, seg.a, seg.b)) {
+      clashes += 1;
+    }
+  }
+  return (
+    (fromUse[sourcePort] + toUse[targetPort]) * 8000 +
+    clashes * 4000 +
+    Math.hypot(b.x - a.x, b.y - a.y) +
+    (faceScore(sourcePort, tc.x - fc.x, tc.y - fc.y) < 0 ? 900 : 0) +
+    (faceScore(targetPort, fc.x - tc.x, fc.y - tc.y) < 0 ? 900 : 0) +
+    (diagonal && !lShape ? 700 : 0) +
+    (diagonal && lShape ? -180 : 0)
+  );
+}
+
+function isHorizontal(side: PortSide): boolean {
+  return side === 'left' || side === 'right';
+}
+
+function faceScore(side: PortSide, dx: number, dy: number): number {
   if (side === 'right') {
     return dx;
   }
@@ -92,6 +176,95 @@ function sideScore(side: PortSide, dx: number, dy: number): number {
     return dy;
   }
   return -dy;
+}
+
+function center(n: PlacedNode): { x: number; y: number } {
+  return { x: n.x + n.width / 2, y: n.y + n.height / 2 };
+}
+
+function portPoint(n: PlacedNode, side: PortSide): { x: number; y: number } {
+  if (side === 'left') {
+    return { x: n.x, y: n.y + n.height / 2 };
+  }
+  if (side === 'right') {
+    return { x: n.x + n.width, y: n.y + n.height / 2 };
+  }
+  if (side === 'top') {
+    return { x: n.x + n.width / 2, y: n.y };
+  }
+  return { x: n.x + n.width / 2, y: n.y + n.height };
+}
+
+function segmentsInterfere(
+  a1: { x: number; y: number },
+  a2: { x: number; y: number },
+  b1: { x: number; y: number },
+  b2: { x: number; y: number },
+): boolean {
+  if (samePoint(a1, b1) || samePoint(a1, b2) || samePoint(a2, b1) || samePoint(a2, b2)) {
+    return false;
+  }
+  if (properIntersect(a1, a2, b1, b2)) {
+    return true;
+  }
+  return segmentDistance(a1, a2, b1, b2) < PORT_CLEAR && projectionsOverlap(a1, a2, b1, b2);
+}
+
+function samePoint(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+  return Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
+}
+
+function properIntersect(
+  a1: { x: number; y: number },
+  a2: { x: number; y: number },
+  b1: { x: number; y: number },
+  b2: { x: number; y: number },
+): boolean {
+  const o1 = orient(a1, a2, b1);
+  const o2 = orient(a1, a2, b2);
+  const o3 = orient(b1, b2, a1);
+  const o4 = orient(b1, b2, a2);
+  return o1 * o2 < 0 && o3 * o4 < 0;
+}
+
+function orient(a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }): number {
+  return (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+}
+
+function segmentDistance(
+  a1: { x: number; y: number },
+  a2: { x: number; y: number },
+  b1: { x: number; y: number },
+  b2: { x: number; y: number },
+): number {
+  return Math.min(
+    pointSegDist(a1, b1, b2),
+    pointSegDist(a2, b1, b2),
+    pointSegDist(b1, a1, a2),
+    pointSegDist(b2, a1, a2),
+  );
+}
+
+function pointSegDist(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) {
+    return Math.hypot(p.x - a.x, p.y - a.y);
+  }
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+function projectionsOverlap(
+  a1: { x: number; y: number },
+  a2: { x: number; y: number },
+  b1: { x: number; y: number },
+  b2: { x: number; y: number },
+): boolean {
+  const overlap = (p1: number, p2: number, q1: number, q2: number) =>
+    Math.min(p1, p2) < Math.max(q1, q2) - 2 && Math.min(q1, q2) < Math.max(p1, p2) - 2;
+  return overlap(a1.x, a2.x, b1.x, b2.x) || overlap(a1.y, a2.y, b1.y, b2.y);
 }
 
 /** Place cards so relationships stay readable; mode picks the arrangement. */

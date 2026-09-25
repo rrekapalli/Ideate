@@ -118,4 +118,19 @@ describe('graph-layout', () => {
     );
     expect(hub.map((p) => p.sourcePort).sort()).toEqual(['bottom', 'left', 'right', 'top']);
   });
+
+  it('keeps diagonal neighbors on an L-shaped pair so edges do not pile on one side', () => {
+    const q = { id: 'q', x: 40, y: 20, width: 220, height: 90 };
+    const h = { id: 'h', x: 280, y: 160, width: 240, height: 100 };
+    const ev = { id: 'ev', x: 20, y: 220, width: 220, height: 90 };
+    const x = { id: 'x', x: 580, y: 80, width: 220, height: 90 };
+    const ports = assignEdgePorts([q, h, ev, x], [
+      { from: 'q', to: 'h' },
+      { from: 'h', to: 'ev' },
+      { from: 'h', to: 'x' },
+    ]);
+    expect(ports[0]).toEqual({ sourcePort: 'right', targetPort: 'top' });
+    expect(ports[1]).toEqual({ sourcePort: 'left', targetPort: 'right' });
+    expect(ports[2]).toEqual({ sourcePort: 'right', targetPort: 'left' });
+  });
 });
