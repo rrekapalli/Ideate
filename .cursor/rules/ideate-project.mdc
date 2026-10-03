@@ -1,0 +1,43 @@
+---
+description: Ideate project context — stack, working brief, and Proxmox deployment
+alwaysApply: true
+---
+
+# Ideate
+
+Ideate is an AI-native workspace where ideas evolve as a versioned graph. It is to thinking what Git is to code. Chat is how you talk into the graph; the graph is the product.
+
+## Stack
+
+- Client: Angular 22 PWA in `ui/apps/ideate`, design system `@ideate/ui`, canvas via ngDiagram. Desktop and laptop first. Phone is not a v1 authoring surface.
+- Backend: Java 25 / Spring Boot 4 in `backend/`. API keys stay on the server.
+- Persistence: PostgreSQL 18 at `pg18.tailce422e.ts.net:6432`, database `ideate`, with Apache AGE and pgvector. Postgres is not on the laptop.
+- Inference: one orchestrator, swappable adapters (cloud, Ollama, LM Studio). The model never owns the workspace.
+- Marketing site: static Vite site in `ideate-website/`.
+
+## Working brief
+
+Product intent lives in `Docs/`. Read `Docs/README.md` before changing behavior, object types, or the workspace shell.
+
+- Put new markdown in `Docs/`.
+- Revise an existing brief when a product decision changes. Do not invent object types, personas, or architecture only in code.
+- When code and `Docs/technology-stack.md` or `Docs/architecture.md` disagree, update the brief in the same change.
+
+```text
+❌ New object type only in a Java enum
+✅ Same type added to Docs/object-model.md and the API/UI together
+```
+
+## Deployment
+
+Proxmox LXCs. Scripts live in `deployment/`. Runbook: `Docs/deployment-proxmox.md`.
+
+| Role | VMID | Host |
+| --- | --- | --- |
+| API | 7201 | `ideate-api.tailce422e.ts.net` |
+| App | 7202 | `ideate.tailce422e.ts.net` |
+| Website | 7203 | `ideate-web.tailce422e.ts.net` |
+
+Secrets stay in the repo-root `.env`. Do not commit `.env`. Do not set Spring profile `prod`. Auth stays off unless the brief changes (`IDEATE_AUTH_ENABLED=false`).
+
+Local run: `./scripts/start-backend.ps1` (or `.sh`), then `cd ui && npm start` at http://localhost:4200.
