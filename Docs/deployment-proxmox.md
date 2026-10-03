@@ -6,6 +6,7 @@ Two LXC containers on the local Proxmox host, cloned from the existing MoneyTree
 |------|------|----------|------------|---------|
 | API | 7201 | `ideate-api.tailce422e.ts.net` | `moneytree-lxc-base` (9001, Java 25) | systemd `ideate-api` on `:8080` |
 | App | 7202 | `ideate.tailce422e.ts.net` | `moneytree-lxc-frontend-base` (9002, nginx) | nginx `:80`/`:443`, proxies `/v1` to the API |
+| Website | 7203 | `ideate-web.tailce422e.ts.net` | `moneytree-lxc-frontend-base` (9002, nginx) | static nginx for `ideate-website/` |
 
 Network: unprivileged LXC, `vmbr0` DHCP, Tailscale MagicDNS, HTTPS via `tailscale cert` on the app LXC. Postgres remains `pg18.tailce422e.ts.net:6432` database `ideate`.
 
@@ -58,9 +59,19 @@ Later updates (push artifacts, restart, keep the containers):
 ./deployment/proxmox/deploy-app.sh --accept-defaults
 ```
 
+Marketing site (first time add `--recreate`):
+
+```bash
+./deployment/prepare-website-artifact.sh
+./deployment/proxmox/deploy-website.sh --accept-defaults --recreate
+```
+
+Later website updates omit `--recreate`. Use `--skip-build` if `deployment/artifacts/website-dist.tar.gz` is already current.
+
 ## URLs
 
 - App: https://ideate.tailce422e.ts.net
+- Website: https://ideate-web.tailce422e.ts.net
 - API health (direct): http://ideate-api.tailce422e.ts.net:8080/actuator/health
 - API via nginx: https://ideate.tailce422e.ts.net/v1/
 

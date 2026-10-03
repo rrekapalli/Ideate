@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Features — Ideate</title>
+<meta name="description" content="What the Ideate workspace actually ships: typed cards, graph, persisted chat, modes, branches, documents, search, and reports."/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="stylesheet" href="/src/styles/site.css"/>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="brand" href="/"><img src="/favicon.svg" alt=""/>Ideate</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/features" aria-current="page">Features</a>
+      <a href="/personas">Personas</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+  <p class="hub-back"><a href="/">Home</a></p>
+  <p class="eyebrow">Shipped in the lab</p>
+  <h1>Features</h1>
+  <p class="lede">This page describes behavior in the running Angular workspace and Java graph API. It does not sell work that is still a presentation gap.</p>
+
+  <figure class="shot shot--wide">
+    <img src="/img/workspace-graph.png" width="1440" height="900"
+         alt="Ideate workspace graph with linked cards and Explore chat"/>
+    <figcaption>The lab workspace: objects on a zoomable graph, conversation persisted on the right.</figcaption>
+  </figure>
+
+  <figure class="shot shot--wide">
+    <img src="/img/workspace-cards.png" width="1440" height="900"
+         alt="Typed Thought, Unknown, and Citation cards on the Ideate graph"/>
+    <figcaption>Typed cards (Thought, Unknown, Citation) with tags such as speculation and thought-experiment.</figcaption>
+  </figure>
+
+  <h2>Workspace</h2>
+  <ul>
+    <li>One workspace equals one project. There is no default workspace after you open an account.</li>
+    <li>Creating a workspace requires a persona: Student, Researcher, Inventor, Analyst, or Explorer.</li>
+    <li>The shell is a three-column thinking IDE: objects / documents / branches on the left, graph and tabs in the center, chat on the right, timeline and related tools below.</li>
+  </ul>
+
+  <h2>Objects and graph</h2>
+  <ul>
+    <li>First-class cards include Thought, Concept, Unknown, Question, Hypothesis, Assumption, Evidence, Experiment, Observation, Claim, Critique, Decision, Evaluation, Theory, Misconception, Constraint, Calculation, Target, Design Artifact, Architecture, Component, and Citation.</li>
+    <li>A Theory cannot be created except from an Evaluation (or from an existing Theory).</li>
+    <li>Categories include active, abandoned, misconception, supported, speculative, and unknown.</li>
+    <li>Edges include contradicts, abandoned-because, resurrected-as, reused-in, calculated-from, version-of, overlay-on, and promoted-to.</li>
+    <li>The canvas is zoomable. Compact cards sit on the graph; opening one is a full page.</li>
+  </ul>
+
+  <h2>Chat and modes</h2>
+  <ul>
+    <li>The entire conversation is persisted.</li>
+    <li>Explore talks into the structure and materializes objects as the conversation happens. You can override: edit, demote, delete a junk batch, merge, undo.</li>
+    <li>Nine modes stay in the dropdown: Explore, Learn, Challenge, Research, Create, Review, Explain, Debate, Practice. Review is treated as a deep job. Modes do not change the menus.</li>
+  </ul>
+
+  <h2>Branches, files, search, reports</h2>
+  <ul>
+    <li>Create a branch with a name and a required Mainstream or Overlay role. One Mainstream per workspace.</li>
+    <li>Documents tree and file attach on a card.</li>
+    <li>Header search jumps to a card or document by id, title, summary, or body.</li>
+    <li>Workspace report export: Markdown, PDF, DOCX.</li>
+    <li>Timeline of object events.</li>
+  </ul>
+
+  <div class="callout callout--warn">
+    <p>
+      <strong>Still growing.</strong> Persona-weighted home strips, theory diffs, falsify actions,
+      and several card verbs named in the object model are not the product you get on first open.
+      The catalog and the shell are there; those refinements are next, not hidden behind this page.
+    </p>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <div>
+      <h2>Product</h2>
+      <ul>
+        <li><a href="/features">Features</a></li>
+        <li><a href="/personas">Personas</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Legal</h2>
+      <ul>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="/terms">Terms</a></li>
+        <li><a href="/security">Security</a></li>
+        <li><a href="/cookies">Cookies</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Lab</h2>
+      <ul>
+        <li><a href="https://ideate.tailce422e.ts.net">Open the app</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="site-footer__legal">Ideate is a thinking environment. It does not replace your judgment about what is true.</div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Privacy — Ideate</title>
+<meta name="description" content="How this Ideate lab stores workspace data and what language models may receive."/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="stylesheet" href="/src/styles/site.css"/>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="brand" href="/"><img src="/favicon.svg" alt=""/>Ideate</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/features">Features</a>
+      <a href="/personas">Personas</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+  <p class="eyebrow">Lab disclosure</p>
+  <h1>Privacy</h1>
+  <p class="doc-meta">This page describes the current lab deployment. It is not a consumer product privacy policy for a public SaaS.</p>
+  <p>Workspace objects, chat transcripts, attachments metadata, and reports live in the operator’s PostgreSQL database (Apache AGE and pgvector) behind the Java API. Files attached to cards are stored by that API.</p>
+  <p>Account sign-in is off in this deploy (<code>IDEATE_AUTH_ENABLED=false</code>). Do not put secrets or other people’s private records into a shared lab workspace.</p>
+  <p>When an Explore or other chat turn runs, the configured model backend may receive workspace text, including card titles, bodies, and recent transcript. That backend may be a local Ollama or LM Studio URL, or a cloud API the operator configured. Ideate does not run ads and does not sell workspace data.</p>
+  <p>This marketing site is static files. It does not set an account cookie and does not send pages to an analytics vendor. See <a href="/cookies">Cookies</a>.</p>
+  <p>Questions: <a href="/contact">Contact</a>.</p>
+</main>
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <div>
+      <h2>Product</h2>
+      <ul>
+        <li><a href="/features">Features</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Legal</h2>
+      <ul>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="/terms">Terms</a></li>
+        <li><a href="/security">Security</a></li>
+        <li><a href="/cookies">Cookies</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Lab</h2>
+      <ul>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="site-footer__legal">Ideate is a thinking environment. It does not replace your judgment about what is true.</div>
+</footer>
+</body>
+</html>

@@ -3,8 +3,9 @@ node_modules/
 .pnp
 .pnp.js
 
-# Angular / build
+# Angular / Vite build
 dist/
+ideate-website/output/
 tmp/
 out-tsc/
 .angular/

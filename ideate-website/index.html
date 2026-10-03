@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Ideate — Git for thinking</title>
+<meta name="description" content="Ideate is an AI-native workspace where ideas, knowledge, and understanding are explored as a versioned graph — not a disposable chat."/>
+<meta name="theme-color" content="#1c1916"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="Ideate"/>
+<meta property="og:title" content="Ideate — Git for thinking"/>
+<meta property="og:description" content="An environment where thinking can evolve: objects, versions, evidence, and a collaborator that works on the graph."/>
+<meta property="og:image" content="/img/workspace-cards.png"/>
+<link rel="stylesheet" href="/src/styles/site.css"/>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-graph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="6" cy="18" r="2.2"/><circle cx="12" cy="6" r="2.2"/><circle cx="18" cy="16" r="2.2"/>
+    <path d="M8 16.5 10.4 8.2M13.8 7.6 16.4 14.2"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 6h14v10H8l-3 3z"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/>
+    <path d="M8 6h8M6 8v4a4 4 0 0 0 4 4M18 8v4a4 4 0 0 1-4 4"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>
+    <path d="M9 13h6M9 17h4"/></symbol>
+</svg>
+
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="brand" href="/"><img src="/favicon.svg" alt=""/>Ideate</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/features">Features</a>
+      <a href="/personas">Personas</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero__inner">
+    <div>
+      <p class="eyebrow">Idea graph workspace</p>
+      <h1>An environment where thinking can evolve</h1>
+      <p>
+        Ideate is an AI-native workspace for ideas, knowledge, and understanding.
+        You think in natural language. The system keeps first-class objects,
+        relationships, provenance, and versions. The collaborator works on that graph
+        instead of answering in a disposable chat.
+      </p>
+      <div class="button-row">
+        <a class="btn" href="https://ideate.tailce422e.ts.net">Open the lab app</a>
+        <a class="btn btn--ghost" href="/features">See what ships today</a>
+      </div>
+      <p class="hero__note">
+        One workspace per project · required persona · graph in the center, chat on the right
+      </p>
+    </div>
+    <figure class="hero__shot">
+      <img src="/img/workspace-cards.png" width="1440" height="900"
+           alt="Ideate workspace: typed thought, unknown, and citation cards on the graph, with Explore chat on the right"/>
+    </figure>
+  </div>
+</section>
+
+<div class="trust-strip">
+  <ul>
+    <li><svg width="18" height="18" aria-hidden="true"><use href="#i-check"/></svg>Ideas as versioned objects</li>
+    <li><svg width="18" height="18" aria-hidden="true"><use href="#i-check"/></svg>The whole conversation is kept</li>
+    <li><svg width="18" height="18" aria-hidden="true"><use href="#i-check"/></svg>Facts stay distinct from guesses</li>
+    <li><svg width="18" height="18" aria-hidden="true"><use href="#i-check"/></svg>Abandoned work remains research data</li>
+  </ul>
+</div>
+
+<section class="section" id="main" aria-labelledby="in-the-app">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">In the app</p>
+      <h2 id="in-the-app">A live Explorer workspace</h2>
+      <p>
+        Captured from the lab: graph cards on the canvas, the full conversation on the right.
+        This project is asking what a snail’s “escape velocity” would mean — thoughts stay
+        thoughts, unknowns stay tagged.
+      </p>
+    </div>
+    <div class="shot-grid">
+      <figure class="shot">
+        <img src="/img/workspace-cards.png" width="1440" height="900"
+             alt="Close view of Thought, Unknown, and Citation cards on the Ideate graph beside Explore chat"/>
+        <figcaption>Cards on the graph, with the Explore transcript kept beside them.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="/img/workspace-graph.png" width="1440" height="900"
+             alt="Zoomed-out Ideate graph showing linked cards and the chat rail"/>
+        <figcaption>Fit-to-view of the same workspace: a connected idea graph, not a chat log.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="git-heading">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">The analogy</p>
+      <h2 id="git-heading">Git for thinking</h2>
+      <p>
+        Git does not tell programmers what code to write. It is the environment in which
+        code can evolve: create, branch, experiment, compare, revise, merge, abandon, resurrect.
+        Ideate does the same for thought.
+      </p>
+    </div>
+    <p>
+      A 15-year-old learning orbital mechanics, a scientist revising a theory, an inventor
+      walking a design, and an analyst reconstructing a decision all use the same loop.
+      The domain changes. The operating system does not.
+    </p>
+  </div>
+</section>
+
+<section class="section section--tint" aria-labelledby="today-heading">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">In the workspace today</p>
+      <h2 id="today-heading">A thinking IDE, not a dashboard</h2>
+      <p>
+        The page is the graph. Chat is how you talk into it. Cards are typed nodes you can
+        jump to by display id.
+      </p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature">
+        <div class="feature__icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-card"/></svg></div>
+        <h3>Typed cards</h3>
+        <p>Thought, Concept, Unknown, Question, Hypothesis, Evidence, Evaluation, Theory, and the rest of the catalog share one chrome.</p>
+      </div>
+      <div class="feature">
+        <div class="feature__icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-graph"/></svg></div>
+        <h3>Zoomable graph</h3>
+        <p>ngDiagram canvas in the center. Relationships are edges. Opening a node is a full page tab.</p>
+      </div>
+      <div class="feature">
+        <div class="feature__icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-chat"/></svg></div>
+        <h3>Persisted Explore</h3>
+        <p>The entire conversation is stored. Explore materializes objects as you talk. You can edit, merge, delete, or undo.</p>
+      </div>
+      <div class="feature">
+        <div class="feature__icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-branch"/></svg></div>
+        <h3>Mainstream and overlays</h3>
+        <p>One Mainstream branch per workspace. Overlay branches stay private until you merge them.</p>
+      </div>
+      <div class="feature">
+        <div class="feature__icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-search"/></svg></div>
+        <h3>Jump search</h3>
+        <p>Header search on display id, title, summary, and body. <code>H-017</code> pans the camera to that card.</p>
+      </div>
+      <div class="feature">
+        <div class="feature__icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-doc"/></svg></div>
+        <h3>Docs, attachments, reports</h3>
+        <p>A documents tree, files on cards, timeline, and export to Markdown, PDF, or DOCX.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="is-is-not">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">Honest scope</p>
+      <h2 id="is-is-not">What Ideate is — and what it is not</h2>
+    </div>
+    <div class="compare">
+      <div class="compare__col compare__col--yes">
+        <h3>Ideate starts from</h3>
+        <ul>
+          <li>Here is what I am trying to understand</li>
+          <li>Here is a thought; help it become a concept, a hypothesis, evidence, maybe a theory</li>
+          <li>Walk the graph of what I already understand, then grow it</li>
+          <li>Here is how my thinking changed, and why</li>
+        </ul>
+      </div>
+      <div class="compare__col compare__col--no">
+        <h3>It is not</h3>
+        <ul>
+          <li>A ChatGPT / Grok / Claude skin (those are backends)</li>
+          <li>A competitor to Zotero or Notion on document storage</li>
+          <li>Software only for researchers</li>
+          <li>A phone-first authoring app in this version</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--tint" aria-labelledby="personas-heading">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">Same engine</p>
+      <h2 id="personas-heading">Five lenses, one schema</h2>
+      <p>
+        A persona is required when you create a workspace. It is a lens on the project, not a
+        second product. The same account can be Student on one workspace and Inventor on another.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Persona</th><th>The home asks</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Student</td><td>What am I trying to understand, and what do I still confuse?</td></tr>
+          <tr><td>Researcher</td><td>Which hypothesis or theory version is live, and what supports or weakens it?</td></tr>
+          <tr><td>Inventor</td><td>What problem does this concept solve, and what new problems does it create?</td></tr>
+          <tr><td>Analyst</td><td>Why this decision, and what would change our mind?</td></tr>
+          <tr><td>Explorer</td><td>What thought is growing, and what should we not pretend to know?</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><a href="/personas">Read how each lens uses the same workflow</a>.</p>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="modes-heading">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">Collaborator posture</p>
+      <h2 id="modes-heading">Nine modes</h2>
+      <p>Modes change how the AI talks this turn. They do not replace the graph.</p>
+    </div>
+    <div class="mode-grid">
+      <span>Learn</span><span>Explore</span><span>Challenge</span>
+      <span>Practice</span><span>Research</span><span>Create</span>
+      <span>Debate</span><span>Explain</span><span>Review</span>
+    </div>
+  </div>
+</section>
+
+<section class="section section--tint" aria-labelledby="loop-heading">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">Gravitational shape</p>
+      <h2 id="loop-heading">Think, then keep going</h2>
+      <p>You do not have to follow this rigidly. It is the shape the system leans toward.</p>
+    </div>
+    <div class="lifecycle" aria-label="Think explore connect question test revise create">
+      <span>Think</span><span>Explore</span><span>Connect</span>
+      <span>Question</span><span>Test</span><span>Revise</span><span>Create</span>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="faq-heading">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">Frequently asked</p>
+      <h2 id="faq-heading">Questions people ask first</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Is this the same as chatting with a model?</summary>
+        <p>Chat is an input method. Objects, edges, versions, and the transcript survive the session. The graph is memory. Models are backends you can point at cloud APIs or a local Ollama / LM Studio URL.</p>
+      </details>
+      <details>
+        <summary>Do I get a default workspace after signup?</summary>
+        <p>No. You create a workspace per project and must choose a persona from a dropdown. Nothing is pre-selected.</p>
+      </details>
+      <details>
+        <summary>Can a team share a workspace?</summary>
+        <p>This lab build is a single-thinker workspace: one account, many personal projects. Team workspaces are described as a later Pro plan, not as something this deploy advertises as live.</p>
+      </details>
+      <details>
+        <summary>Where does the data live?</summary>
+        <p>On the operator’s PostgreSQL (Apache AGE + pgvector) and in the Java API. Sign-in is off in the current lab deploy. See <a href="/privacy">Privacy</a> and <a href="/security">Security</a>.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="docs-heading">
+  <div class="section__inner">
+    <div class="section-head">
+      <p class="eyebrow">Policies</p>
+      <h2 id="docs-heading">Lab disclosures</h2>
+    </div>
+    <div class="doc-links">
+      <a href="/privacy"><strong>Privacy</strong><span>Where data lives and what models may see</span></a>
+      <a href="/terms"><strong>Terms</strong><span>How to treat this lab software</span></a>
+      <a href="/security"><strong>Security</strong><span>Transport, storage, and current auth</span></a>
+      <a href="/cookies"><strong>Cookies</strong><span>Essential storage only</span></a>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <div>
+      <h2>Product</h2>
+      <ul>
+        <li><a href="/features">Features</a></li>
+        <li><a href="/personas">Personas</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Legal</h2>
+      <ul>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="/terms">Terms</a></li>
+        <li><a href="/security">Security</a></li>
+        <li><a href="/cookies">Cookies</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Lab</h2>
+      <ul>
+        <li><a href="https://ideate.tailce422e.ts.net">Open the app</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="site-footer__legal">
+    Ideate is a thinking environment. It does not replace your judgment about what is true.
+  </div>
+</footer>
+</body>
+</html>

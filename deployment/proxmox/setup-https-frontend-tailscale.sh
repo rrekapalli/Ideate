@@ -28,7 +28,7 @@ if ! command -v pct >/dev/null 2>&1; then
 fi
 
 VMID="${1:-${APP_VMID:-${FRONTEND_VMID:-7202}}}"
-DOMAIN="${APP_HOST:-${FRONTEND_HOST:-ideate.tailce422e.ts.net}}"
+DOMAIN="${HTTPS_DOMAIN:-${APP_HOST:-${FRONTEND_HOST:-ideate.tailce422e.ts.net}}}"
 CERT_TIMEOUT="${TAILSCALE_CERT_TIMEOUT_SECS:-20}"
 
 run_in() {
@@ -55,8 +55,9 @@ if ! run_in "
   fi
   if timeout ${CERT_TIMEOUT} tailscale cert --cert-file /etc/nginx/ssl/frontend.crt --key-file /etc/nginx/ssl/frontend.key '${DOMAIN}' </dev/null; then
     echo 'Installed Tailscale certificate for ${DOMAIN}'
-  elif [[ -s /etc/nginx/ssl/frontend.crt && -s /etc/nginx/ssl/frontend.key ]]; then
-    echo 'Keeping existing certificate (tailscale cert timed out or failed)'
+  elif [[ -s /etc/nginx/ssl/frontend.crt && -s /etc/nginx/ssl/frontend.key ]] \\
+      && openssl x509 -in /etc/nginx/ssl/frontend.crt -noout -text 2>/dev/null | grep -q '${DOMAIN}'; then
+    echo 'Keeping existing certificate for ${DOMAIN} (tailscale cert timed out or failed)'
   else
     echo 'tailscale cert unavailable; generating local TLS cert so :443 accepts connections'
     openssl req -x509 -nodes -days 825 -newkey rsa:2048 \\

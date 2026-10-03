@@ -43,7 +43,7 @@ Optional: run `ollama serve` and pull `llama3.2` so Explore turns can materializ
 
 ## Proxmox
 
-API LXC **7201** (`ideate-api`) and app LXC **7202** (`ideate`) clone MoneyTree templates 9001/9002. See [`Docs/deployment-proxmox.md`](./Docs/deployment-proxmox.md) and [`deployment/README.md`](./deployment/README.md).
+API LXC **7201** (`ideate-api`), app LXC **7202** (`ideate`), and marketing-site LXC **7203** (`ideate-web`) clone MoneyTree templates 9001/9002. See [`Docs/deployment-proxmox.md`](./Docs/deployment-proxmox.md) and [`deployment/README.md`](./deployment/README.md).
 
 ## Docs
 
